@@ -2,8 +2,7 @@ id: nshlhrlqbv
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Universal preprocessing and filter-pack composition** — Run a structured discussion and record the composition, precedence, and inspection choice, considering wildcard preprocessors and declarative filter packs only as alternatives. → [Question](ARCHITECTURE.md#universal-preprocessing-and-filter-pack-composition)"
+  status: resolved
   readiness:
     capability: discuss
     reason: Resolve composition and precedence before introducing universal preprocessing.
@@ -17,7 +16,20 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Universal preprocessing and filter-pack composition** — Run a structured discussion and record the composition, precedence, and inspection choice, considering wildcard preprocessors and declarative filter packs only as alternatives. → [Question](ARCHITECTURE.md#universal-preprocessing-and-filter-pack-composition)"
+      description: "[discussion] Universal preprocessing and filter-pack composition"
+      status: resolved
+      order: 29
       severity: normal
-      status: open
-      order: 6
+  kind: discussion
+  requirements:
+    - "Record composition, precedence, inspection, and sharing rules. Outcome: [provisional stage-only recipe decision](.agentera/entities/decisions/decision/alxohifdvh.yaml), approved for recording and backlog connection on 2026-09-13."
+    - Select explicit in-place expansion of self-contained local stage lists, not universal preprocessing or route-and-profile bundles. Preserve repeated stages, local routing/settings, existing safeguards, config-relative loading, non-executing inspection, and captured source-plus-execution benchmark evidence.
+    - Implementation remains open in [recipe loading and expansion](.agentera/entities/todo/todo_item/uqzkhxblqv.yaml), [expanded inspection](.agentera/entities/todo/todo_item/xcgrunrboy.yaml), and [benchmark snapshots](.agentera/entities/todo/todo_item/wfotebznsl.yaml).
+  acceptance:
+    - The user concluded the discussion and approved the revised stage-only decision, removal of the open architectural question, the planned composition map, and three bounded follow-up tasks. This completes deliberation, not implementation or decision-satisfaction confirmation.
+  release_blocker: false
+  title: Universal preprocessing and filter-pack composition
+  lifecycle:
+    operation: resolve
+    reason: User approved provisional stage-only recipe decision alxohifdvh and backlog connection. Deliberation complete; implementation remains open in uqzkhxblqv, xcgrunrboy, and wfotebznsl. No implementation satisfaction was confirmed.
+    date: 2026-09-13

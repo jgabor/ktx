@@ -1,0 +1,37 @@
+id: wfotebznsl
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Preserve recipe-aware benchmark snapshots
+  requirements:
+    - Implement reproducibility selected in [the stage-only recipe decision](.agentera/entities/decisions/decision/alxohifdvh.yaml), using the common resolver from [local recipe loading](.agentera/entities/todo/todo_item/uqzkhxblqv.yaml). Extend the existing captured execution-configuration contract in docs/pipelines.md rather than creating a parallel authority.
+    - Capture the main configuration and contributing recipe contents once per benchmark configuration capture, resolve from those captured bytes, and retain both source inputs and the exact executable expansion. Execute the frozen expansion; do not follow live recipe references after capture or reread source files to produce retained copies.
+    - Validation and regeneration verify agreement among retained source inputs, expanded configuration, and recorded execution identities. Preserve exact stage order, arguments, repeats, effective settings, existing archive confinement, and sensitive-data handling.
+    - Cover recipe-bearing configuration paths used by supported benchmark producers and offline screening. Preserve current supported no-recipe archive behavior; do not rewrite historical evidence or imply that capturing configuration also captures external plugin binaries or live outcome benefits.
+  acceptance:
+    - Controlled tests prove that editing or deleting original recipe files after capture cannot change execution, validation, or regeneration, and that multiple references use captured inputs consistently.
+    - Validation rejects missing or altered retained source/execution bytes and inconsistent identities or expansions; tests retain existing confined-path and symlink protections without consulting original external paths.
+    - Tests cover moved config-relative inputs, explicit absolute source references, repeated stages, effective settings, and byte-consistent regeneration from complete retained evidence. Existing supported no-recipe archives remain compatible; historical archives remain untouched.
+    - Run focused benchmark/config/archive tests, mage check, and rebuilt local-binary offline verification with disposable HOME/XDG roots and ambient KTX_DB unset. No paid provider run is required or authorized by this task; retain the verification evidence.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Extend the existing frozen execution-configuration authority to referenced stage recipes before claiming reproducible recipe-aware benchmarks.
+    dependencies:
+      - artifact: todo
+        id: uqzkhxblqv
+    blocked: null
+    gate: null
+    queue_rank: 18
+    order_reason: Follow local recipe loading and reuse captured-byte resolution for archive evidence.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Preserve recipe-aware benchmark snapshots"
+      severity: normal
+      status: open
+      order: 12

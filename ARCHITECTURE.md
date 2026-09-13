@@ -220,6 +220,8 @@ Inspects incoming bytes (or metadata about them) and selects a pipeline profile.
 
 Executes an ordered sequence of transformation stages—built-in, configured, or external—producing compressed output and failure semantics when a stage cannot run safely.
 
+Planned recipe composition adds reusable, stage-only lists within profiles. Explicit local recipe references expand in place before execution; routes and profile settings remain in the main configuration. The runner still sees one linear stage sequence, not nested pipelines or universal preprocessing. Loading, inspection, and reproducible benchmark capture remain [implementation and verification work](TODO.md#discuss-universal-preprocessing-and-filter-pack-composition), not shipped behavior.
+
 ### Reversibility
 
 Retains originals keyed for retrieval on demand. Lossy hook profiles may append an agent-visible recovery cue containing the canonical source ID and `ktx read <source-id>`. Recovery cues are configuration-controlled and emitted only when the compressed result plus the cue remains smaller than the original. The persisted compressed artifact remains content-only.
@@ -287,12 +289,6 @@ The CLI surface stays narrow. The space behind the router stays wide.
 ## Open discussions
 
 These questions do not select an implementation. Each has one executable discussion task in [`TODO.md`](TODO.md#architectural-discussions). When a choice is recorded, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
-
-### Universal preprocessing and filter-pack composition
-
-Should universal preprocessing exist, and if so, how should it compose with profile stages, command-aware routing, recovery cues, and the pipeline gate? Are wildcard stage lists, declarative filter packs, or explicit duplication the appropriate configuration model, and how are precedence and inspection defined?
-
-→ [Discussion task](TODO.md#discuss-universal-preprocessing-and-filter-pack-composition)
 
 ### Instruction and tool-schema normalization
 

@@ -1,0 +1,37 @@
+id: xcgrunrboy
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Inspect expanded recipe configuration
+  requirements:
+    - Implement non-executing inspection selected in [the stage-only recipe decision](.agentera/entities/decisions/decision/alxohifdvh.yaml), using the common recipe resolver from [local recipe loading](.agentera/entities/todo/todo_item/uqzkhxblqv.yaml).
+    - Extend existing configuration inspection and diagnostics to expose actual routing order, target profiles, flattened stage order, effective recovery and timeout settings, and source origins for direct and recipe-provided stages. Preserve current routing/profile semantics and make repeated occurrences visible.
+    - Report effective built-in versus locally configured plugin resolution without executing stages, probing plugins, or exposing plugin command bodies. Recipe names do not confer plugin authority or operational qualification.
+    - Report recipe-loading errors without presenting an incomplete expansion as a valid configuration. Preserve existing JSON/text envelopes, command error handling, read-only guarantees, and stage-warning semantics; document that static inspection does not prove safe compression or observed usage.
+  acceptance:
+    - JSON/text tests cover direct and imported stages, references at different positions, reuse across profiles, repeated stage names and arguments, effective settings, deterministic source attribution, and local plugin overrides.
+    - Tests show that malformed or missing recipes cannot produce a misleading valid partial view; unknown stages and invalid stage arguments retain existing warnings rather than becoming new parse errors.
+    - Read-only smoke verifies no stage/plugin execution or configuration mutation. Existing no-recipe output contracts remain compatible, and runtime/inspection expansion agrees.
+    - Run focused config/diagnostics tests, mage check, and rebuilt local-binary verification under disposable HOME/XDG roots with ambient KTX_DB unset; retain evidence.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Expose the shared resolver's effective stage-only recipe configuration without executing it.
+    dependencies:
+      - artifact: todo
+        id: uqzkhxblqv
+    blocked: null
+    gate: null
+    queue_rank: 17
+    order_reason: Follow local recipe loading; use its resolver rather than implementing a separate expansion model.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Inspect expanded recipe configuration"
+      severity: normal
+      status: open
+      order: 11

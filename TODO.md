@@ -69,7 +69,7 @@ Each task must run a structured discussion, append the resulting choice to the r
 
 <a id="discuss-universal-preprocessing-and-filter-pack-composition"></a>
 
-- [ ] **Universal preprocessing and filter-pack composition** — Run a structured discussion and record the composition, precedence, and inspection choice, considering wildcard preprocessors and declarative filter packs only as alternatives. → [Question](ARCHITECTURE.md#universal-preprocessing-and-filter-pack-composition)
+- [x] **Universal preprocessing and filter-pack composition** — Provisionally select self-contained local stage recipes expanded in place within profiles, preserving repetitions, linear execution, local routing/settings, and existing safeguards. No universal preprocessing, route/profile bundles, nested references, or hidden overrides. Retain expanded inspection and captured source-plus-execution benchmark evidence. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/alxohifdvh.yaml) · [Recipe loading](.agentera/entities/todo/todo_item/uqzkhxblqv.yaml) · [Expanded inspection](.agentera/entities/todo/todo_item/xcgrunrboy.yaml) · [Benchmark snapshots](.agentera/entities/todo/todo_item/wfotebznsl.yaml)
 
 <a id="discuss-instruction-and-tool-schema-normalization"></a>
 
@@ -100,11 +100,13 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [ ] [id:ehouglitex] **Wrapper `step_finish` enrichment** — Trigger only if a concrete use case requires per-tool cost evidence. Runtime-emitted model-step cache and cost fields remain benchmark/recorded-stream evidence and must not be attached to `tool_calls`; missing fields remain unavailable. → [Measurement](ARCHITECTURE.md#measurement)
 - [ ] [id:nnsfvbazjh] **SkillsBench delivered-byte investigation** — Before any new SkillsBench spending, investigate why candidate delivered bytes were lower in only 2/5 quality-preserving pairs. Separate changes in generated original-output volume between arms from within-arm compression reduction; use retained evidence to identify causes without prescribing a compression redesign.
 - [ ] [id:nopgfefdwe] **Trust, redaction, and audit** — Run a structured discussion and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)
-- [ ] [id:nshlhrlqbv] **Universal preprocessing and filter-pack composition** — Run a structured discussion and record the composition, precedence, and inspection choice, considering wildcard preprocessors and declarative filter packs only as alternatives. → [Question](ARCHITECTURE.md#universal-preprocessing-and-filter-pack-composition)
 - [ ] [id:rnyddtdowi] **Instruction indexing and retrieval** — Run a structured discussion and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)
 - [ ] [id:symvxmfbwz] **Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)
 - [ ] [id:jysdmwlfvx] [feature] Warn about truncation before JSON-block compaction
 - [ ] [id:hhyndzfbfr] [feature] Allow verified wrapper extraction with inner JSON protection
+- [ ] [id:uqzkhxblqv] [feature] Load and expand local stage recipes
+- [ ] [id:xcgrunrboy] [feature] Inspect expanded recipe configuration
+- [ ] [id:wfotebznsl] [feature] Preserve recipe-aware benchmark snapshots
 
 ## ✓ Resolved
 
@@ -136,3 +138,4 @@ Each task must run a structured discussion, append the resulting choice to the r
 - [x] [id:vzottkrauw] **Evidence maintenance boundary** — Resolved: doctor file sizes plus a `ktx db report` pointer; conservative derived/index/orchestration boundaries, no new mutation, and owner-managed temporary copies. No current deletion or implementation completion is claimed. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)
 - [x] [id:opxocukkaj] [task] Doctor storage diagnostics — Doctor now reports informational database/WAL/SHM file sizes with observed, absent and unavailable states, plus a `ktx db report` pointer. Existing readiness and failure contracts are preserved; no aggregates or maintenance were added. Focused tests, native Linux check, local-binary smoke and implementation audit passed. Evidence: progress `yhcdofrazh`. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)
 - [x] [id:mvnbhuotkn] [discussion] Pipeline stage semantics
+- [x] [id:nshlhrlqbv] [discussion] Universal preprocessing and filter-pack composition

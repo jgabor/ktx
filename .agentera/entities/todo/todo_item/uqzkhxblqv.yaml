@@ -1,0 +1,39 @@
+id: uqzkhxblqv
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Load and expand local stage recipes
+  requirements:
+    - Implement [the stage-only recipe decision](.agentera/entities/decisions/decision/alxohifdvh.yaml); see [Pipeline](ARCHITECTURE.md#pipeline). Recipes contain ordered stage lists only; main configuration retains routes, profiles, recovery settings, timeouts, and plugin-command definitions.
+    - Add explicit local recipe references within profile stage lists without reinterpreting existing stage tokens or breaking existing configurations. Expand in place, preserving every occurrence and argument, including repeated stages and repeated references; do not add deduplication, first/last-wins replacement, or a special append/override mechanism.
+    - "Resolve relative recipe paths from the main configuration directory regardless of working directory; permit explicit absolute local paths. Recipes are self-contained: no nested references, remote loading, automatic updates, missing-file search, or new variable substitution for references."
+    - Missing files and invalid recipe structure invalidate the complete configuration through existing configuration-error handling. Preserve current stage-level unknown-name, invalid-argument, error, and empty-output fallback behavior. Recipes may use the effective local stage registry but may not define or override executable plugins.
+    - Resolve recipes once per operation into one ordinary pipeline, preserving first-match routing, default fallback, source recovery, successful-stage recording, structural protection, final size checks, and recovery-cue placement. Do not run per-recipe gates or add universal preprocessing.
+    - Document the stage-only recipe format and manual local-copy customization. Coordinate the separately tracked inspection and benchmark-snapshot work before claiming complete recipe support.
+  acceptance:
+    - Tests establish equivalence between recipe expansion and an explicitly written stage list, including surrounding stages, shared use across profiles, repeated references, different arguments on repeated stage names, and effective plugin overrides.
+    - Tests cover config-relative resolution under a changed working directory, moving a configuration with its recipes, absolute local references, missing or malformed files, forbidden recipe fields and nested references, and compatibility with existing stage tokens and no-recipe configurations.
+    - Tests preserve single-pipeline structural/size gates, stage failure and empty-output behavior, first-match/default behavior, and byte-exact original recovery; integration uses the common resolved configuration rather than independent composition paths.
+    - Run focused config/pipeline/integration tests, mage check, and rebuilt local-binary verification with disposable HOME/XDG roots and ambient KTX_DB unset. Retain evidence without claiming live task improvement.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Implement the approved bounded stage-only recipe model while preserving existing configuration and execution contracts.
+    dependencies:
+      - artifact: todo
+        id: nshlhrlqbv
+    blocked: null
+    gate: null
+    queue_rank: 16
+    order_reason: Follow the completed composition discussion; provide the common resolver for inspection and archive follow-through.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Load and expand local stage recipes"
+      severity: normal
+      status: open
+      order: 10

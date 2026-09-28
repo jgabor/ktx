@@ -1,0 +1,25 @@
+id: rrfwpscrnp
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Single-window hook coordination — Current-schema hooks parse, load configuration, derive cost, and transform before one exclusive coordination window; source, artifact, and disposition remain separate ordered durable commits inside it. Fast-open falls back to coordinated creation or migration. A schema recheck under writer ownership rejects concurrent upgrades before hook writes. Complete exact retries and pre-source rejections remain read-only, and final source validation preserves first-wins source, artifact, and producer evidence across preflight races. → [Ingress](ARCHITECTURE.md#ingress)
+  requirements:
+    - Current-schema hooks parse, load configuration, derive cost, and transform before one exclusive coordination window; source, artifact, and disposition remain separate ordered durable commits inside it. Fast-open falls back to coordinated creation or migration. A schema recheck under writer ownership rejects concurrent upgrades before hook writes. Complete exact retries and pre-source rejections remain read-only, and final source validation preserves first-wins source, artifact, and producer evidence across preflight races. → [Ingress](ARCHITECTURE.md#ingress)
+  acceptance:
+    []
+  release_blocker: false
+  severity: normal
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Single-window hook coordination — Current-schema hooks parse, load configuration, derive cost, and transform before one exclusive coordination window; source, artifact, and disposition remain separate ordered durable commits inside it. Fast-open falls back to coordinated creation or migration. A schema recheck under writer ownership rejects concurrent upgrades before hook writes. Complete exact retries and pre-source rejections remain read-only, and final source validation preserves first-wins source, artifact, and producer evidence across preflight races. → [Ingress](ARCHITECTURE.md#ingress)"
+      status: resolved
+      order: 42
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: Previously completed and checked in TODO.md; synchronize its managed record without claiming a new implementation.
+    date: 2026-09-28

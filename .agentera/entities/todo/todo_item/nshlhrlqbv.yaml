@@ -16,9 +16,9 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[discussion] Universal preprocessing and filter-pack composition"
+      description: "[discussion] Universal preprocessing and filter-pack composition — Provisionally select self-contained local stage recipes expanded in place within profiles, preserving repetitions, linear execution, local routing/settings, and existing safeguards. No universal preprocessing, route/profile bundles, nested references, or hidden overrides. Retain expanded inspection and captured source-plus-execution benchmark evidence. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/alxohifdvh.yaml) · [Recipe loading](.agentera/entities/todo/todo_item/uqzkhxblqv.yaml) · [Expanded inspection](.agentera/entities/todo/todo_item/xcgrunrboy.yaml) · [Benchmark snapshots](.agentera/entities/todo/todo_item/wfotebznsl.yaml)"
       status: resolved
-      order: 29
+      order: 37
       severity: normal
   kind: discussion
   requirements:
@@ -28,8 +28,9 @@ record:
   acceptance:
     - The user concluded the discussion and approved the revised stage-only decision, removal of the open architectural question, the planned composition map, and three bounded follow-up tasks. This completes deliberation, not implementation or decision-satisfaction confirmation.
   release_blocker: false
-  title: Universal preprocessing and filter-pack composition
+  title: Universal preprocessing and filter-pack composition — Provisionally select self-contained local stage recipes expanded in place within profiles, preserving repetitions, linear execution, local routing/settings, and existing safeguards. No universal preprocessing, route/profile bundles, nested references, or hidden overrides. Retain expanded inspection and captured source-plus-execution benchmark evidence. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/alxohifdvh.yaml) · [Recipe loading](.agentera/entities/todo/todo_item/uqzkhxblqv.yaml) · [Expanded inspection](.agentera/entities/todo/todo_item/xcgrunrboy.yaml) · [Benchmark snapshots](.agentera/entities/todo/todo_item/wfotebznsl.yaml)
   lifecycle:
     operation: resolve
     reason: User approved provisional stage-only recipe decision alxohifdvh and backlog connection. Deliberation complete; implementation remains open in uqzkhxblqv, xcgrunrboy, and wfotebznsl. No implementation satisfaction was confirmed.
     date: 2026-09-13
+  target_version: null

@@ -7,4 +7,8 @@ record:
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
-      present: false
+      present: true
+      description: "**Field-scoped savings attribution reporting** — Report tool-delivery bytes, runtime-emitted uncached and cache token fields, phase-separated setup and measured quality/cost, runtime-reported cost, and price-derived estimates with field authority, evidence class, provenance, comparison unit, and truthful unavailable labels. Keep logical totals and break-even as derived views; never add cross-field deltas or infer provider-internal cache, request, or billing semantics. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      status: resolved
+      order: 32
+      severity: normal

@@ -19,7 +19,7 @@ record:
       present: true
       description: "**Read-only pipeline diagnostics** — Doctor now reports configuration validity, ordered routes and target stages, static stage warnings, and effective plugin overrides without executing stages or changing configuration. Existing database-readiness and failure contracts are preserved. Focused tests, native Linux checks, local-binary smoke, and the implementation audit passed. → [Verification](.agentera/verification/read-only-pipeline-diagnostics.md) · [Pipeline](ARCHITECTURE.md#pipeline)"
       status: resolved
-      order: 24
+      order: 27
       severity: normal
   lifecycle:
     operation: resolve

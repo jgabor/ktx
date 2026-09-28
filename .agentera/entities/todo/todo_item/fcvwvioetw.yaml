@@ -21,7 +21,7 @@ record:
       present: true
       description: "[bug] Revalidate hook schema inside coordinated writer window"
       status: resolved
-      order: 6
+      order: 9
       severity: degraded
   lifecycle:
     operation: resolve

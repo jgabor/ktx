@@ -220,7 +220,7 @@ Inspects incoming bytes (or metadata about them) and selects a pipeline profile.
 
 Executes an ordered sequence of transformation stages—built-in, configured, or external—producing compressed output and failure semantics when a stage cannot run safely.
 
-Planned recipe composition adds reusable, stage-only lists within profiles. Explicit local recipe references expand in place before execution; routes and profile settings remain in the main configuration. The runner still sees one linear stage sequence, not nested pipelines or universal preprocessing. Loading, inspection, and reproducible benchmark capture remain [implementation and verification work](TODO.md#discuss-universal-preprocessing-and-filter-pack-composition), not shipped behavior.
+Planned recipe composition adds reusable, stage-only lists within profiles. Explicit local recipe references expand in place before execution; routes and profile settings remain in the main configuration. The runner still sees one linear stage sequence, not nested pipelines or universal preprocessing. Recipe loading (`uqzkhxblqv`), expanded inspection (`xcgrunrboy`), and benchmark snapshots (`wfotebznsl`) remain open implementation and verification work in `TODO.md`, not shipped behavior.
 
 ### Reversibility
 
@@ -294,25 +294,25 @@ These questions do not select an implementation. Each has one executable discuss
 
 Which deterministic normalizations, if any, are semantically safe for stable instructions and tool schemas; where should canonical ordering and serialization occur; and how should byte identity, semantic equivalence, provider-specific behavior, and invalidation be evidenced?
 
-→ [Discussion task](TODO.md#discuss-instruction-and-tool-schema-normalization)
+→ TODO discussion task **Instruction and tool-schema normalization** (`symvxmfbwz`).
 
 ### Instruction indexing and retrieval
 
 Should instruction context be indexed and retrieved selectively rather than always loaded, and if so, what retrieval unit, relevance signal, safety floor, freshness rule, and recovery path prevent omission of applicable constraints?
 
-→ [Discussion task](TODO.md#discuss-instruction-indexing-and-retrieval)
+→ TODO discussion task **Instruction indexing and retrieval** (`rnyddtdowi`).
 
 ### Layer 5 boundary
 
 Where is the boundary between in-session history compression and cross-session memory? If distillation is part of ktx, what is distilled, when it runs, where it is stored, how later sessions consume it, and what role may external tools play without adding a required runtime or opaque behavior?
 
-→ [Discussion task](TODO.md#discuss-layer-5-boundary)
+→ TODO discussion task **Layer 5 boundary** (`askdmcbmqv`).
 
 ### Trust, redaction, and audit
 
 What threat model governs user-configured stages, scripts, and plugins; which secrets must be redacted from originals, compressed output, hashes, and derived context evidence; and what integrity and audit guarantees are required beyond per-record fingerprints while originals remain retrievable?
 
-→ [Discussion task](TODO.md#discuss-trust-redaction-and-audit)
+→ TODO discussion task **Trust, redaction, and audit** (`nopgfefdwe`).
 
 ---
 

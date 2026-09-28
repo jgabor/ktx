@@ -19,7 +19,7 @@ record:
       present: true
       description: "**Unified hook processing flow** — Existing common processing is retained; optional-collector acknowledged payloads are released with exact evidence, accepted membership, retry identity and assistant/required state preserved. Paired string-field retention and conformance passed in progress `rhdspdsoyw`. Indices remain linear and instance-local, not restart-durable or constant-memory. No broader shared-boundary refactor or satisfaction confirmation is selected. → [Disposition and qualification](.agentera/verification/shared-boundary-disposition.md) · [Ingress](ARCHITECTURE.md#ingress)"
       status: resolved
-      order: 23
+      order: 26
       severity: normal
   lifecycle:
     operation: resolve

@@ -31,7 +31,7 @@ record:
       present: true
       description: "[bug] **Allow target-met recovery summaries with unavailable auxiliary outcomes** — Treat measured target completion independently from auxiliary attempt-outcome completeness so a five-pair quality-qualified archive can remain target-met while its recovery comparison is unavailable. Preserve retained summary bytes and reject only contradictory states. Evidence: progress `huklpgxysl`; the retained `100:50` rerun archive validates byte-exactly. → [Benchmark](ARCHITECTURE.md#benchmark)"
       status: resolved
-      order: 19
+      order: 22
       severity: normal
   lifecycle:
     operation: resolve

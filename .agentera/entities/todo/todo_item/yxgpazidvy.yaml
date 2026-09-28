@@ -16,9 +16,9 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[task] Live latency coverage"
+      description: "[task] Live latency coverage — Expose runtime-authoritative latency where the runtime supplies it, with explicit provenance, temporal coverage, and measured/unknown/malformed states; report unsupported evidence as unknown. → [Measurement](ARCHITECTURE.md#measurement)"
       status: resolved
-      order: 5
+      order: 8
       severity: normal
   kind: task
   target_version: null
@@ -27,7 +27,7 @@ record:
   acceptance:
     []
   release_blocker: false
-  title: Live latency coverage
+  title: Live latency coverage — Expose runtime-authoritative latency where the runtime supplies it, with explicit provenance, temporal coverage, and measured/unknown/malformed states; report unsupported evidence as unknown. → [Measurement](ARCHITECTURE.md#measurement)
   lifecycle:
     operation: resolve
     reason: Runtime-authoritative latency storage, ingestion, reporting, documentation, and isolated verification are complete.

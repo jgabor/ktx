@@ -3,7 +3,7 @@ artifact: todo
 record:
   severity: normal
   status: resolved
-  description: "**Evidence maintenance boundary** — Resolved: doctor file sizes plus a `ktx db report` pointer; conservative derived/index/orchestration boundaries, no new mutation, and owner-managed temporary copies. No current deletion or implementation completion is claimed. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
+  description: "**Evidence maintenance boundary** — Select doctor database/WAL/SHM file-size reporting and a `ktx db report` pointer, without default aggregate queries. Preserve authoritative evidence; future derived, index, or orchestration maintenance requires artifact-specific authority and correctness checks outside doctor. No new mutation or current snapshot deletion is selected; temporary analysis copies remain owner-managed. No current deletion or implementation completion is claimed. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
   readiness:
     capability: discuss
     reason: Resolve the explicit maintenance boundary before adding mutating evidence maintenance.
@@ -17,9 +17,9 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Evidence maintenance boundary** — Resolved: doctor file sizes plus a `ktx db report` pointer; conservative derived/index/orchestration boundaries, no new mutation, and owner-managed temporary copies. No current deletion or implementation completion is claimed. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
+      description: "**Evidence maintenance boundary** — Select doctor database/WAL/SHM file-size reporting and a `ktx db report` pointer, without default aggregate queries. Preserve authoritative evidence; future derived, index, or orchestration maintenance requires artifact-specific authority and correctness checks outside doctor. No new mutation or current snapshot deletion is selected; temporary analysis copies remain owner-managed. No current deletion or implementation completion is claimed. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
       status: resolved
-      order: 26
+      order: 34
       severity: normal
   lifecycle:
     operation: resolve

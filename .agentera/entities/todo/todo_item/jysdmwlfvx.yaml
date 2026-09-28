@@ -33,4 +33,4 @@ record:
       description: "[feature] Warn about truncation before JSON-block compaction"
       severity: normal
       status: open
-      order: 8
+      order: 9

@@ -1,0 +1,33 @@
+id: sqbquivivr
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Physical compressed-storage naming and artifact kinds — Keep the current physical compressed-storage name and artifact model until separate work explicitly selects and migrates replacements. The schema-11 producer provenance and hook-coordination work does not complete this change.
+  requirements:
+    - Keep the current physical compressed-storage name and artifact model until separate work explicitly selects and migrates replacements. The schema-11 producer provenance and hook-coordination work does not complete this change.
+  acceptance:
+    []
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: plan
+    reason: Retain the existing deferral until separate work selects and migrates a replacement.
+    dependencies:
+      []
+    blocked: null
+    gate:
+      state: pending
+      reason: No separate selection of replacement naming or artifact kinds is recorded.
+      recovery: Select a replacement and migration in separately authorized work before implementation.
+    queue_rank: 21
+    order_reason: First occurrence in the existing TODO.md, after the open trust/redaction discussion.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Physical compressed-storage naming and artifact kinds — Keep the current physical compressed-storage name and artifact model until separate work explicitly selects and migrates replacements. The schema-11 producer provenance and hook-coordination work does not complete this change."
+      severity: normal
+      status: open
+      order: 4

@@ -28,7 +28,7 @@ pass; cross-compilation cannot substitute for native execution.
 When adding an unresolved architectural question:
 
 1. **Add the question** to [ARCHITECTURE.md — Open discussions](ARCHITECTURE.md#open-discussions) as a named heading and neutral question block. Do not encode a preferred implementation.
-2. **Add one discussion task** to [TODO.md — Architectural discussions](TODO.md#architectural-discussions) with a stable explicit HTML anchor and reciprocal links between the question and task.
+2. **Add one discussion task** to [TODO.md — Architectural discussions](TODO.md#architectural-discussions) with a stable TODO ID. Reference its named ID from the architecture question, and retain a link from the task to the architecture question.
 
 When an open question is resolved in resonera or equivalent structured discussion:
 

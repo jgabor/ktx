@@ -19,5 +19,5 @@ record:
       present: true
       description: "**Structured experiment summary model** — Summary generation, validation, ranking, and rendering now share a defined Go representation with strict decoding while preserving serialized schemas and fixture regeneration bytes. Evidence: progress `wjikyhyahm` and `pplxzhhbnc`. → [Benchmark](ARCHITECTURE.md#benchmark)"
       status: resolved
-      order: 1
+      order: 4
       severity: normal

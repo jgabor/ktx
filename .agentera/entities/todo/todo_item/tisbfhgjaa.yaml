@@ -7,4 +7,8 @@ record:
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
-      present: false
+      present: true
+      description: "**Positive benchmark temporal coverage** — Retain event-hook evidence that positively covers retry, reset/compaction, interruption/restart, and concurrent-session boundaries for the exact benchmark interval. Keep wrapper silence unavailable, and fail preflight before paid execution when the selected path cannot produce controlled-comparison or consecutive-step eligibility. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      status: resolved
+      order: 30
+      severity: normal

@@ -20,4 +20,8 @@ record:
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
-      present: false
+      present: true
+      description: "**Tool outcome coverage** — Retain exit status and error state when the runtime supplies authoritative tool-call evidence, distinguish measured success, measured failure, and unknown, and report both the known-denominator error rate and its coverage. Never interpret missing outcome fields as success or use them to justify a success-only lossy route. → [Measurement](ARCHITECTURE.md#measurement)"
+      status: resolved
+      order: 3
+      severity: normal

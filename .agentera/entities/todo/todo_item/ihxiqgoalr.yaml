@@ -21,7 +21,7 @@ record:
       present: true
       description: "[bug] Qualify resumable migration recovery guarantees"
       status: resolved
-      order: 14
+      order: 17
       severity: normal
   lifecycle:
     operation: resolve

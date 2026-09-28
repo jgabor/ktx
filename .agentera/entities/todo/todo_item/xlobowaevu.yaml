@@ -1,0 +1,25 @@
+id: xlobowaevu
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Reject empty record-stream values — `ktx run --record-stream=` now rejects the empty explicit value once while preserving bare, boolean, numeric, and wrapped-command forms.
+  requirements:
+    - "`ktx run --record-stream=` now rejects the empty explicit value once while preserving bare, boolean, numeric, and wrapped-command forms."
+  acceptance:
+    []
+  release_blocker: false
+  severity: normal
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Reject empty record-stream values — `ktx run --record-stream=` now rejects the empty explicit value once while preserving bare, boolean, numeric, and wrapped-command forms."
+      status: resolved
+      order: 45
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: Previously completed and checked in TODO.md; synchronize its managed record without claiming a new implementation.
+    date: 2026-09-28

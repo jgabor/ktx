@@ -32,7 +32,7 @@ record:
       present: true
       description: "[task] Doctor storage diagnostics — Doctor now reports informational database/WAL/SHM file sizes with observed, absent and unavailable states, plus a `ktx db report` pointer. Existing readiness and failure contracts are preserved; no aggregates or maintenance were added. Focused tests, native Linux check, local-binary smoke and implementation audit passed. Evidence: progress `yhcdofrazh`. → [Recorded decision](.agentera/entities/decisions/decision/davnqzeaps.yaml)"
       status: resolved
-      order: 27
+      order: 35
       severity: normal
   lifecycle:
     operation: resolve

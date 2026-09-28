@@ -20,4 +20,4 @@ record:
       description: "**Layer 5 boundary** — Run a structured discussion and record the history/memory boundary, lifecycle, storage, consumption, and external-tool choice. → [Question](ARCHITECTURE.md#layer-5-boundary)"
       severity: normal
       status: open
-      order: 1
+      order: 7

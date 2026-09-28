@@ -19,7 +19,7 @@ record:
       present: true
       description: "**Consolidated CLI argument handling** — Wrapper and remaining command owners now preserve consumed values, explicit booleans, namespace option placement, and literal child arguments after `--`. Local argv/dispatch and acknowledgement-failure regressions passed. Evidence: progress `tqcdnveppy` and `bgmqnrqhff`. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)"
       status: resolved
-      order: 22
+      order: 25
       severity: normal
   lifecycle:
     operation: resolve

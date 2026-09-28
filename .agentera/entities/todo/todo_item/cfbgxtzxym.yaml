@@ -19,7 +19,7 @@ record:
       present: true
       description: "[experiment] **Targeted residual-delivery experiment** — Audited no-change/no-candidate outcome for `read / command absent / subcommand absent / default / default_fallback / anti_worsening_rejected / 1k-10k`: supported metadata routed a generated case, but neither safe precise subgroup routing nor recurring safe transform reduction was established. No intervention or candidate was selected; no comparison, benchmark, metrics, prospective improvement, default change, provider-internal claim, or collection-continuity claim. Historical descriptive selection, this prospective no-change cycle, and future continuity-qualified default evidence remain separate claim classes. Retained evidence: `targeted-residual-final-outcome-20260819.md` (SHA-256 `06a22433f51069678f8a5a855f7bacbc2433370fd0b0b7800443ccccb24d89c9`)."
       status: resolved
-      order: 11
+      order: 14
       severity: normal
   kind: experiment
   requirements:

@@ -1,0 +1,25 @@
+id: lteqyxwxjf
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Writer-preferred supported coordination — Supported ktx processes coordinate admission and ownership on the physical database file so a waiting writer runs before later readers. Linux uses byte-range admission with ownership locking; BSD and Windows use separate ranges. Linux ordering and combined stats/write workloads passed; BSD semantics were tested and compile-checked but not natively executed. Read-only commands create no coordination state. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)
+  requirements:
+    - Supported ktx processes coordinate admission and ownership on the physical database file so a waiting writer runs before later readers. Linux uses byte-range admission with ownership locking; BSD and Windows use separate ranges. Linux ordering and combined stats/write workloads passed; BSD semantics were tested and compile-checked but not natively executed. Read-only commands create no coordination state. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)
+  acceptance:
+    []
+  release_blocker: false
+  severity: normal
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Writer-preferred supported coordination — Supported ktx processes coordinate admission and ownership on the physical database file so a waiting writer runs before later readers. Linux uses byte-range admission with ownership locking; BSD and Windows use separate ranges. Linux ordering and combined stats/write workloads passed; BSD semantics were tested and compile-checked but not natively executed. Read-only commands create no coordination state. → [I/O and query separation](ARCHITECTURE.md#io-and-query-separation)"
+      status: resolved
+      order: 40
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: Previously completed and checked in TODO.md; synchronize its managed record without claiming a new implementation.
+    date: 2026-09-28

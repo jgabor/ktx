@@ -24,7 +24,7 @@ record:
       present: true
       description: "[experiment] **Retired post-change live validation** — OpenCode’s pre-delivery hook provides no authoritative outcome for `read`, so the success-only `keep-ends:73:1` candidate cannot be routed or evaluated without treating unknown as success. Retain the controlled and mechanical evidence only. No rollout or default change occurred. Reconsider only if a supported runtime exposes explicit pre-delivery success and failure authority. → [Measurement](ARCHITECTURE.md#measurement) · [Benchmark](ARCHITECTURE.md#benchmark)"
       status: resolved
-      order: 16
+      order: 19
       severity: normal
   kind: experiment
   requirements:

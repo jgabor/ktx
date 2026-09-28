@@ -32,7 +32,7 @@ record:
       present: true
       description: "[task] **Offline pipeline-configuration screening** — Added a database-free full-configuration screen with exact aggregate reconciliation and controlled-fact shortlist gates. Evidence: progress `ntwktvgxrg` and `wyjkuysobj`; retained shortlist in [`recovery-aware-comparison-v7.json`](tools/bench/evidence/recovery-aware-comparison-v7.json). → [Benchmark](ARCHITECTURE.md#benchmark)"
       status: resolved
-      order: 17
+      order: 20
       severity: normal
   lifecycle:
     operation: resolve

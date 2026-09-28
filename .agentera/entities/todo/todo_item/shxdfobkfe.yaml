@@ -1,0 +1,25 @@
+id: shxdfobkfe
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Historical external release-validation campaign — Preserve the completed SkillsBench/BenchFlow campaign as historical external evidence with its original model, authentication, and provenance. KTX owns the native databases, benchmark evidence, deterministic summaries, and validation; the external evaluator owns agent execution, authentication, environment setup, and dependency lifecycle. The undistributed branch-only bridge was removed after owner confirmation, without a compatibility surface. → [Benchmark](ARCHITECTURE.md#benchmark) · [Recorded decision](.agentera/entities/decisions/decision/pfplycywjz.yaml)
+  requirements:
+    - Preserve the completed SkillsBench/BenchFlow campaign as historical external evidence with its original model, authentication, and provenance. KTX owns the native databases, benchmark evidence, deterministic summaries, and validation; the external evaluator owns agent execution, authentication, environment setup, and dependency lifecycle. The undistributed branch-only bridge was removed after owner confirmation, without a compatibility surface. → [Benchmark](ARCHITECTURE.md#benchmark) · [Recorded decision](.agentera/entities/decisions/decision/pfplycywjz.yaml)
+  acceptance:
+    []
+  release_blocker: false
+  severity: normal
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Historical external release-validation campaign — Preserve the completed SkillsBench/BenchFlow campaign as historical external evidence with its original model, authentication, and provenance. KTX owns the native databases, benchmark evidence, deterministic summaries, and validation; the external evaluator owns agent execution, authentication, environment setup, and dependency lifecycle. The undistributed branch-only bridge was removed after owner confirmation, without a compatibility surface. → [Benchmark](ARCHITECTURE.md#benchmark) · [Recorded decision](.agentera/entities/decisions/decision/pfplycywjz.yaml)"
+      status: resolved
+      order: 43
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: Previously completed and checked in TODO.md; synchronize its managed record without claiming a new implementation.
+    date: 2026-09-28

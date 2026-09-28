@@ -34,4 +34,4 @@ record:
       description: "[feature] Inspect expanded recipe configuration"
       severity: normal
       status: open
-      order: 11
+      order: 12

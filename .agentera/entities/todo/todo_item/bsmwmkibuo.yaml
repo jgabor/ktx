@@ -21,7 +21,7 @@ record:
       present: true
       description: "[task] Resolve terminal process capability support before accepting wrapper cancellation"
       status: resolved
-      order: 21
+      order: 24
       severity: normal
   lifecycle:
     operation: resolve

@@ -1,0 +1,25 @@
+id: venrtvosyo
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Indexed recent stats windows — Schema 15 stores sortable nanosecond epoch forms of valid tool-call and session-telemetry timestamps and indexes bounded stats selectors. `stats`, `stats summary`, and `stats breakdown` preserve inclusive UTC and offset boundary behavior, output values, and malformed-timestamp exclusion. Focused selector tests and the repository-wide check passed under a disposable application root. → [Measurement](ARCHITECTURE.md#measurement)
+  requirements:
+    - Schema 15 stores sortable nanosecond epoch forms of valid tool-call and session-telemetry timestamps and indexes bounded stats selectors. `stats`, `stats summary`, and `stats breakdown` preserve inclusive UTC and offset boundary behavior, output values, and malformed-timestamp exclusion. Focused selector tests and the repository-wide check passed under a disposable application root. → [Measurement](ARCHITECTURE.md#measurement)
+  acceptance:
+    []
+  release_blocker: false
+  severity: normal
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Indexed recent stats windows — Schema 15 stores sortable nanosecond epoch forms of valid tool-call and session-telemetry timestamps and indexes bounded stats selectors. `stats`, `stats summary`, and `stats breakdown` preserve inclusive UTC and offset boundary behavior, output values, and malformed-timestamp exclusion. Focused selector tests and the repository-wide check passed under a disposable application root. → [Measurement](ARCHITECTURE.md#measurement)"
+      status: resolved
+      order: 44
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: Previously completed and checked in TODO.md; synchronize its managed record without claiming a new implementation.
+    date: 2026-09-28

@@ -7,4 +7,8 @@ record:
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
-      present: false
+      present: true
+      description: "**Authoritative benchmark regeneration** — Materialize each benchmark attempt and aggregate once from retained tool-call rows, raw runtime streams, the first append-only orchestration envelope, manifest, and pricing snapshot. Treat session counters, copied measurement fields, summaries, rankings, and reports as validation-only projections; reject conflicting duplicates; preserve byte-for-byte regeneration for retained legacy schemas. → [Benchmark](ARCHITECTURE.md#benchmark)"
+      status: resolved
+      order: 31
+      severity: normal

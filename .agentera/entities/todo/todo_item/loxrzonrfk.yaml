@@ -7,4 +7,8 @@ record:
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
-      present: false
+      present: true
+      description: "**Runtime cache telemetry configuration** — Retain runtime-emitted cache fields independently at per-observation authority, with measured zero distinct from unavailable or malformed. Keep explicit identity/configuration and runtime-version provenance at attempt and manifest authority; observed mode has no adapter source/version, unsupported control produces no evidence, and omitted fields are never reconstructed. → [Recorded decision](.agentera/entities/decisions/decision/zcdzpzguri.yaml)"
+      status: resolved
+      order: 39
+      severity: normal

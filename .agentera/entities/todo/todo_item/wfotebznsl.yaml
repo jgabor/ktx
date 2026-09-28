@@ -34,4 +34,4 @@ record:
       description: "[feature] Preserve recipe-aware benchmark snapshots"
       severity: normal
       status: open
-      order: 12
+      order: 13

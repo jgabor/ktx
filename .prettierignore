@@ -1,3 +1,6 @@
 # Preserve retained verification evidence and the byte-pinned active matrix.
 /.agentera/verification/
 /tools/bench/evidence/targeted-residual-evidence-matrix.json
+
+# Preserve the byte-pinned captured read-parameters AST.
+/internal/experiment/testdata/read-parameters-ast.json

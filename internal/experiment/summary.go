@@ -732,7 +732,20 @@ func WriteSummary(experimentDir string) (Summary, error) {
 }
 
 func RenderSummary(summary Summary) string {
-	lines := []string{"side       full  eval  attempts  avg tokens in  avg cost    fact score  $/correct", "---------  ----  ----  --------  -------------  ----------  ----------  ---------"}
+	lines := []string{}
+	if acceptance, ok := summary["current_acceptance"]; ok {
+		lines = append(lines, renderCurrentAcceptances(map[string]any{"candidate": acceptance})...)
+	}
+	if selection, ok := summary["cost_selection"].(CostSelection); ok {
+		lines = append(lines, RenderCostSelection(selection))
+		lines = append(lines, renderSelectedCostTable(anyMap(summary["selected_cost"])))
+		if phases, ok := summary["phase_cost_views"].(map[string]CostView); ok {
+			for _, phase := range []string{ColdObservation, Warmup, MeasuredWarm} {
+				lines = append(lines, "phase="+phase+" "+RenderCostSelection(phases[phase].CostSelection), renderSelectedCostTable(phases[phase].SelectedCost))
+			}
+		}
+	}
+	lines = append(lines, "Historical summary: frozen reported cost, $/correct and acceptance, not current cost policy.", "side       full  eval  attempts  avg tokens in  avg cost    fact score  $/correct", "---------  ----  ----  --------  -------------  ----------  ----------  ---------")
 	for _, side := range Sides {
 		details, _ := summary.Pipeline(side)
 		lines = append(lines, fmt.Sprintf("%-9s  %4v  %4v  %8v  %13s  %10s  %10s  %9s",
@@ -806,7 +819,7 @@ func RenderSummary(summary Summary) string {
 	}
 	if guard, ok := summary[pipelineCostGuardField].(map[string]any); ok {
 		cost := guard["estimated_api_cost_per_correct"].(map[string]any)
-		lines = append(lines, fmt.Sprintf("pipeline_cost_guard accepted=%v reasons=%s complete_pairs=%v/%v baseline_estimated_api_cost_per_correct=%v candidate_estimated_api_cost_per_correct=%v comparison=%v rounding_decimals=%v",
+		lines = append(lines, fmt.Sprintf("historical pipeline_cost_guard accepted=%v reasons=%s complete_pairs=%v/%v baseline_estimated_api_cost_per_correct=%v candidate_estimated_api_cost_per_correct=%v comparison=%v rounding_decimals=%v",
 			guard["accepted"], compactJSON(guard["reasons"]), guard["complete_pair_count"], guard["required_complete_pair_count"],
 			cost[Baseline], cost[Candidate], cost["comparison"], guard["rounding_decimals"]))
 	}

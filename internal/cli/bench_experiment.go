@@ -381,7 +381,7 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		return ExitUsage
 	}
 	runner := experiment.NewRunner()
-	_, summary, code, err := runner.Compare(ctx, experiment.CompareOptions{
+	dir, summary, code, err := runner.Compare(ctx, experiment.CompareOptions{
 		Model: model, Variant: variant, TaskFile: taskID, TargetValid: target, MaxAttempts: maxAttempts,
 		AttemptTimeout: timeout, TerminationGrace: grace, ExperimentID: experimentID,
 		Image: image, AuthPath: auth, BaselineConfig: baseline,
@@ -397,6 +397,12 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		printError(stderr, usageError("ktx bench compare: %v", err), opts.Format)
 		return code
 	}
+	view, err := experiment.LoadCurrentCostView(dir)
+	if err != nil {
+		printError(stderr, internalError("ktx bench compare cost view: %v", err), opts.Format)
+		return ExitInternal
+	}
+	summary = experiment.WithCurrentCost(summary, view)
 	if renderCode := renderExperimentValue(stdout, summary, format, experiment.RenderSummary); renderCode != ExitOK {
 		return renderCode
 	}
@@ -488,7 +494,36 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs.IntVar(&maxAttempts, "max-attempts", 24, "attempt budget per comparison")
 	fs.DurationVar(&timeout, "attempt-timeout", 15*time.Minute, "per-attempt timeout")
 	fs.DurationVar(&grace, "termination-grace", 30*time.Second, "termination grace period")
-	if err := fs.Parse(args); err != nil || specID == "" || model == "" || taskID == "" || len(fs.Args()) > 0 {
+	currentCost := fs.Bool("current-cost", false, "inspect a retained campaign with current cost ranking")
+	parseErr := fs.Parse(args)
+	if parseErr == nil && *currentCost {
+		invalidFlag := false
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name != "current-cost" && f.Name != "format" {
+				invalidFlag = true
+			}
+		})
+		if len(fs.Args()) != 1 || invalidFlag {
+			printError(stderr, usageError("ktx bench rank --current-cost requires one campaign ID and only --format"), opts.Format)
+			return ExitUsage
+		}
+		id := fs.Args()[0]
+		if err := experiment.ValidateExperimentID(id); err != nil {
+			printError(stderr, usageError("ktx bench rank: %v", err), opts.Format)
+			return ExitUsage
+		}
+		root, err := experimentRoot()
+		if err != nil {
+			return ExitInternal
+		}
+		value, err := experiment.LoadCurrentRanking(filepath.Join(root, id))
+		if err != nil {
+			printError(stderr, usageError("ktx bench rank current view: %v", err), opts.Format)
+			return ExitUsage
+		}
+		return renderExperimentValue(stdout, value, format, experiment.RenderCurrentRanking)
+	}
+	if err := parseErr; err != nil || specID == "" || model == "" || taskID == "" || len(fs.Args()) > 0 {
 		if err == nil {
 			err = fmt.Errorf("--spec, --model, and --task are required; selectors accept registered IDs")
 		}
@@ -577,6 +612,12 @@ func runBenchRank(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx bench rank: %v", err), opts.Format)
 		return ExitInternal
 	}
+	current, err := experiment.BuildCurrentRanking(experiment.RankingOptions{BaselinePipeline: baselineID}, pairs)
+	if err != nil {
+		printError(stderr, internalError("ktx bench rank current view: %v", err), opts.Format)
+		return ExitInternal
+	}
+	ranking["current_ranking"] = current
 	text := experiment.RenderRanking(ranking)
 	if err := os.WriteFile(filepath.Join(campaignDir, "ranking.txt"), []byte(text+"\n"), 0o644); err != nil {
 		printError(stderr, internalError("ktx bench rank: %v", err), opts.Format)

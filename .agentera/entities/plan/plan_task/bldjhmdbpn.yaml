@@ -1,0 +1,24 @@
+id: bldjhmdbpn
+artifact: plan
+record:
+  name: Expose selected cost in reports and retained views
+  depends_on:
+    - tjobytgckk
+  status: complete
+  acceptance:
+    - GIVEN current reports WHEN rendered THEN basis, reason, coverage and provenance are visible without overwriting source values.
+    - GIVEN absent reported cost WHEN complete priced usage exists THEN estimates remain eligible without billing proof.
+    - GIVEN historical archives WHEN inspected or regenerated THEN existing bytes and meanings remain preserved without current prices.
+    - GIVEN missing cost or invalid claimed pricing WHEN checked THEN metric unavailability and corruption remain distinct.
+    - GIVEN reporting boundaries WHEN verified THEN positive and negative CLI cases and required checks pass.
+  plan: ldzmducsoq
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: cost-reporting-audit-20260930-1
+      source: "Independent audit ses_f0d13ee87ffeO5vkg68SLZE3GM: AC1-5 and evidence audit PASS; source-materialized current views, missing reported cost fallback, corruption distinction, historical bytes and JSON/text/owned-DB CLI checks verified."
+      recorded_at: 2026-09-30 17:33
+      writer_command: agentera state plan record-evaluation

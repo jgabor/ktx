@@ -288,6 +288,7 @@ func compareNullable(left, right *float64) int {
 
 func RenderRanking(ranking map[string]any) string {
 	lines := []string{
+		"Historical ranking: frozen cost, $/correct and acceptance, not current cost policy.",
 		fmt.Sprintf("task=%s model=%v rounds=%v", filepath.Base(fmt.Sprint(ranking["task_file"])), ranking["model"], ranking["rounds"]),
 		"",
 		fmt.Sprintf("%4s  %-24s  %6s  %6s  %10s  %10s  %10s  %6s  %6s", "rank", "pipeline", "pass", "fact", "tokens", "cost", "$/correct", "tools", "infl"),
@@ -315,12 +316,12 @@ func RenderRanking(ranking map[string]any) string {
 		if !ok {
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("primary pipeline=%v rank=%v recommendation_eligible=%v state=%v value=%s reason=%v",
-			row["pipeline"], formatRank(row["rank"]), row["recommendation_eligible"], primary["state"], compactJSON(primary["value"]), primary["reason"]))
+		lines = append(lines, fmt.Sprintf("independent token primary pipeline=%v rank=%v recommendation_eligible=%v state=%v value=%s reason=%v",
+			row["pipeline"], formatRank(row["rank"]), row["recommendation_eligible"], primary["state"], compactJSON(primary["value"]), currentTextValue(primary["reason"])))
 	}
 	for _, row := range rows {
 		if _, guarded := row["accepted"]; guarded {
-			lines = append(lines, fmt.Sprintf("acceptance pipeline=%v accepted=%v recommendation_eligible=%v reasons=%s",
+			lines = append(lines, fmt.Sprintf("historical acceptance pipeline=%v accepted=%v recommendation_eligible=%v reasons=%s",
 				row["pipeline"], row["accepted"], row["recommendation_eligible"], compactJSON(row["acceptance_reasons"])))
 		}
 	}
@@ -334,6 +335,9 @@ func RenderRanking(ranking map[string]any) string {
 			formatSignificant(row["paired_mean_cache_read_saved_vs_baseline"], 6),
 			formatSignificant(row["paired_mean_cache_write_saved_vs_baseline"], 6),
 			formatSignificant(row["paired_mean_estimated_api_cost_saved_vs_baseline"], 6)))
+	}
+	if current, ok := ranking["current_ranking"].(map[string]any); ok {
+		return RenderCurrentRanking(current) + "\n\n" + strings.Join(lines, "\n")
 	}
 	return strings.Join(lines, "\n")
 }

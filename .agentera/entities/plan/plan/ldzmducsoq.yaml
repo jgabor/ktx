@@ -1,0 +1,50 @@
+id: ldzmducsoq
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-09-30
+    status: complete
+    reviewed: 2026-09-30
+    critic_issues: 1 found, 1 addressed, 0 dismissed
+    revised: Separated cohort basis-selection coverage from cost aggregation. The bounded consumer inventory must preserve methodology-defined populations, inclusions, exclusions, numerators and denominators before implementing selection.
+    title: "Plan: Consistent benchmark cost evidence"
+  what: Implement the recorded cost-selection policy consistently across benchmark reporting, cost ranking and cost-based acceptance. Publish one canonical operational contract, concise agent guidance and regression coverage. Preserve raw source evidence, historical results and explicitly non-cost primary metrics.
+  why: Decision qwyjhhjxhg selects reported cost first, reproducible API-equivalent fallback, and evidence preservation when cost is unavailable. Decision tjpgeboggp already permits estimates independently of reported-cost completeness. Existing consumers select different cost measures. Consistent selection and explicit provenance should prevent billing uncertainty from becoming an invented benchmark rejection gate without weakening genuine evidence requirements.
+  constraints: Follow the recorded policy without requiring invoice proof or access-mode diagnosis. Preserve reported values including zero, estimates, source authority, pricing rules, quality gates and historical serialization. Retain non-cost primary metrics and strict estimated-spend scheduling controls. No paid runs, billing collection, ambient database access, dependency additions, schema migrations, commits, pushes, vision/objective changes or satisfaction confirmation are selected. Preserve prior uncommitted work. Consequential incompatibilities or unresolved population choices require clarification or replanning, not silent reinterpretation.
+  scope:
+    included:
+      - Use the existing cost section in docs/pipelines.md as the canonical operational contract. AGENTS.md, the repository KTX skill and its benchmark reference point to it and explicitly prohibit invoice-proof gates. Retain decision rationale in project memory rather than duplicating pricing formulas in agent instructions. No external installed-skill repair is included.
+      - "Bounded inventory covers actual cost consumers: benchmark reports, comparison/ranking summaries, recommendation guards, supported archive inspection/regeneration/validation and database-backed benchmark reporting. Identify existing cost observations required by each comparison or ranking cohort before selection implementation. Operational estimated-spend controls are a separate contract, not a reported-first consumer."
+      - Select one cost basis across the known comparison or ranking cohort. Distinguish selection coverage from per-arm aggregation. Preserve methodology-defined inclusion, exclusion, numerator and denominator rules. Do not add or remove started work because its cost source is present or absent. If an existing contract leaves a consequential population choice unresolved, stop for explicit clarification rather than making a methodological decision during implementation.
+      - "Reported cost is usable when required observations have complete, valid, finite, nonnegative and comparable values in compatible monetary units, with at least one positive value in the cohort. Preserve legitimate individual zeros. Unknown upstream billing derivation or access mode alone is not incomparability. Token completeness is independent: missing usage need not suppress complete reported cost. Document actual supported attribution rather than demanding unavailable provider-request identity."
+      - Uniformly zero reported costs or missing, incomplete, invalid or otherwise unusable reported coverage trigger a labeled estimated-cost fallback for the entire cohort. Estimates require complete relevant usage and compatible hash-bound retained pricing, preserving existing rate, context-tier, reasoning fallback and rounding rules. Invalid per-step values must not cancel into seemingly valid estimates. A positive reported subtotal cannot rescue incomplete coverage; no mixing sources by arm, pair or candidate.
+      - Expose the selected basis, reason, unit, coverage, provenance and unavailability in current structured/text reporting while retaining both source fields. Distinguish runtime-reported dollars, API-equivalent estimates and actual billing. If neither basis is usable, preserve otherwise valid observations, mark cost unavailable or inconclusive, and withhold cost-based winners or recommendations. Valid zero estimates are not missing and do not imply strictly lower cost.
+      - Preserve historical serialized fields, their meanings, byte-exact regeneration and retained evidence. Resolve the output contract before report integration. Use additive or explicitly versioned current-policy views where needed; do not silently replace historical cost-per-correct values, winners, headlines or methodology meanings. Regeneration must not consult the current global price cache. Do not fabricate estimates for old database rows that lack retained usage or pricing.
+      - Keep evidence integrity, cost-metric eligibility, methodology target success and recommendation eligibility distinct. Missing invoice evidence or reported cost alone cannot invalidate a reproducible estimate. Missing unclaimed cost is not corruption; an asserted estimate with missing, altered or mismatched pricing remains invalid. Cost-focused targets may remain unmet or inconclusive without discarding unrelated valid evidence. Preserve applicable command exit contracts and expose the distinctions without falsely passing failed targets.
+      - Apply the same selection rule to cost-based reporting, ranking and acceptance without replacing explicitly token-first or other non-cost primary metrics. Preserve correctness and predeclared recommendation thresholds. Operational estimated-spend limits remain estimated and fail closed on missing required coverage; reported cost cannot bypass them. No new generic metric registry, provider integration or cost methodology is needed.
+      - Regression coverage targets one passing and one failing case per testable rule, with extra provenance and compatibility cases justified by risk. Cover absent reported cost with a positive regenerated estimate; reported zero and mixed zero/positive cohorts; incomplete or malformed coverage; per-step negatives; missing rates and pricing hash/model mismatch; common-basis selection; unavailable cost; preserved quality results; and failed recommendations with valid evidence. Use source-derived synthetic fixtures, not copied metrics as authority.
+      - Every implementation cycle runs focused tests, mage check and rebuilt-local-binary verification on supported Linux. Unset KTX_DB and allocate fresh disposable HOME and all XDG application roots for each verification invocation; never access the ambient database. Build to build/ktx before invoking changed tools. Final cross-surface tests and current documentation checks are folded into the delivery task. Reuse prior checks only while their inputs and covered behavior remain unchanged. No live subscription or paid model is required.
+    excluded:
+      - Actual billing acquisition, subscription diagnosis, provider hooks or new usage-collection mechanisms.
+      - Paid benchmark campaigns, real credential/history inspection and ambient database operations.
+      - Normalization, retrieval or other unrelated product features.
+      - Historical archive rewriting, retrospective campaign rescoring or silent changes to non-cost primary metrics.
+      - Database migration, runtime dependency additions, release publication, commits and pushes.
+    deferred:
+      []
+  design: Establish the shared selection and compatibility contract before changing consumers. Implement eligible source selection with explicit explanations, propagate it through reports and cost decisions, and verify consistent behavior using retained synthetic evidence. Preserve historical authorities and primary metrics while publishing one canonical guide and concise agent pointers.
+  overall_acceptance: GIVEN a cost-evidence cohort WHEN current policy is applied THEN all cost decisions use one appropriate basis with a visible reason, estimates remain independent of billing proof, and unavailable cost preserves valid observations. GIVEN historical evidence and non-cost-primary methods WHEN current policy is used THEN raw values, historical contracts, aggregation populations and primary metrics are not silently rewritten. GIVEN completed delivery WHEN evaluated THEN focused tests, repository checks and rebuilt isolated-binary conformance pass.
+  unknowns:
+    - question: Which serialized result fields can expose current selection without changing historical meaning?
+      affects_task: 2
+      resolve_by: Map current consumers and schema fixtures in the first task. Establish an additive or versioned output contract before reporting integration; clarify any required breaking change.
+    - question: Which observations existing methodologies require for cost coverage and aggregation, and which attribution gaps are merely billing uncertainty?
+      affects_task: 1
+      resolve_by: Use the bounded consumer inventory and existing contracts before implementing selection. Preserve their inclusion and aggregation rules; unknown billing derivation alone is not rejection. Clarify consequential unresolved populations.
+    - question: Can current database-backed reports and retained ranking views expose this policy without broader persistence changes?
+      affects_task: 3
+      resolve_by: Establish supported current-view boundaries during the first task. Leave estimates unavailable where retained inputs are insufficient; do not add a migration or fabricate evidence to force availability.
+  rejected:
+    []
+  surprises: ""

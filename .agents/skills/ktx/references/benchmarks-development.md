@@ -36,6 +36,31 @@ experiment ID, never an archive path, with list, show, summarize, and validate.
 DB-free means only that the command does not open the ktx database. It does not
 mean filesystem-safe, network-free, side-effect-free, or free of provider cost.
 
+## Current cost inspection
+
+Follow [the canonical cohort cost contract](../../../../docs/pipelines.md#cohort-cost-selection),
+including its population map and examples. Do not impose invoice, subscription,
+access-mode, or upstream billing-proof gates. Artifact validity, cost
+availability, target success, and recommendation eligibility are separate
+states; unknown cost is not zero. Historical fields and campaign winners are
+not current-policy results.
+
+Offline inspection requires no model calls:
+
+```bash
+./build/ktx bench show --current-cost <experiment-id> --format json
+./build/ktx bench rank --current-cost <campaign-id> --format text
+./build/ktx bench show --help
+./build/ktx bench rank --help
+```
+
+Show returns `current_cost_view` beside raw `manifest` and `summary`; rank
+returns `current_ranking` beside `historical_ranking`. Both read retained
+archives without rewriting them. `bench summarize` emits current fields but
+rewrites the historical derived summary, so do not use it on frozen archives.
+Database `bench report --current-cost <row-id>` uses only reported cost because
+stored estimates lack the retained evidence needed for reproducible fallback.
+
 For the shortest complete sequence: run generic preflight; run compare or rank
 with registered semantic IDs; list experiments; show the selected experiment;
 validate it; summarize it only when regeneration is intended; then validate it

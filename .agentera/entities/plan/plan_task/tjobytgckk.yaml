@@ -1,0 +1,24 @@
+id: tjobytgckk
+artifact: plan
+record:
+  name: Implement shared cost selection and its contract
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN cost consumers WHEN mapped THEN coverage populations, aggregation rules and compatible output boundaries are explicit before implementation.
+    - GIVEN usable positive-cohort reported cost WHEN selected THEN reported basis wins without billing proof.
+    - GIVEN unusable reports WHEN complete estimates exist THEN the entire cohort selects estimates with a reason.
+    - GIVEN neither basis WHEN selected THEN cost is unavailable without discarding valid observations.
+    - GIVEN selection rules WHEN verified THEN one pass and one fail per rule and required checks pass.
+  plan: ldzmducsoq
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "internal/experiment/cost_selection.go:81-100: estimate eligibility ignores explicitly emitted provider/model conflicting with retained pricing. Reject conflicting identity without requiring absent identity; add matching/conflicting/cohort tests."
+    provenance:
+      attempt_id: cost-selection-audit-20260930-2
+      source: "Independent audit ses_f0d451f5bffeS3lhtlNJdH9cA4: AC1-5 and evidence audit PASS after explicit model/provider-conflict correction. Shared selector, canonical populations/output contract, focused and full mage check evidence verified."
+      recorded_at: 2026-09-30 16:52
+      writer_command: agentera state plan record-evaluation

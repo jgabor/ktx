@@ -1,0 +1,24 @@
+id: dzgwcbxpuw
+artifact: plan
+record:
+  name: Publish agent guidance and verify end-to-end conformance
+  depends_on:
+    - gvbanbaobh
+  status: complete
+  acceptance:
+    - GIVEN the canonical guide WHEN read THEN source selection, fallback and evidence distinctions have clear examples.
+    - GIVEN agent instructions WHEN followed THEN the canonical pointer and prohibition on invoice-proof gates are explicit.
+    - GIVEN shared fixtures WHEN reported, ranked and evaluated THEN selected basis and reasons agree; unavailable cost is not zero.
+    - GIVEN delivery WHEN closed THEN behavior, docs and tests match the decision without satisfaction claims.
+    - GIVEN completion WHEN verified THEN end-to-end, repository, isolated-binary and historical checks pass.
+  plan: ldzmducsoq
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: docs/pipelines.md:1296-1297 says ranking/acceptance integration is pending despite implemented current views. Replace stale status with historical/current distinction; no production change required.
+    provenance:
+      attempt_id: cost-guidance-audit-20260930-2
+      source: Independent audit ses_f0cb69b3fffeJo3LXWGzyma025 verified bounded canonical-guidance correction; AC1-5 and evidence audit PASS. Agent billing-gate prohibitions, source-generated end-to-end current views, full mage check and historical/CLI proof remain applicable.
+      recorded_at: 2026-09-30 19:17
+      writer_command: agentera state plan record-evaluation

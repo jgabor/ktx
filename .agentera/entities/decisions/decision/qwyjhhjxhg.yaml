@@ -1,0 +1,21 @@
+id: qwyjhhjxhg
+artifact: decisions
+record:
+  date: 2026-09-30
+  question: How should KTX consistently select cost evidence when reported cost is unavailable or uninformative, without discarding valid benchmarks?
+  context: The user chose reported-first evaluation, labeled fallback for uniformly zero costs without diagnosing access mode, evidence preservation when cost is unavailable, and consistent selection across cost decisions. This extends tjpgeboggp, which already permits reproducible estimates independently of reported-cost completeness. Current pricing and validation support that independence, while ranking and recommendation paths differ. Missing invoice evidence did not invalidate the normalization campaign. Specific alleged improper benchmark discards were not established by this inspection. Capture is approved; implementation and other project-state changes are not authorized.
+  alternatives:
+    - name: Prefer usable reported cost, fall back to reproducible API-equivalent estimates for the entire comparison, and preserve evidence when neither cost basis is available.
+      status: chosen
+    - name: Always prefer estimated cost even when reported cost supports a useful comparison; rejected because the user chose reported cost first.
+      status: rejected
+    - name: Require provider billing proof or confirmed subscription access before accepting an estimate or zero-cost fallback; rejected as an unsupported additional requirement.
+      status: rejected
+    - name: Invalidate otherwise valid benchmark evidence when no usable cost metric exists; rejected because cost unavailability limits cost conclusions, not unrelated observations.
+      status: rejected
+    - name: Clarify reporting alone while leaving cost ranking and acceptance inconsistent; rejected because the user selected consistent cost decisions.
+      status: rejected
+  choice: Use complete, valid, comparable reported cost first; proving upstream billing derivation is unnecessary. Otherwise select reproducible API-equivalent estimates, including when reported costs are uniformly zero and access mode is unknown. Apply one basis across both arms; retain both fields, identify provenance, and label selection/fallback reasons. Estimates require complete relevant usage and compatible, hash-bound retained pricing, not billing records. If neither basis is usable, preserve valid observations and mark cost conclusions unavailable or inconclusive. Apply this rule to reports, cost ranking and cost-based acceptance; preserve explicitly non-cost primary metrics. Never treat unavailable cost as zero.
+  reasoning: "Runtime reports, counterfactual API pricing and account bills answer different questions. Distinguishing their sources allows meaningful subscription-backed comparisons without inventing charges or erasing zeros. Shared selection prevents mixed-basis comparisons and inconsistent agent evaluation. Evidence validity, metric availability and recommendation eligibility must remain separate: unavailable cost prevents cost-based recommendations, while failed quality or savings gates do not erase valid observations. The policy is firm; implementation conformance remains unverified. Existing historical fields, outputs and methodology contracts require explicit compatibility handling, not silent reinterpretation."
+  confidence: firm
+  feeds_into: Canonical cost-selection contract in docs/pipelines.md; concise AGENTS.md and KTX skill pointers forbidding invoice-proof gates; shared cost selection in reporting, ranking and acceptance; regression tests for missing reported cost, reported zeros, provenance, coverage and evidence preservation. These are follow-up directions, not implementation authorization.

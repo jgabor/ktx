@@ -1,0 +1,25 @@
+id: ryhkpumqcc
+artifact: health
+record:
+  date: 2026-09-30
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 0
+    filtered_by_confidence: 0
+  trajectory: "stable: terminal-plan artifact freshness remains A; prior closure scope differs, so no whole-codebase trend is inferred."
+  grades:
+    artifact_freshness: A
+  dimensions_detail:
+    - name: artifact_freshness
+      grade: A
+      summary: "Limited closure of plan ldzmducsoq: all four tasks have latest persisted PASS evaluations. Audit ses_f0cb69b3fffeJo3LXWGzyma025 verified docs/pipelines.md:1090-1298, AGENTS.md:114-122 and repository KTX guidance match current cost selection and preserve historical authority. Matching source-generated CLI conformance, historical goldens and full mage check remain applicable; the documentation-only status correction was independently checked. No unresolved freshness finding remains. This is not a whole-codebase audit or satisfaction confirmation."
+      findings:
+        []
+  trends:
+    comparison_target: Prior limited artifact-freshness audit juphukkoeg, grade A, covering a different completed plan.
+    stable: Canonical reported-first and reproducible estimated-fallback guidance aligns with current reporting, ranking and acceptance views. Retained historical fields and results remain unchanged.
+    carried_forward: Actual billing remains distinct from runtime-reported and API-equivalent costs. Cost unavailability limits cost conclusions, not unrelated valid evidence; no invoice-proof or access-mode gate is introduced.
+  appended_at: 2026-09-30T17:21:08.233Z

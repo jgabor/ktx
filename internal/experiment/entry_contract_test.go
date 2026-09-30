@@ -18,6 +18,15 @@ import (
 // The executor supplies offline runtime evidence; the real producer writes the
 // manifest, retained inputs, attempt ledger, owner databases, and summary.
 func produceEntryArchive(t *testing.T, spec string, priced, cache bool, executors ...CommandExecutor) string {
+	return produceEntryArchiveID(t, "entry-control", spec, priced, cache, executors...)
+}
+
+func produceEntryArchiveID(t *testing.T, id, spec string, priced, cache bool, executors ...CommandExecutor) string {
+	t.Helper()
+	return produceEntryArchiveIDExit(t, id, spec, priced, cache, 0, executors...)
+}
+
+func produceEntryArchiveIDExit(t *testing.T, id, spec string, priced, cache bool, expectedExit int, executors ...CommandExecutor) string {
 	t.Helper()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -55,18 +64,18 @@ func produceEntryArchive(t *testing.T, spec string, priced, cache bool, executor
 	}
 	dir, _, code, err := runner.Compare(context.Background(), CompareOptions{
 		Model: "openai/test", TaskFile: "crossfile-nav", TargetValid: 1, MaxAttempts: 6,
-		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "entry-control",
+		AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: id,
 		Image: "image", AuthPath: filepath.Join(root, "auth.json"), RepoRoot: root,
 		MethodologyPath: spec, BaselineConfig: "passthrough", CandidateConfig: "conservative-a",
 		KTXBin: "ktx", DockerBin: "docker", RegisteredInputs: true,
 	})
-	if err != nil || code != 0 {
+	if err != nil || code != expectedExit {
 		t.Fatalf("Compare code=%d err=%v", code, err)
 	}
 	return dir
 }
 
-func entryCLI(t *testing.T, dir, verb string) ([]byte, error) {
+func entryCLI(t *testing.T, dir, verb string, extra ...string) ([]byte, error) {
 	t.Helper()
 	binary := os.Getenv("KTX_ENTRY_CONTRACT_BINARY")
 	if binary == "" {
@@ -91,6 +100,7 @@ func entryCLI(t *testing.T, dir, verb string) ([]byte, error) {
 		env = append(env, key+"="+tmp)
 	}
 	args := []string{"bench", verb, "--format", "json"}
+	args = append(args, extra...)
 	if verb != "list" {
 		args = append(args, filepath.Base(dir))
 	}

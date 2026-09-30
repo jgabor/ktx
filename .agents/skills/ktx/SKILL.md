@@ -198,6 +198,14 @@ classes, schema, metric formulas, and claim limits.
 
 ## Core Evidence Rules
 
+- For benchmark cost selection, follow the
+  [canonical cohort cost contract](../../../docs/pipelines.md#cohort-cost-selection).
+  Prefer usable complete reported cost, otherwise a labeled reproducible
+  whole-cohort API estimate. Never require invoice, subscription, access-mode,
+  or upstream billing proof. Classify artifact validity, cost availability,
+  target success, and recommendation eligibility separately. Unknown cost is
+  not zero; use explicit current views, not historical fields, for this policy.
+
 - Tool-output token values from `ktx stats` are estimates:
   `ceil(character_count / 4)` per call before aggregation.
 - A compressed-artifact count is coverage, not a success rate. Calls without an

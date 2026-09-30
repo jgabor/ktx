@@ -1,0 +1,24 @@
+id: gvbanbaobh
+artifact: plan
+record:
+  name: Apply the policy to cost ranking and acceptance
+  depends_on:
+    - bldjhmdbpn
+  status: complete
+  acceptance:
+    - GIVEN a declared cohort WHEN ranked THEN one cost basis applies without changing its aggregation population.
+    - GIVEN valid observations without usable cost WHEN evaluated THEN cost is inconclusive and other results remain retained.
+    - GIVEN quality or recommendation failure WHEN evaluated THEN evidence survives and declared gates remain enforced.
+    - GIVEN non-cost primary metrics or estimated-spend controls WHEN integrated THEN their contracts remain unchanged.
+    - GIVEN consumers and historical results WHEN verified THEN cross-surface regressions and required checks pass.
+  plan: ldzmducsoq
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: internal/experiment/current_ranking.go:107-126 assigns rank and winner despite unknown candidate; lines149-161 trusts copied labels and loses retained PairResult exit code. Derive/validate identities, retain diagnostic codes, withhold cost rank/winner for unavailable comparison.
+    provenance:
+      attempt_id: cost-decisions-audit-20260930-2
+      source: Independent audit ses_f0cf36eeeffemSJrBCjH8977q1 verified all three bounded ranking corrections; AC1-5 and evidence audit PASS. Unknown candidate no cost winner, source labels validated, nullable retained exit diagnostics preserved; historical and rebuilt-CLI checks pass.
+      recorded_at: 2026-09-30 18:35
+      writer_command: agentera state plan record-evaluation

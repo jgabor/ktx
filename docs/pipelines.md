@@ -1087,6 +1087,235 @@ manifest model. Copied estimates without that retained pricing basis are never
 trusted. Regeneration ignores prior summary contents and re-derives estimates
 from retained usage and pricing; cache-aware validation requires pricing.
 
+### Cohort cost selection
+
+The shared selector defines the current cost policy below. Current reporting
+adds a separate view; existing summary, ranking, and database report fields
+still have their historical meanings. Runtime-reported USD, API-equivalent estimated USD,
+and account billing are different evidence. Neither reported cost nor an
+estimate proves an invoice charge. Invoice proof, native provider-request
+identity, access-mode diagnosis, and knowledge of upstream billing derivation
+are not selection requirements.
+
+| Required cohort evidence                                                                                | Selected basis                  | Reason                                                      |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------- |
+| Every required observation has finite, nonnegative, comparable reported USD; at least one is positive   | Runtime-reported USD            | `reported_complete_positive`                                |
+| Reported values are all zero; complete compatible estimates exist                                       | API-equivalent estimated USD    | `reported_uniform_zero`                                     |
+| Reported coverage is missing, incomplete, invalid, or incompatible; complete compatible estimates exist | API-equivalent estimated USD    | The reported coverage failure                               |
+| Neither source covers the required cohort                                                               | Unavailable, never numeric zero | The reported failure plus per-observation estimate failures |
+| No required observations                                                                                | Unavailable                     | `empty_cohort`                                              |
+
+Selection covers the whole declared comparison or ranking cohort, not each
+pair, arm, or candidate independently. A positive reported subtotal is not
+complete coverage. Mixed zero/positive complete reports select reported cost;
+an all-zero cohort falls back even when access mode is unknown. Complete
+reports remain usable when token usage is absent. Estimates require all five
+token fields on every model step, with measured nonnegative integer values,
+and hash-bound, model-matched retained pricing. An explicitly emitted step
+provider or model that conflicts with that snapshot makes the estimate
+ineligible. Absent step identity is allowed: the configured manifest and
+validated snapshot remain sufficient pricing authority. Negative steps cannot
+cancel into valid totals. Estimates use the existing ordinary rates, context tiers,
+reasoning fallback, and six-decimal rounding. Compatible estimated observations
+use the same model and pricing rates/tier definitions; retrieval timestamps and
+source URLs alone do not change comparability. Snapshot hashes remain provenance.
+No current price cache is consulted. Valid zero estimates remain available,
+but zero alone cannot establish a strictly lower cost.
+
+The caller declares the required coverage population **before** selection.
+Selection returns one value per required observation and does not aggregate,
+filter attempts, decide correctness, or change recommendation thresholds.
+Missing cost limits cost conclusions, not unrelated valid evidence. Unavailable
+cost cannot produce a numeric cost winner or recommendation. Claimed retained
+pricing that is missing, altered, or model-mismatched remains an integrity error,
+not an ordinary missing-cost fallback. Copied estimate fields are not authority.
+
+#### Selection examples and independent states
+
+Assume one required observation per arm (two total). Reported values shown are
+comparable USD; available estimates have complete retained usage and compatible
+pricing:
+
+| Reported baseline / candidate | API estimate baseline / candidate | Current result                                                                                                                                        |
+| ----------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missing / missing             | 0.020 / 0.010                     | `estimated_api`, `reported_incomplete`; the positive estimates are usable without billing proof                                                       |
+| 0 / 0                         | 0.020 / 0.010                     | `estimated_api`, `reported_uniform_zero`; access mode remains unknown and the reported zeros remain retained                                          |
+| 0 / 0.010                     | 0.020 / 0.005                     | `reported`, `reported_complete_positive`; mixed zeros are measured values, not missing cost                                                           |
+| 0.020 / 0.010                 | 0.005 / 0.020                     | `reported`, `reported_complete_positive`; lower reported candidate cost can pass the existing cost gate even though the estimate would favor baseline |
+| Missing / missing             | Unavailable / unavailable         | `unavailable`, `reported_incomplete`; selected costs are NULL, with no cost winner or cost-based recommendation                                       |
+
+The table illustrates source choice, not automatic acceptance. Artifact validity
+checks retained evidence integrity. Cost availability checks the declared
+cohort's source coverage. Target success checks the methodology's completion
+and quality conditions. Recommendation eligibility checks the existing quality,
+pair-count, and improvement gates. A valid artifact can have unavailable cost,
+or available cost with failed quality and `current_acceptance.accepted: false`.
+Neither outcome erases valid token, latency, or quality observations.
+The `bench validate` top-level `valid` also requires `target_met`; it is not an
+artifact-integrity-only flag. Inspect `attempt_checks`, `summary_structural_valid`,
+`summary_byte_match`, and `methodology_reasons` separately from target and
+acceptance results.
+Missing unclaimed pricing is ordinary cost unavailability; missing claimed
+pricing or altered snapshot evidence is a genuine integrity failure. Explicit step identity
+conflict makes an estimate ineligible, not proof of any billing arrangement.
+
+For identical populations, report, ranking, and acceptance select the same basis
+and reason. Do not force legitimately different populations to match: a report
+may include unpaired evaluated headline observations, an acceptance guard only
+complete direct-evidence pairs, and a ranking the union of multiple experiments.
+Each population is declared before selection, as mapped below.
+
+#### Bounded consumer and compatibility map
+
+This map records the existing populations independently of source availability.
+“Evaluated” means `AttemptIsEvaluated`: completed, linked, stream complete,
+minimum tool calls met, and no validation reasons. Current archive methodologies
+are `v8-exact-match`, prompt-cache v6, and recovery-aware v7. Older methodology
+and schema results are historical, not newly qualified by this policy.
+
+| Consumer and implementation                                                                                                                               | Required selection coverage for a current view                                                                                                                    | Existing aggregation, kept unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Side cost distributions and cost per correct, `BuildSummary` in `internal/experiment/summary.go`                                                          | Both arms' evaluated headline attempts. Exact-match includes all evaluated attempts; cache-aware v6/v7 include only evaluated `measured_warm` attempts            | Each arm's distribution uses its evaluated attempts. Historical source distributions omit NULL values. Historical reported and estimated per-correct means divide by evaluated full-pass rate, floored at `1e-9`. Current selected means require complete coverage, with that same quality denominator                                                                                                                                                                                                                                         |
+| Paired deltas, `pairedSummary`                                                                                                                            | The same evaluated headline cohort as the side view, including unpaired evaluated observations                                                                    | Pair by cycle, first sorted attempt per side; delta only for cycles with both sides. Keep unpaired diagnostics and existing paired-count rules; never select a source separately for each pair                                                                                                                                                                                                                                                                                                                                                 |
+| Phase distributions, `phaseDistributions`                                                                                                                 | Evaluated observations of the declared phase on both arms                                                                                                         | Cold, warmup, and measured-warm distributions stay separate. No setup work is inserted into the measured headline                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Estimated rebuild penalty and break-even, `rebuildPenalty` / `estimatedCostBreakEven`                                                                     | These explicitly estimated diagnostics keep their source, rather than becoming selected-cost fields                                                               | Rebuild: one evaluated cold estimate minus mean evaluated measured estimates per side. Break-even: evaluated cold plus warmups (exactly `1 + warmup_count` per side), then paired evaluated measured cycles in order; setup and cumulative sums are retained. Incomplete setup or a required paired estimate makes break-even unavailable                                                                                                                                                                                                      |
+| Prompt-cache cost recommendation, `buildPipelineCostGuard` in `pipeline_cost_guard.go`                                                                    | Both attempts in every complete direct-evidence pair emitted by `buildCachedInputShareComparison`, across all such pairs                                          | Pair membership is fixed by measured cycle, unique sides, evaluated/direct evidence, runtime identity, time/order, and protocol checks before cost. Sum all paired costs per side, including incorrect answers, divide by count of paired full passes. Round estimates, totals, and per-correct values to six decimals. Keep required pair count, quality preservation, and strict-lower gate                                                                                                                                                  |
+| Recovery-aware comparison, `recovery_comparison.go`                                                                                                       | Secondary selected cost uses the summary's evaluated measured cohort                                                                                              | Primary tokens per correct uses target-valid correct attempts, not the cost cohort. Recovery/call summaries use evaluated or selected attempts as currently declared. Do not replace the token-first primary or its quality gate                                                                                                                                                                                                                                                                                                               |
+| Rank, `BuildRanking` in `ranking.go`                                                                                                                      | Union of the relevant comparison coverage sets across **all** candidate experiments and their baseline observations, even though the display has one baseline row | Existing baseline display is the first non-NULL summary's baseline; candidate rows use their own summary. Preserve those per-row populations, pair-relative diagnostics, quality-first sorting, and recovery token-first primary. A current cost view must acquire source evidence for all experiments, not infer coverage from summary means or select pair by pair                                                                                                                                                                           |
+| Attribution and archive show/summarize/validate, `attribution.go`, `regeneration.go`, `summary.go`, `validation.go`                                       | Attribution is per-observation source evidence, not a new aggregate cohort. Current selected comparison views use the populations above                           | Attribution retains all attempt observations and parallel non-additive evidence classes. Materialization replaces copied metrics with stream/database authority. Regeneration and validation retain source values and pricing integrity checks; missing unclaimed cost is distinct from corrupted claimed pricing                                                                                                                                                                                                                              |
+| Database-backed `bench run` / replay output and `bench report`, `internal/cli/bench_run.go`, `bench_replay.go`, `bench_report.go`, `internal/db/bench.go` | All queried rows after the declared spec filter, or the single requested row                                                                                      | Run output uses the persisted row; report's historical headline is `SUM(non-NULL cost) / max(SUM(all row scores), 1e-9)`. Current rows retain usage projections and a separate write-time estimate, but no hash-bound pricing snapshot or full per-step completeness authority. Old rows may lack those usage fields as well. Neither a stored estimate nor current prices can establish a reproducible fallback. Retain both stored fields; current complete selected cost, if unavailable, must not silently replace the historical headline |
+| Scheduling spend limits, `execution_control.go`                                                                                                           | Not a reported-first consumer: all started attempts, including setup, failed/incorrect work, up to each checkpoint                                                | Strict completed/reconciled per-step estimated coverage and cumulative estimated spend remain fail-closed. Reported USD cannot bypass this operational control                                                                                                                                                                                                                                                                                                                                                                                 |
+
+Current-policy output is additive and separately identified as
+`cost_selection` with `policy_version: 1`, basis, reason, USD unit, required and
+eligible coverage counts, observation values, and source/pricing provenance.
+Per-arm aggregation belongs in a separately named selected-cost view, not in
+`cost`, `estimated_api_cost`, `expected_cost_per_correct`, existing acceptance,
+ranking, or headline fields. Retained summary/ranking bytes and meanings must
+not be rewritten to apply a new policy. Archive inspection can attach an
+in-memory current view after materialization; historical regeneration remains
+the existing authority. A current ranking view must load its retained pair
+archives; summary-only ranking inputs cannot establish current cost coverage.
+Single-row database JSON needs an explicit current-view envelope or opt-in
+versioned view, rather than altering the persisted row contract. These are
+integration boundaries, not a schema migration or a new metric registry.
+
+#### Current reporting surfaces
+
+For offline inspection, use `./build/ktx bench show --current-cost
+<experiment-id> --format json` or `./build/ktx bench rank --current-cost
+<campaign-id> --format text`. Focused `bench show --help` and `bench rank --help`
+describe the flags. These current views make no model calls and do not rewrite
+archives. They do not qualify old campaigns under a future policy.
+
+`bench compare` and `bench summarize` add `cost_selection`, `selected_cost`,
+and `source_costs` to their output only. Cache-aware results also add
+`phase_cost_views`, with an independent selection for each declared phase.
+`selected_cost.pipelines` carries distributions and cost per correct using the
+headline population and quality denominator in the map. Its paired deltas use
+that same selected basis, including unpaired observations in selection coverage.
+The historical `$ / correct` text column and JSON `expected_cost_per_correct`
+remain reported-source metrics. Prompt-cache results also add a separate
+`current_acceptance`, with its own guarded-pair `cost_selection`, selected side
+totals and cost per correct, quality, reasons, and recommendation eligibility.
+This view preserves the direct-evidence pair population, required pair count,
+quality-preservation gate, six-decimal totals/per-correct rounding and strict
+lower-cost threshold. It does not replace the frozen estimated-protocol
+`accepted`, `acceptance_reasons`, or `pipeline_cost_guard` fields.
+Token-primary headlines and estimated setup/budget diagnostics are
+unchanged. `summary.json` retains its original schema and bytes on regeneration.
+
+Live `bench rank` output adds `current_ranking` after writing the unchanged
+historical `ranking.json`. For offline inspection, use
+`bench rank --current-cost <campaign-id> [--format text|json]`. This form accepts
+only the campaign ID and format, loads every retained pair under the fixed
+experiment root, makes no model calls, opens no ktx database and writes nothing.
+Its envelope contains raw `historical_ranking` and a separate `current_ranking`.
+Summary-only inputs, missing source archives, duplicate experiment references
+and claimed pricing corruption cannot establish current ranking authority.
+
+For a readable offline table, run:
+
+```bash
+./build/ktx bench rank --current-cost <campaign-id> --format text
+./build/ktx bench rank --current-cost --help
+```
+
+Use a campaign ID, not an experiment ID. `--spec` is required only for live
+comparisons. Current means the current selection policy, not today's prices.
+The text table shows the common basis, coverage, retained source provenance,
+quality, selected mean cost and cost per correct. NULL is `unavailable`, not
+zero; a retained zero stays zero. No unique cost winner is chosen for ties,
+unavailable cost, ineligible rows, or a token-primary metric. A missing run exit
+is unknown, not a successful run. Live ranking uses the same current table.
+Current-policy results appear first; historical cost tables and acceptance
+lines are explicitly labeled and keep their frozen values. Independent token
+metrics keep their own meaning. This does not give an old campaign new
+methodological qualifications. JSON fields and envelopes are unchanged.
+
+Current ranking selects across the union of all experiments' evaluated headline
+cohorts, including every baseline observation. The displayed baseline still uses
+the first comparison's population; each candidate uses its own. Rows expose
+`mean_selected_cost`, `selected_cost_per_correct`, and selected paired diagnostics.
+Quality classes and recovery's token-first primary remain unchanged. The current
+view exposes `cost_selection`, both `source_costs`, and `cost_order_available`.
+Unavailable cost gives NULL selected scores and no cost rank or `cost_winner`;
+quality-only stable ordering is not a cost result. Tied best costs, including
+genuine zero estimates, give no unique `cost_winner`.
+Complete source coverage alone does not establish comparable row results: a
+declared row without a selected cost-per-correct result has NULL cost rank.
+If any declared row lacks a comparable result, `cost_order_available` is false
+and the cohort has no cost winner. Rows and quality data remain retained;
+token-primary ranking keeps its independent eligibility and ordering.
+
+Current ranking validates each pair's candidate label and the common baseline
+label against that experiment's retained manifest. A mismatch rejects the
+current view rather than recommending a pipeline that was not run. Copied
+historical row labels and candidate lists remain raw historical fields, not
+current identity authority. Pair-reference `exit_code` remains a retained run
+diagnostic: integer values are preserved, missing or NULL values are unknown,
+and malformed values are rejected. A successful offline query can exit zero
+while a current candidate row correctly retains a nonzero run exit code.
+
+For prompt-cache ranking acceptance, `acceptance_cost_selection` covers the union
+of all predeclared direct-evidence guarded-pair populations. Each candidate's
+`current_acceptance` uses that common basis and coverage metadata, but sums only
+its own pairs and divides by its own paired correct-answer count. Headline and
+guard coverage remain distinct when their predeclared populations differ; an
+excluded observation cannot enter a guarded total just because it has cost.
+Current decisions use these separately identified views, not cached historical
+winners or acceptance. Historical normalization thresholds and campaign results
+remain retrospective estimated-protocol evidence, not current-policy rescoring.
+
+`bench show --current-cost <id>` is a read-only, explicit current-view envelope:
+JSON contains the original `manifest` and `summary` fields in separate objects,
+plus `current_cost_view`. It preserves unknown raw fields as well as known
+historical metrics. Text renders the current selection, source values and
+aggregates. This opt-in requires supported retained source evidence. Default
+`bench show <id>` remains manifest-only and can inspect historical or incomplete
+archives. `bench list` remains discovery-only. Neither command rewrites files.
+
+Database `bench report` list output adds `cost_selection` and nullable
+`selected_cost_per_correct` after its spec filter. All queried rows, including
+incorrect rows and rows without cost, belong to coverage. The historical
+`headline` and both stored source fields are unchanged. Default single-row
+output, `bench run`, and replay keep their existing shapes. Use
+`bench report --current-cost <row-id>` for the explicit `{row, cost_selection,
+selected_cost_per_correct}` envelope. Database selection uses only reported
+USD: stored estimates lack retained pricing/completeness authority and cannot
+establish the fallback. Text includes the same basis, reason, coverage and
+source provenance; unavailable selected cost is not a fabricated zero.
+
+Current metadata is not evidence validation or target acceptance. Missing
+unclaimed pricing or reported cost can make cost unavailable without corrupting
+otherwise valid evidence. Claimed pricing with a missing file, bad hash or
+conflicting identity remains an error. `bench validate` keeps its existing
+validity, target, byte-match fields and exit contract. In particular,
+`accepted: false` can coexist with valid artifacts; current cost metadata does
+not turn a failed historical recommendation into a pass. Frozen historical
+ranking and acceptance retain their original contracts; separate current views
+apply the current cost policy.
+
 When a model-step numeric field is missing or malformed, the affected
 attribution aggregate remains null and carries `state: missing` or
 `state: malformed` plus `evidence_gaps` entries naming the field and

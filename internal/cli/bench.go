@@ -74,6 +74,10 @@ func benchCommandFunc(ctx *DispatchContext) (any, error) {
 
 	sub := ctx.Args[0]
 	tail := ctx.Args[1:]
+	if sub == "rank" && (strings.Join(tail, " ") == "--current-cost --help" || strings.Join(tail, " ") == "--help --current-cost" || strings.Join(tail, " ") == "--current-cost -h" || strings.Join(tail, " ") == "-h --current-cost") {
+		printBenchSubcommandHelp(ctx.Stdout, sub)
+		return nil, nil
+	}
 	if len(tail) == 1 && (tail[0] == "--help" || tail[0] == "-h") {
 		if printBenchSubcommandHelp(ctx.Stdout, sub) {
 			return nil, nil
@@ -170,6 +174,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Without <id>: list all rows in insertion order (oldest first);")
 	fmt.Fprintln(w, "        headline is the spec-defined aggregate across rows.")
 	fmt.Fprintln(w, "      With <id>: emit a single row by nanoid; not-found → exit 2.")
+	fmt.Fprintln(w, "      Lists add cost_selection; --current-cost <id> adds a row envelope.")
 	fmt.Fprintln(w, "      --spec filters rows by the registered spec's internal format version; the")
 	fmt.Fprintln(w, "        headline is recomputed from the filtered set.")
 	fmt.Fprintln(w, "  export [--output <path|->] <session-id>")
@@ -210,8 +215,11 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      Compare and rank named pipeline configurations.")
 	fmt.Fprintln(w, "  list")
 	fmt.Fprintln(w, "      List experiments found under .ktx/experiments.")
-	fmt.Fprintln(w, "  show <id>")
+	fmt.Fprintln(w, "  show [--current-cost] <id>")
 	fmt.Fprintln(w, "      Show an experiment manifest by ID.")
+	fmt.Fprintln(w, "      --current-cost loads a read-only retained-source cost view; default stays manifest-only.")
+	fmt.Fprintln(w, "  rank --current-cost <campaign-id> [--format text|json]")
+	fmt.Fprintln(w, "      Reads retained pairs for current ranking and acceptance; historical ranking stays unchanged.")
 	fmt.Fprintln(w, "  validate <id>")
 	fmt.Fprintln(w, "      Verify retained artifacts, hashes, links, and summary bytes.")
 	fmt.Fprintln(w, "  summarize <id>")
@@ -247,13 +255,13 @@ func printBenchSubcommandHelp(w io.Writer, sub string) bool {
 	type help struct{ usage, effect, next string }
 	helpBySubcommand := map[string]help{
 		"run":       {"ktx bench run <agent> <model> <task> --spec <id> | ktx bench run --replay <session-id> | ktx bench run --replay-file <path>", "Runs and persists a benchmark, replays a recorded session, or verifies a portable fixture.", "Next: ktx bench report --spec <id> for a new run."},
-		"report":    {"ktx bench report [<id>] [--spec <id>] [--format text|json]", "Reads persisted benchmark rows and reports their headline.", "Next: use a row ID with ktx bench report <id>."},
+		"report":    {"ktx bench report [<id>] [--spec <id>] [--current-cost] [--format text|json]", "Reads persisted benchmark rows. Lists add current cost metadata; --current-cost wraps a single row without changing its fields.", "Next: use a row ID with ktx bench report <id>."},
 		"export":    {"ktx bench export [--output <path|->] <session-id>", "Exports one recorded benchmark session as a portable fixture.", "Next: ktx bench run --replay-file <path>"},
 		"compare":   {"ktx bench compare --spec <id> --model <model> --task <id> [--baseline <id>] [--candidate <id>]", "Runs a retained live baseline/candidate experiment. --preflight makes no model calls or experiment artifacts.", "Next: run --preflight first, then ktx bench validate <experiment-id>."},
 		"screen":    {"ktx bench screen --population <path> --config <path>... --anchor-config <path>", "Screens complete pipeline configurations offline.", "Next: inspect the emitted shortlist and evidence."},
-		"rank":      {"ktx bench rank --spec <id> --model <model> --task <id> [--baseline <id>] [--candidate <id>,...]", "Runs retained comparisons and ranks candidate pipelines.", "Next: ktx bench validate <experiment-id> for each result."},
+		"rank":      {"ktx bench rank --spec <id> --model <model> --task <id> [--baseline <id>] [--candidate <id>,...] | ktx bench rank --current-cost <campaign-id> [--format text|json]", "Runs retained comparisons with an additive current ranking, or reads a retained campaign without model calls or writes. Historical ranking fields remain unchanged.", "Next: ktx bench validate <experiment-id> for each result."},
 		"list":      {"ktx bench list", "Lists experiment IDs from the fixed .ktx/experiments root.", "Next: ktx bench show <id>"},
-		"show":      {"ktx bench show <id>", "Reads one experiment manifest by semantic experiment ID.", "Next: ktx bench validate <id>"},
+		"show":      {"ktx bench show [--current-cost] <id>", "Reads one experiment manifest. --current-cost adds a retained-source view in a separate envelope without writing the archive.", "Next: ktx bench validate <id>"},
 		"summarize": {"ktx bench summarize <id>", "Regenerates the derived summary for one experiment ID.", "Next: ktx bench validate <id>"},
 		"validate":  {"ktx bench validate <id> [--format text|json]", "Verifies retained artifacts, hashes, links, and summary bytes.", "Next: fix reported evidence failures or retain the validated result."},
 		"corpus":    {"ktx bench corpus generate [--output <directory>]", "Regenerates the deterministic benchmark corpus.", "Next: inspect the generated manifest."},
@@ -274,13 +282,25 @@ func printBenchSubcommandHelp(w io.Writer, sub string) bool {
 		fmt.Fprintln(w, "These options are compare-only, not rank. Omitted options preserve existing behavior.")
 	}
 	if sub == "compare" || sub == "rank" {
+		if sub == "rank" {
+			fmt.Fprintln(w, "\nOffline current-cost inspection:")
+			fmt.Fprintln(w, "  ktx bench rank --current-cost <campaign-id> --format text")
+			fmt.Fprintln(w, "Use this to apply current cost policy to a retained campaign ID, not an")
+			fmt.Fprintln(w, "experiment ID. It makes no model calls, opens no database, and writes no archive.")
+			fmt.Fprintln(w, "Requires retained source archives for every pair, not just summary.json.")
+			fmt.Fprintln(w, "Current means policy, not today's prices: use complete valid reported cost")
+			fmt.Fprintln(w, "first; if reports are missing or uniformly zero, use a whole-cohort API estimate")
+			fmt.Fprintln(w, "on a common basis from retained usage and pricing snapshots. Otherwise costs")
+			fmt.Fprintln(w, "are unavailable (NULL), with no cost winner. Historical fields stay unchanged;")
+			fmt.Fprintln(w, "this view does not give an old campaign new methodological qualifications.")
+		}
 		registry := benchregistry.Active()
 		fmt.Fprintln(w, "\nActive semantic IDs:")
 		printBenchRegistryIDs(w, "spec", registry.Entries(benchregistry.Spec))
 		printBenchRegistryIDs(w, "task", registry.Entries(benchregistry.Task))
 		printBenchRegistryIDs(w, "baseline", registry.Entries(benchregistry.Pipeline))
 		printBenchRegistryIDs(w, "candidate", registry.Entries(benchregistry.Pipeline))
-		fmt.Fprintln(w, "\n--spec is required. Selectors accept only these versionless semantic IDs.")
+		fmt.Fprintln(w, "\n--spec is required for live comparisons only. Selectors accept only these versionless semantic IDs.")
 	}
 	return true
 }

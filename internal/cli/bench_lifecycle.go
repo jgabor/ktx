@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -125,11 +126,14 @@ func runBenchList(args []string, opts Options, stdout, stderr io.Writer) int {
 }
 
 func runBenchShow(args []string, opts Options, stdout, stderr io.Writer) int {
-	if len(args) != 1 {
+	fs := flag.NewFlagSet("ktx bench show", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	currentCost := fs.Bool("current-cost", false, "load a current cost view from retained evidence")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 1 {
 		printError(stderr, usageError("ktx bench show: usage: ktx bench show <id>"), opts.Format)
 		return ExitUsage
 	}
-	dir, err := resolveExperiment(args[0])
+	dir, err := resolveExperiment(fs.Arg(0))
 	if err != nil {
 		printError(stderr, usageError("ktx bench show: %v", err), opts.Format)
 		return ExitUsage
@@ -139,7 +143,42 @@ func runBenchShow(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, internalError("ktx bench show: %v", err), opts.Format)
 		return ExitInternal
 	}
-	return encodeExperimentJSON(stdout, manifest)
+	if !*currentCost {
+		return encodeExperimentJSON(stdout, manifest)
+	}
+	view, err := experiment.LoadCurrentCostView(dir)
+	if err != nil {
+		printError(stderr, internalError("ktx bench show cost view: %v", err), opts.Format)
+		return ExitInternal
+	}
+	rawManifest, err := readArchiveJSON(dir, "manifest.json")
+	if err != nil {
+		printError(stderr, internalError("ktx bench show: %v", err), opts.Format)
+		return ExitInternal
+	}
+	rawSummary, err := readArchiveJSON(dir, "summary.json")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		printError(stderr, internalError("ktx bench show: %v", err), opts.Format)
+		return ExitInternal
+	}
+	if opts.Format == FormatText {
+		fmt.Fprintln(stdout, experiment.RenderCurrentCostView(view))
+		return ExitOK
+	}
+	return encodeExperimentJSON(stdout, map[string]any{"manifest": rawManifest, "summary": rawSummary, "current_cost_view": view})
+}
+
+func readArchiveJSON(dir, name string) (json.RawMessage, error) {
+	f, err := experiment.OpenArchiveFile(dir, name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err == nil && !json.Valid(data) {
+		return nil, fmt.Errorf("invalid JSON in %s", name)
+	}
+	return data, err
 }
 
 func runBenchSummarize(args []string, opts Options, stdout, stderr io.Writer) int {
@@ -157,5 +196,10 @@ func runBenchSummarize(args []string, opts Options, stdout, stderr io.Writer) in
 		printError(stderr, internalError("ktx bench summarize: %v", err), opts.Format)
 		return ExitInternal
 	}
-	return renderExperimentValue(stdout, regeneration.Summary, opts.Format, experiment.RenderSummary)
+	view, err := experiment.LoadCurrentCostView(dir)
+	if err != nil {
+		printError(stderr, internalError("ktx bench summarize cost view: %v", err), opts.Format)
+		return ExitInternal
+	}
+	return renderExperimentValue(stdout, experiment.WithCurrentCost(regeneration.Summary, view), opts.Format, experiment.RenderSummary)
 }

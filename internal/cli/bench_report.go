@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
+	"github.com/jgabor/ktx/internal/experiment"
 	methodologypkg "github.com/jgabor/ktx/internal/methodology"
 )
 
@@ -63,6 +64,7 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 	fs.SetOutput(io.Discard) // we render our own errors and help
 	var specFilter string
 	fs.StringVar(&specFilter, "spec", "", "filter rows by registered benchmark spec ID")
+	currentCost := fs.Bool("current-cost", false, "use a current cost envelope for a single row")
 	if err := fs.Parse(rest); err != nil {
 		printError(stderr, usageError("ktx bench report: %v", err), format)
 		return ExitUsage
@@ -96,7 +98,26 @@ func runBenchReport(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	defer db.Close()
 
-	if err := runBenchReportImpl(stdout, stderr, db, fs.Args(), format, methodologyFilter); err != nil {
+	var reportErr error
+	if *currentCost && fs.NArg() == 1 {
+		row, err := db.QueryBenchRun(fs.Arg(0))
+		if errors.Is(err, dbpkg.ErrNotFound) {
+			reportErr = notFoundError("ktx bench report: no bench_run with id '%s'", fs.Arg(0))
+		} else if err != nil {
+			reportErr = internalError("ktx bench report: query bench_run: %v", err)
+		} else {
+			selection, selected := benchRowCostView([]dbpkg.BenchRun{row})
+			if format == FormatText {
+				reportErr = renderBenchRunSingleText(stdout, row)
+				renderBenchCostViewText(stdout, []dbpkg.BenchRun{row}, selection, selected)
+			} else {
+				reportErr = json.NewEncoder(stdout).Encode(map[string]any{"row": row, "cost_selection": selection, "selected_cost_per_correct": selected})
+			}
+		}
+	} else {
+		reportErr = runBenchReportImpl(stdout, stderr, db, fs.Args(), format, methodologyFilter)
+	}
+	if err := reportErr; err != nil {
 		printError(stderr, err, format)
 		return exitCodeOf(err)
 	}
@@ -235,6 +256,8 @@ func renderBenchReportJSON(stdout io.Writer, rows []dbpkg.BenchRun, methodologyF
 		"methodology_version": methodologyVersion,
 		"rows":                rows,
 	}
+	selection, selected := benchRowCostView(rows)
+	envelope["cost_selection"], envelope["selected_cost_per_correct"] = selection, selected
 	return json.NewEncoder(stdout).Encode(envelope)
 }
 
@@ -259,6 +282,8 @@ func renderBenchReportText(w io.Writer, rows []dbpkg.BenchRun, methodologyFilter
 	}
 	fmt.Fprintf(w, "methodology %s — headline: %s USD/correct (N=%d)\n",
 		methodologyVersionStr, headlineStr, len(rows))
+	selection, selected := benchRowCostView(rows)
+	renderBenchCostViewText(w, rows, selection, selected)
 
 	if len(rows) == 0 {
 		return nil
@@ -277,6 +302,39 @@ func renderBenchReportText(w io.Writer, rows []dbpkg.BenchRun, methodologyFilter
 			formatBenchTimestamp(b.Timestamp))
 	}
 	return tw.Flush()
+}
+
+func benchRowCostView(rows []dbpkg.BenchRun) (experiment.CostSelection, any) {
+	facts := make([]experiment.CostObservation, 0, len(rows))
+	for _, row := range rows {
+		facts = append(facts, experiment.ReportedCostObservation(row.ID, row.Cost, "bench_runs.cost"))
+	}
+	selection := experiment.SelectCostCohort(facts)
+	var selected any
+	if selection.Basis == "reported" {
+		value, _ := computeAggregateHeadline(rows)
+		selected = value
+	}
+	return selection, selected
+}
+
+func renderBenchCostViewText(w io.Writer, rows []dbpkg.BenchRun, selection experiment.CostSelection, selected any) {
+	fmt.Fprintln(w, experiment.RenderCostSelection(selection))
+	value := "-"
+	if selected != nil {
+		value = fmt.Sprintf("%.6f", selected)
+	}
+	fmt.Fprintf(w, "selected_cost_per_correct: %s USD/correct\n", value)
+	for _, row := range rows {
+		fmt.Fprintf(w, "source_cost id=%s cost=%s estimated_api_cost=%s (stored, not retained-pricing-qualified)\n", row.ID, storedCostText(row.Cost), storedCostText(row.EstimatedAPICost))
+	}
+}
+
+func storedCostText(value *float64) string {
+	if value == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%.6f", *value)
 }
 
 // envelopeMethodologyVersion returns the envelope's methodology_version

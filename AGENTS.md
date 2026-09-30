@@ -111,6 +111,16 @@ the `.attempt.failed.json` sibling is the latest failed attempt, not authority.
 
 ## Testing
 
+### Cost evidence
+
+Follow [the canonical cohort cost contract](docs/pipelines.md#cohort-cost-selection)
+for reports, rankings, and cost-based acceptance. Use usable complete reported
+cost first, then a labeled reproducible whole-cohort API estimate. Do not add
+invoice, subscription, access-mode, or upstream billing-proof gates. Keep
+artifact validity, cost availability, target success, and recommendation
+eligibility separate. Unknown cost is never zero; current views do not rescore
+frozen historical fields or campaign winners.
+
 ### Live comparison
 
 Follow the [canonical benchmark workflow](docs/pipelines.md#canonical-benchmark-workflow).

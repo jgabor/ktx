@@ -47,6 +47,7 @@ type fakeExecutor struct {
 	sides                []string
 	cleanup              []string
 	timeoutFirst         bool
+	incompleteFirst      bool
 	attemptRuns          int
 	capabilityRuns       int
 	runArgs              [][]string
@@ -55,6 +56,7 @@ type fakeExecutor struct {
 	collectorContract    string
 	omitOpenCodeIdentity bool
 	fullStepUsage        bool
+	extraModelStep       bool
 	candidateInput       int
 }
 
@@ -122,12 +124,21 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 				return CommandResult{}, err
 			}
 			runtimeSession := "runtime-" + side
+			if dockerEnvironmentValue(command.Args, benchcontract.ReadDescriptionEnv) != "" {
+				runtimeSession = "ses_" + runtimeSession
+			}
 			messageID, partID := "message", "part"
 			zero := int64(0)
 			cost := float64(0)
 			inputTokens := int64(map[string]int{Baseline: 100, Candidate: 40}[side])
 			observation := &telemetry.Observation{Key: telemetry.Key{SessionID: runtimeSession, MessageID: messageID, PartID: partID}, Ordinal: 1, Reason: "stop", Runtime: benchcontract.Runtime, RuntimeVersion: benchcontract.RuntimeVersion, Source: telemetry.SourceEventHook, Cost: telemetry.CostMeasurement{State: telemetry.MeasurementMeasured, Value: &cost}, Tokens: telemetry.Tokens{Input: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &inputTokens}, Output: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, Reasoning: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, CacheRead: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}, CacheWrite: telemetry.IntegerMeasurement{State: telemetry.MeasurementMeasured, Value: &zero}}}
 			_, _, err = store.PersistRuntimeEvent(db.RuntimeEventInput{IntervalID: intervalID, SessionID: owner, EpochID: "epoch", EpochOrdinal: 1, Kind: "model_step", EventType: "message.part.updated", SourceSessionID: &runtimeSession, MessageID: &messageID, PartID: &partID, CapturedAt: captured, Telemetry: observation})
+			if err == nil && fake.extraModelStep {
+				second := *observation
+				second.MessageID, second.PartID, second.Ordinal = "message-2", "part-2", 2
+				second.Tokens.Input.Value = &zero
+				_, _, err = store.PersistRuntimeEvent(db.RuntimeEventInput{IntervalID: intervalID, SessionID: owner, EpochID: "epoch", EpochOrdinal: 2, Kind: "model_step", EventType: "message.part.updated", SourceSessionID: &runtimeSession, MessageID: &second.MessageID, PartID: &second.PartID, CapturedAt: captured, Telemetry: &second})
+			}
 			if err != nil {
 				_ = store.Close()
 				return CommandResult{}, err
@@ -137,7 +148,11 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 				_, err = store.PersistToolCallOnce(&db.ToolCall{ID: toolID, SessionID: owner, Tool: "bash", Output: "done", ContentHash: db.ContentHash("done")})
 			}
 			if err == nil {
-				err = store.SealRuntimeEventInterval(intervalID, owner, captured, db.RuntimeComplete, "")
+				state, reason := db.RuntimeComplete, ""
+				if fake.incompleteFirst && fake.attemptRuns == 1 {
+					state, reason = db.RuntimeIncomplete, "synthetic follow-up failed"
+				}
+				err = store.SealRuntimeEventInterval(intervalID, owner, captured, state, reason)
 			}
 			closeErr := store.Close()
 			if err != nil {
@@ -156,6 +171,9 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"sessionID":%q,"messageID":"message","id":"part","type":"step-finish","reason":"stop","tokens":{"input":%d,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}`+"\n", runtimeSession, input))
 			} else {
 				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"sessionID":%q,"messageID":"message","id":"part","type":"step-finish","reason":"stop","tokens":{"input":%d,"output":0},"cost":0}}`+"\n", runtimeSession, input))
+			}
+			if fake.extraModelStep {
+				write(command.Stdout, fmt.Sprintf(`{"type":"step_finish","part":{"sessionID":%q,"messageID":"message-2","id":"part-2","type":"step-finish","reason":"stop","tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"cost":0}}`+"\n", runtimeSession))
 			}
 			write(command.Stdout, `{"type":"text","part":{"text":"done"}}`+"\n")
 			return CommandResult{}, nil

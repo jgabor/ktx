@@ -1,0 +1,8 @@
+id = "read-window-first"
+workspace_mode = "corpus"
+corpus_files = ["window-a.txt"]
+prompt = "Use a single default read of /work/tools/bench/corpus/window-a.txt. Omit limit and offset; do not page further. Reply with only the last numbered line returned. Do not edit files or use any non-read tool."
+minimum_tool_calls = 1
+[scoring]
+kind = "read_preservation"
+expected_output = "a-2000"

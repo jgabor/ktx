@@ -219,7 +219,29 @@ func TestCurrentPromptCacheTerminologyKeepsChangelogAndTODOAligned(t *testing.T)
 	assertContractText(t, readDocumentationFile(t, filepath.Join(root, "CHANGELOG.md")),
 		[]string{"methodology v6", "summary schema 5", "cache-reuse-v2"}, nil)
 	assertContractText(t, readDocumentationFile(t, filepath.Join(root, "TODO.md")),
-		[]string{"**Live latency coverage**"}, []string{"**Live cost and latency coverage**"})
+		[]string{"Live latency coverage"}, []string{"Live cost and latency coverage"})
+}
+
+func TestLiveLatencyTerminologyIgnoresMarkdownDelimiters(t *testing.T) {
+	for _, tc := range []struct {
+		text  string
+		valid bool
+	}{
+		{"**Live latency coverage**", true},
+		{"Live latency coverage", true},
+		{"**Live cost and latency coverage**", false},
+		{"Live cost and latency coverage", false},
+		{"Live latency coverage\n**Live cost and latency coverage**", false},
+		{"**Live latency coverage**\nLive cost and latency coverage", false},
+		{"unrelated wording", false},
+	} {
+		t.Run(tc.text, func(t *testing.T) {
+			issues := contractTextIssues(tc.text, []string{"Live latency coverage"}, []string{"Live cost and latency coverage"})
+			if (len(issues) == 0) != tc.valid {
+				t.Fatalf("valid=%v issues=%v", tc.valid, issues)
+			}
+		})
+	}
 }
 
 func assertContractText(t *testing.T, contents string, required, forbidden []string) {

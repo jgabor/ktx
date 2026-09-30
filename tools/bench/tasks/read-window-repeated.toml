@@ -1,0 +1,9 @@
+id = "read-window-repeated"
+workspace_mode = "corpus"
+corpus_files = ["window-a.txt", "window-b.txt"]
+prompt = "Use a single default read of /work/tools/bench/corpus/window-a.txt. Omit limit and offset; do not page further. Reply with only the last numbered line returned. Do not edit files or use any non-read tool."
+followup_prompt = "Now use a single default read of /work/tools/bench/corpus/window-b.txt. Omit limit and offset; do not page further. Reply with only the last numbered line returned. Do not edit files or use any non-read tool."
+minimum_tool_calls = 2
+[scoring]
+kind = "read_preservation"
+expected_output = "b-2000"

@@ -1,0 +1,66 @@
+{
+  "artifact_type": "sanitized-runtime-diagnostic",
+  "diagnostic_only": true,
+  "date": "2026-09-28",
+  "prior_archive_id": "gpt-6-luna-qualification-20260928",
+  "prior_attempt_id": "baseline-001",
+  "preliminary_attempt_ordinal": 2,
+  "total_preliminary_agent_attempts": 2,
+  "remaining_preliminary_agent_attempts": 0,
+  "image": "sha256:7ba62d87f79d46d9bba62388eda2faf46ae4a88bb0122cf438853327e9d262da",
+  "runtime": "OpenCode 1.18.5",
+  "entrypoint": ["/usr/local/bin/ktx", "bench", "agent"],
+  "configured_model": "openai/gpt-6-luna",
+  "configured_variant": "high",
+  "prompt_sha256": "818abf310838b04b9627abf0378a6fd65719e7eab562bbf06aaa87e248a57d97",
+  "corpus_sha256": "7d519a74caf1486f30634787997724acc15f061f0ac93d351d10e6d69360d66a",
+  "passthrough_config_sha256": "c2c96472876aee9fd79522bbe9a26174e9a3a76e7b56135e095fcfbae57625c1",
+  "pricing_snapshot_sha256": "99fbdcbf38233c00f574dd03469849914414babf654aee3a49d3776c9fa6c6cf",
+  "logging_environment": {
+    "OPENCODE_PRINT_LOGS": "1",
+    "OPENCODE_LOG_LEVEL": "ERROR"
+  },
+  "required_collector_owner_attached": false,
+  "timeout_seconds": 270,
+  "termination_grace_seconds": 30,
+  "started_at": "2026-09-28T17:16:29.122919+00:00",
+  "ended_at": "2026-09-28T17:16:38.681481+00:00",
+  "elapsed_seconds_including_cleanup": 9.559,
+  "exit_code": 1,
+  "timed_out": false,
+  "container_cleanup_exit_code": 0,
+  "remaining_owned_containers": 0,
+  "original_evidence_hashes_unchanged": true,
+  "stream_event_counts": { "error": 1 },
+  "observed_model_steps": 0,
+  "safe_error_class": "ProviderModelNotFoundError",
+  "safe_error_message_excerpt": "Model not found: openai/gpt-6-luna",
+  "selected_runtime_stack_paths": [
+    "/$bunfs/root/chunk-55r7fwsc.js:439:93384",
+    "/$bunfs/root/chunk-bpgn8whk.js:4:13220",
+    "/$bunfs/root/chunk-yk1v9hy4.js:1085:9838"
+  ],
+  "failure_boundary": "runtime provider/model resolution",
+  "exact_resolution_branch": "unresolved",
+  "reported_cost_usd": null,
+  "estimated_cost_usd": null,
+  "cost_state": "unavailable_no_model_step_usage",
+  "cumulative_spend_state": "unknown",
+  "cumulative_estimated_spend_target_usd": 1,
+  "guaranteed_hard_bill_cap": false,
+  "qualification_status": "failed_original_archive_unchanged",
+  "private_raw_root": "/tmp/opencode/ktx-luna-diagnostic-20260928",
+  "private_root_mode": "0700",
+  "raw_artifacts": {
+    "stream.jsonl": {
+      "mode": "0600",
+      "bytes": 218,
+      "sha256": "98e0f245a9d4db973c9e90094085ad6ce3bf1ccfd3ae3415cfb965f65ff770f6"
+    },
+    "stderr.log": {
+      "mode": "0600",
+      "bytes": 1439,
+      "sha256": "4f0010be30b64c8c9f516276439db5450b6ae7defc3e5e4eea0f9c804245b4ea"
+    }
+  }
+}

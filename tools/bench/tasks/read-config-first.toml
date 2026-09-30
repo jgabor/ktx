@@ -1,0 +1,8 @@
+id = "read-config-first"
+workspace_mode = "corpus"
+corpus_files = ["owner.txt"]
+prompt = "Use read on /work/tools/bench/corpus/owner.txt. Reply with only its key=value line. Do not edit files or use any non-read tool."
+minimum_tool_calls = 1
+[scoring]
+kind = "read_preservation"
+expected_output = "owner=iris"

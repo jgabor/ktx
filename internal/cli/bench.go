@@ -187,6 +187,19 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      The generic preflight returns before task loading; --build adds image creation.")
 	fmt.Fprintln(w, "      --pricing-snapshot <pricing.json> pins those exact bytes; --pricing-sha256")
 	fmt.Fprintln(w, "      optionally requires their identity. Preflight validates the pin and model.")
+	fmt.Fprintln(w, "      --runtime-config <file.json> retains one self-contained OpenCode model")
+	fmt.Fprintln(w, "      registration and mounts the same bytes read-only for both arms; compare only.")
+	fmt.Fprintln(w, "      --read-description-treatment read-three-bullets-v1 is a benchmark-only")
+	fmt.Fprintln(w, "      OpenCode 1.18.5 hook treatment; requires identical passthrough arms, corpus")
+	fmt.Fprintln(w, "      tasks, openai/gpt-6-luna/high, runtime-config, pinned pricing, observed")
+	fmt.Fprintln(w, "      cache control, --target-valid 1 --max-attempts 2 and no warmup.")
+	fmt.Fprintln(w, "      --first-arm baseline|candidate selects the actual first treatment arm without")
+	fmt.Fprintln(w, "      relabeling; --estimated-cost-limit <USD> stops before the next attempt when")
+	fmt.Fprintln(w, "      cumulative pinned-price estimates reach the limit or coverage is incomplete.")
+	fmt.Fprintln(w, "      Both options require this two-attempt treatment and are compare-only, not rank.")
+	fmt.Fprintln(w, "      The finite positive limit also requires --pricing-sha256. Failures retain")
+	fmt.Fprintln(w, "      usage and execution-stop.json; a final attempt may overshoot (not a bill cap).")
+	fmt.Fprintln(w, "      Retains hook and turn evidence; existing scores do not prove semantic preservation.")
 	fmt.Fprintln(w, "      Cache-aware opt-in: --spec prompt-cache-token-hit-rate")
 	fmt.Fprintln(w, "      with --cache-control auto|isolated|observed, --warmup N (default 1), --rounds N (default 5).")
 	fmt.Fprintln(w, "      This current path emits summary schema 5 under cache-reuse-v2.")
@@ -251,6 +264,15 @@ func printBenchSubcommandHelp(w io.Writer, sub string) bool {
 		return false
 	}
 	fmt.Fprintf(w, "Usage: %s\n\n%s\n\n%s\n", h.usage, h.effect, h.next)
+	if sub == "compare" {
+		fmt.Fprintln(w, "\nTwo-attempt --read-description-treatment controls (see ktx bench --help):")
+		fmt.Fprintln(w, "  --first-arm baseline|candidate  Actual first arm; labels and treatment stay fixed.")
+		fmt.Fprintln(w, "  --estimated-cost-limit <USD>    Finite positive pinned-price stop threshold.")
+		fmt.Fprintln(w, "Requires runtime-config, pricing-snapshot and pricing-sha256. Before each next")
+		fmt.Fprintln(w, "attempt, incomplete usage/coverage or a reached limit stops execution, retaining")
+		fmt.Fprintln(w, "execution-stop.json and all work. The last attempt may overshoot; not a bill cap.")
+		fmt.Fprintln(w, "These options are compare-only, not rank. Omitted options preserve existing behavior.")
+	}
 	if sub == "compare" || sub == "rank" {
 		registry := benchregistry.Active()
 		fmt.Fprintln(w, "\nActive semantic IDs:")

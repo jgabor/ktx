@@ -30,6 +30,12 @@ func loadExperimentEvidence(a *archive) (Manifest, []Attempt, []ProjectionDiverg
 	if err := a.validateExecutionConfigs(manifest); err != nil {
 		return manifest, nil, nil, err
 	}
+	if err := a.validateRuntimeConfig(manifest); err != nil {
+		return manifest, nil, nil, err
+	}
+	if err := a.validateReadDescription(manifest); err != nil {
+		return manifest, nil, nil, err
+	}
 	ledger, err := a.open("attempts.jsonl")
 	if os.IsNotExist(err) {
 		return manifest, nil, nil, fmt.Errorf("attempts.jsonl must contain experiment evidence")
@@ -51,6 +57,13 @@ func loadExperimentEvidence(a *archive) (Manifest, []Attempt, []ProjectionDiverg
 		}
 		if attempt.AttemptID == "" || (attempt.Side != Baseline && attempt.Side != Candidate) {
 			return fmt.Errorf("attempt must have an attempt_id and baseline or candidate side")
+		}
+		if manifest.RuntimeConfig != nil {
+			if attempt.RuntimeConfigSHA256 != manifest.RuntimeConfig.SHA256 {
+				return fmt.Errorf("attempt %q runtime configuration identity mismatch", attempt.AttemptID)
+			}
+		} else if attempt.RuntimeConfigSHA256 != "" {
+			return fmt.Errorf("attempt %q has unclaimed runtime configuration", attempt.AttemptID)
 		}
 		if index, exists := first[attempt.AttemptID]; exists {
 			prior := attempts[index]
@@ -82,9 +95,19 @@ func loadExperimentEvidence(a *archive) (Manifest, []Attempt, []ProjectionDiverg
 	if len(attempts) == 0 {
 		return manifest, nil, nil, fmt.Errorf("attempts.jsonl must contain experiment evidence")
 	}
+	if err := validateReadDescriptionComparability(attempts); err != nil {
+		return manifest, nil, nil, err
+	}
+	if err := validatePairOrder(manifest, attempts); err != nil {
+		return manifest, nil, nil, err
+	}
 	divergences := []ProjectionDivergence{}
 	for _, group := range grouped {
 		divergences = append(divergences, group...)
+	}
+	attempts, err = a.applyCostControls(manifest, attempts, divergences)
+	if err != nil {
+		return manifest, nil, nil, err
 	}
 	return manifest, attempts, divergences, nil
 }
@@ -197,6 +220,9 @@ func (r *streamReadError) Read(p []byte) (int, error) {
 }
 
 func validateManifestContract(manifest Manifest) error {
+	if err := validateExecutionControlManifest(manifest); err != nil {
+		return err
+	}
 	if manifest.SchemaVersion != 1 {
 		return fmt.Errorf("manifest has missing or unsupported schema_version %d", manifest.SchemaVersion)
 	}

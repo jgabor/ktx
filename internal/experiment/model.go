@@ -19,6 +19,7 @@ const scoreEpsilon = 1.0e-9
 type Task struct {
 	ID               string   `json:"id" toml:"id"`
 	Prompt           string   `json:"prompt" toml:"prompt"`
+	FollowupPrompt   string   `json:"followup_prompt,omitempty" toml:"followup_prompt"`
 	ExpectedOutput   *string  `json:"expected_output"`
 	ExpectedFacts    []string `json:"expected_facts"`
 	ScoringKind      string   `json:"scoring_kind"`
@@ -32,12 +33,19 @@ type Task struct {
 }
 
 type Score struct {
-	Score                 float64  `json:"score"`
-	FullPass              bool     `json:"full_pass"`
-	AnswerMatchesExpected bool     `json:"answer_matches_expected"`
-	FactsMatched          []string `json:"facts_matched"`
-	FactsMissed           []string `json:"facts_missed"`
-	FactsTotal            int      `json:"facts_total"`
+	Score                 float64          `json:"score"`
+	FullPass              bool             `json:"full_pass"`
+	AnswerMatchesExpected bool             `json:"answer_matches_expected"`
+	FactsMatched          []string         `json:"facts_matched"`
+	FactsMissed           []string         `json:"facts_missed"`
+	FactsTotal            int              `json:"facts_total"`
+	Phases                []ReadPhaseScore `json:"phases,omitempty"`
+}
+
+type ReadPhaseScore struct {
+	File                  string `json:"file"`
+	AnswerMatchesExpected bool   `json:"answer_matches_expected"`
+	FullPass              bool   `json:"full_pass"`
 }
 
 type UsageEvidence struct {
@@ -86,6 +94,8 @@ type Attempt struct {
 	AttemptID              string                `json:"attempt_id"`
 	Side                   string                `json:"side"`
 	Role                   string                `json:"role,omitempty"`
+	FirstArm               string                `json:"first_arm,omitempty"`
+	ExecutionOrder         int                   `json:"execution_order,omitempty"`
 	CacheControl           *CacheControlMetadata `json:"cache_control,omitempty"`
 	PipelineID             string                `json:"pipeline_id"`
 	Cycle                  int                   `json:"cycle"`
@@ -101,13 +111,17 @@ type Attempt struct {
 	RecordedStreamID       *string               `json:"recorded_stream_id"`
 	BenchRunID             *string               `json:"bench_run_id"`
 	Metrics
-	ConfigSHA256      string            `json:"config_sha256"`
-	Artifacts         map[string]string `json:"artifacts"`
-	ContentHashes     map[string]string `json:"content_hashes"`
-	delivery          *deliveryEvidence
-	outcomes          *attemptOutcomes
-	calls             *callAccounting
-	validationReasons []string
+	ConfigSHA256             string            `json:"config_sha256"`
+	RuntimeConfigSHA256      string            `json:"runtime_config_sha256,omitempty"`
+	ReadDescriptionTreatment string            `json:"read_description_treatment,omitempty"`
+	Artifacts                map[string]string `json:"artifacts"`
+	ContentHashes            map[string]string `json:"content_hashes"`
+	delivery                 *deliveryEvidence
+	outcomes                 *attemptOutcomes
+	calls                    *callAccounting
+	validationReasons        []string
+	readDefinitions          map[string]string
+	readEpochs               map[string]bool
 }
 
 type modelStepIdentity struct {
@@ -224,6 +238,8 @@ type Manifest struct {
 	Variant                 *string                     `json:"variant,omitempty"`
 	TargetValidPerPipeline  int                         `json:"target_valid_per_pipeline"`
 	MaxAttempts             int                         `json:"max_attempts"`
+	FirstArm                string                      `json:"first_arm,omitempty"`
+	EstimatedCostLimit      *float64                    `json:"estimated_cost_limit,omitempty"`
 	AttemptTimeout          string                      `json:"attempt_timeout"`
 	TerminationGrace        string                      `json:"termination_grace"`
 	PipelineExecutionPolicy map[string]any              `json:"pipeline_execution_policy"`
@@ -233,6 +249,8 @@ type Manifest struct {
 	Pipelines               map[string]PipelineMetadata `json:"pipelines"`
 	Methodology             MethodologyMetadata         `json:"methodology"`
 	Inputs                  []InputMetadata             `json:"inputs,omitempty"`
+	RuntimeConfig           *InputMetadata              `json:"runtime_config,omitempty"`
+	ReadDescription         *ReadDescriptionMetadata    `json:"read_description,omitempty"`
 	Pricing                 *PricingSnapshotMetadata    `json:"pricing,omitempty"`
 	CacheControl            *CacheControlManifest       `json:"cache_control,omitempty"`
 }

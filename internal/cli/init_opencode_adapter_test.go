@@ -143,8 +143,11 @@ func TestGeneratedOpenCodeAdapterDoesNotKillCallbacks(t *testing.T) {
 			t.Errorf("generated adapter is missing pinned invocation %q", required)
 		}
 	}
+	// Ordinary callbacks must still avoid binary hashing/identity subprocesses.
+	// The opt-in benchmark helper hashes only its frozen public tool definitions.
+	ordinary := strings.TrimSuffix(ktxOpencodePluginTemplate, benchmarkReadDescriptionTemplate)
 	for _, forbidden := range []string{"binary-capabilities", "createHash", "readFile(canonical)", "--expect-runtime-sha256"} {
-		if strings.Contains(ktxOpencodePluginTemplate, forbidden) {
+		if strings.Contains(ordinary, forbidden) {
 			t.Errorf("generated adapter performs removed identity work %q", forbidden)
 		}
 	}

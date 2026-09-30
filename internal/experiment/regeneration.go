@@ -34,6 +34,9 @@ func materializeAttempts(experimentDir string, manifest Manifest, attempts []Att
 }
 
 func (a *archive) materializeAttempts(manifest Manifest, attempts []Attempt) ([]Attempt, []ProjectionDivergence, error) {
+	if err := a.validateReadDescription(manifest); err != nil {
+		return nil, nil, err
+	}
 	first := make(map[string]int)
 	records := make(map[string][]int)
 	order := make([]string, 0)
@@ -60,6 +63,16 @@ func (a *archive) materializeAttempts(manifest Manifest, attempts []Attempt) ([]
 			divergences = append(divergences, metricDivergences(authoritative, attempts[index], ordinal+1)...)
 		}
 	}
+	if err := validateReadDescriptionComparability(materialized); err != nil {
+		return nil, nil, err
+	}
+	if err := validatePairOrder(manifest, materialized); err != nil {
+		return nil, nil, err
+	}
+	materialized, err := a.applyCostControls(manifest, materialized, divergences)
+	if err != nil {
+		return nil, nil, err
+	}
 	return materialized, divergences, nil
 }
 
@@ -73,6 +86,11 @@ func materializeAttempt(experimentDir string, manifest Manifest, attempt Attempt
 }
 
 func (a *archive) materializeAttempt(manifest Manifest, attempt Attempt) (Attempt, error) {
+	definitions, definitionErr := a.readDescriptionDefinitions(manifest, &attempt)
+	if definitionErr != nil && (manifest.ReadDescription == nil || unsafeArchiveAccess(definitionErr)) {
+		return Attempt{}, fmt.Errorf("attempt %q: %w", attempt.AttemptID, definitionErr)
+	}
+	attempt.readDefinitions = definitions
 	databaseRel, hasDatabase := attempt.Artifacts["database"]
 	streamRel, hasStream := attempt.Artifacts["stream"]
 	if attempt.SchemaVersion != 3 {
@@ -102,6 +120,12 @@ func (a *archive) materializeAttempt(manifest Manifest, attempt Attempt) (Attemp
 		attempt.calls = &callAccounting{Stream: attempt.calls.Stream, Persistence: unavailableCallAuthority("persistence_authority_unavailable")}
 	}
 	metrics.EstimatedAPICost = nil
+	if definitionErr != nil {
+		// A failed follow-up can leave valid first-turn usage but incomplete
+		// application/response evidence. Preserve those observations for cost
+		// accounting without granting the attempt completion or pass eligibility.
+		return invalidSchema3Attempt(attempt, metrics, fmt.Sprintf("read-description evidence: %v", definitionErr)), nil
+	}
 	if attempt.SessionID == nil || *attempt.SessionID == "" {
 		return invalidSchema3Attempt(attempt, metrics, "schema 3 attempt is missing its explicit session owner"), nil
 	}
@@ -115,6 +139,21 @@ func (a *archive) materializeAttempt(manifest Manifest, attempt Attempt) (Attemp
 	}
 	defer cleanup()
 	defer database.Close()
+	if manifest.ReadDescription != nil {
+		interval, err := database.LoadRuntimeEventInterval(*attempt.RuntimeEventIntervalID)
+		if err != nil {
+			return Attempt{}, err
+		}
+		epochs := map[string]bool{}
+		for _, event := range interval.Events {
+			if event.Kind == "collector_open" {
+				epochs[event.EpochID] = true
+			}
+		}
+		if !reflect.DeepEqual(epochs, attempt.readEpochs) {
+			return Attempt{}, fmt.Errorf("attempt %q read-description epochs differ from collector", attempt.AttemptID)
+		}
+	}
 	{
 		if attempt.SessionLink.State != "linked" || attempt.SessionLink.NewSessionCount != 1 || len(attempt.SessionLink.NewSessionIDs) != 1 || attempt.SessionLink.NewSessionIDs[0] != *attempt.SessionID {
 			return invalidSchema3Attempt(attempt, metrics, "schema 3 explicit session link does not match its owner"), nil
@@ -156,6 +195,20 @@ func (a *archive) materializeAttempt(manifest Manifest, attempt Attempt) (Attemp
 	}
 	attempt.delivery = newDeliveryEvidence(databaseRel, deliveryRows)
 	attempt.outcomes = materializeAttemptOutcomes(database.DB(), *attempt.SessionID)
+	if manifest.ReadDescription != nil && manifest.Task.ScoringKind == "read_preservation" {
+		if err := checkReadWorkspace(a, attempt, manifest.Task); err != nil {
+			if unsafeArchiveAccess(err) {
+				return Attempt{}, err
+			}
+			return invalidSchema3Attempt(attempt, metrics, fmt.Sprintf("read-preservation input: %v", err)), nil
+		}
+		attempt.Score = scoreReadPreservation(manifest.Task, *attempt.SessionID, database.DB(), func(turn int) (io.ReadCloser, error) {
+			return a.open(attempt.Artifacts[fmt.Sprintf("turn_%d", turn)])
+		})
+		if attempt.Status != "completed" || attempt.ProcessExitCode != 0 || !metrics.StreamComplete {
+			attempt.FullPass, attempt.Score.Score = false, 0
+		}
+	}
 	return attempt, nil
 }
 
@@ -332,6 +385,8 @@ type attemptOrchestration struct {
 	ExperimentID, AttemptID, Side, Role, PipelineID string
 	CacheControl                                    *CacheControlMetadata
 	Cycle, Ordinal                                  int
+	FirstArm                                        string
+	ExecutionOrder                                  int
 	StartedAt, EndedAt, Status                      string
 	ProcessExitCode                                 int
 	SessionLink                                     SessionLink
@@ -340,6 +395,8 @@ type attemptOrchestration struct {
 	RecordedStreams                                 []RecordedStreamLink
 	RecordedStreamID, BenchRunID                    *string
 	ConfigSHA256                                    string
+	RuntimeConfigSHA256                             string
+	ReadDescriptionTreatment                        string
 	Artifacts, ContentHashes                        map[string]string
 }
 
@@ -350,7 +407,9 @@ func orchestrationOf(a Attempt) attemptOrchestration {
 		Cycle: a.Cycle, Ordinal: a.Ordinal, StartedAt: a.StartedAt, EndedAt: a.EndedAt,
 		Status: a.Status, ProcessExitCode: a.ProcessExitCode, SessionLink: a.SessionLink,
 		SessionID: a.SessionID, RuntimeEventIntervalID: a.RuntimeEventIntervalID, RecordedStreams: a.RecordedStreams, RecordedStreamID: a.RecordedStreamID,
-		BenchRunID: a.BenchRunID, ConfigSHA256: a.ConfigSHA256, Artifacts: a.Artifacts,
+		BenchRunID: a.BenchRunID, ConfigSHA256: a.ConfigSHA256, RuntimeConfigSHA256: a.RuntimeConfigSHA256, Artifacts: a.Artifacts,
+		ReadDescriptionTreatment: a.ReadDescriptionTreatment,
+		FirstArm:                 a.FirstArm, ExecutionOrder: a.ExecutionOrder,
 		ContentHashes: a.ContentHashes,
 	}
 }

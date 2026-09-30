@@ -30,4 +30,4 @@ record:
       description: "[task] Physical compressed-storage naming and artifact kinds — Keep the current physical compressed-storage name and artifact model until separate work explicitly selects and migrates replacements. The schema-11 producer provenance and hook-coordination work does not complete this change."
       severity: normal
       status: open
-      order: 4
+      order: 3

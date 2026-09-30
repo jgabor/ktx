@@ -558,6 +558,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 	const requiredIntervalID = process.env.KTX_BENCH_EVENT_INTERVAL_ID || ""
 	const requiredContract = process.env.KTX_BENCH_EVENT_CONTRACT || ""
   const epochID = crypto.randomUUID()
+	const readDescriptionHook = benchmarkReadDescription(required, epochID)
 	let globalOrdinal = 0
   if (required) {
 	const ack = await ktxRequiredCommand(ktxExecutable, openBackedArgs(["telemetry", "collector-open"]), JSON.stringify({ epoch_id: epochID }))
@@ -675,6 +676,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
       eventQueue = next
       await next
     },
+    ...(readDescriptionHook ? { "tool.definition": readDescriptionHook } : {}),
     "tool.execute.after": async (input: any, output: any) => {
       // Noop when an ordinary wrapper is active.
       if (process.env.KTX_SESSION_ID && !process.env.KTX_COLLECTION_ID) return
@@ -728,7 +730,7 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 }
 
 export default KtxPlugin
-`
+` + benchmarkReadDescriptionTemplate
 
 // initFlags captures the flags shared across all `ktx init <runtime>`
 // subcommands. Each flag selects a distinct action; combining them is

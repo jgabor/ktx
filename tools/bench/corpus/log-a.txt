@@ -1,0 +1,6 @@
+start
+noise-a
+noise-b
+FACT=quartz
+end-a
+end-b

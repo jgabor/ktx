@@ -36,4 +36,4 @@ record:
       description: "[feature] Load and expand local stage recipes"
       severity: normal
       status: open
-      order: 11
+      order: 10

@@ -153,7 +153,7 @@ func prepareWorkspace(repositoryRoot, workspace, mode string, corpusFiles []stri
 				return nil, fmt.Errorf("refusing to mount non-fixture corpus file: %s", name)
 			}
 			source := filepath.Join(repositoryRoot, "tools", "bench", "corpus", name)
-			if err := copyTreeFile(source, filepath.Join(destination, name)); err != nil {
+			if err := mountReadFixture(source, filepath.Join(destination, name), name); err != nil {
 				return nil, err
 			}
 			copied = append(copied, filepath.ToSlash(filepath.Join("tools", "bench", "corpus", name)))

@@ -53,7 +53,7 @@ func normalizeCommandValues(verb string, args []string) ([]string, error) {
 	case "plugin":
 		names = "--description"
 	case "bench":
-		names = "--spec --replay --replay-file --output --population --config --anchor-config --model --variant --task --baseline --candidate --auth --image --experiment-id --campaign-id --repo-root --pricing-snapshot --pricing-sha256 --cache-control --warmup --target-valid --rounds --max-attempts --attempt-timeout --termination-grace -m --m -format"
+		names = "--spec --replay --replay-file --output --population --config --anchor-config --model --variant --task --baseline --candidate --auth --image --experiment-id --campaign-id --repo-root --pricing-snapshot --pricing-sha256 --runtime-config --read-description-treatment --first-arm --estimated-cost-limit --followup --cache-control --warmup --target-valid --rounds --max-attempts --attempt-timeout --termination-grace -m --m -format"
 		// Benchmark FlagSets also accept the stdlib single-dash spelling.
 		for _, name := range strings.Fields(names) {
 			if strings.HasPrefix(name, "--") {

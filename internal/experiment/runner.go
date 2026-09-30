@@ -26,38 +26,42 @@ import (
 )
 
 type CompareOptions struct {
-	Model              string
-	Variant            string
-	TaskFile           string
-	Task               Task
-	TargetValid        int
-	MaxAttempts        int
-	AttemptTimeout     time.Duration
-	TerminationGrace   time.Duration
-	ExperimentID       string
-	DataDir            string
-	Image              string
-	AuthPath           string
-	RepoRoot           string
-	MethodologyPath    string
-	BaselineConfig     string
-	CandidateConfig    string
-	KTXBin             string
-	DockerBin          string
-	BuildImage         bool
-	CacheControl       string
-	PricingSnapshot    string
-	PricingSHA256      string
-	Warmup             int
-	WarmupSet          bool
-	RegisteredInputs   bool
-	SpecID             string
-	TaskID             string
-	BaselineID         string
-	CandidateID        string
-	ContractID         string
-	ContractPath       string
-	methodologyVersion string
+	Model                    string
+	Variant                  string
+	TaskFile                 string
+	Task                     Task
+	TargetValid              int
+	MaxAttempts              int
+	AttemptTimeout           time.Duration
+	TerminationGrace         time.Duration
+	ExperimentID             string
+	DataDir                  string
+	Image                    string
+	AuthPath                 string
+	RepoRoot                 string
+	MethodologyPath          string
+	BaselineConfig           string
+	CandidateConfig          string
+	KTXBin                   string
+	DockerBin                string
+	BuildImage               bool
+	CacheControl             string
+	PricingSnapshot          string
+	PricingSHA256            string
+	RuntimeConfig            string
+	ReadDescriptionTreatment string
+	FirstArm                 string
+	EstimatedCostLimit       *float64
+	Warmup                   int
+	WarmupSet                bool
+	RegisteredInputs         bool
+	SpecID                   string
+	TaskID                   string
+	BaselineID               string
+	CandidateID              string
+	ContractID               string
+	ContractPath             string
+	methodologyVersion       string
 }
 
 type Runner struct {
@@ -127,6 +131,20 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err := runner.preparePaidRun(&options); err != nil {
 		return "", nil, 2, err
 	}
+	runtimeAuthDir := ""
+	if options.RuntimeConfig != "" {
+		authPath, err := stageRuntimeConfigAuth(options.AuthPath)
+		if err != nil {
+			return "", nil, 2, err
+		}
+		runtimeAuthDir = filepath.Dir(authPath)
+		defer func() {
+			if err := os.RemoveAll(runtimeAuthDir); err != nil && runner.Diagnostics != nil {
+				fmt.Fprintf(runner.Diagnostics, "warning: remove temporary OpenCode auth: %v\n", err)
+			}
+		}()
+		options.AuthPath = authPath
+	}
 	if err := os.MkdirAll(options.DataDir, 0o755); err != nil {
 		return "", nil, 2, err
 	}
@@ -136,6 +154,9 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 		cacheControl, err = resolveCacheControl(options.CacheControl, experimentID, request, runner.ResolveCacheCapability)
 		if err != nil {
 			return "", nil, 2, err
+		}
+		if options.RuntimeConfig != "" && cacheControl.mode == "isolated" {
+			return "", nil, 2, errors.New("isolated cache configuration conflicts with explicit runtime configuration; use --cache-control observed")
 		}
 	}
 	resolvePrice := runner.ResolvePrice
@@ -173,9 +194,19 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err := copyTree(options.RepoRoot, repositoryDir, func(relative string, entry os.DirEntry) bool {
 		base := filepath.Base(relative)
 		insideDataDir := dataRelative != "." && dataRelative != "" && dataRelative != ".." && !strings.HasPrefix(dataRelative, "../") && (relative == dataRelative || strings.HasPrefix(relative, dataRelative+"/"))
-		return base == ".git" || base == ".ktx" || base == "__pycache__" || insideDataDir
+		// TMPDIR may be inside (or symlink into) the repository. Exclude the
+		// uniquely named staging directory regardless of its parent spelling.
+		if runtimeAuthDir != "" && base == filepath.Base(runtimeAuthDir) {
+			return true
+		}
+		return base == ".git" || base == ".ktx" || base == "__pycache__" || insideDataDir || (options.RuntimeConfig != "" && base == ".opencode")
 	}); err != nil {
 		return "", nil, 2, fmt.Errorf("snapshot repository: %w", err)
+	}
+	if options.RuntimeConfig != "" {
+		if err := rejectProjectRuntimeConfig(repositoryDir); err != nil {
+			return "", nil, 2, err
+		}
 	}
 	repositoryHash, repositoryFiles, err := directorySHA256(repositoryDir)
 	if err != nil {
@@ -189,17 +220,37 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	if err != nil {
 		return "", nil, 2, err
 	}
+	runtimeConfig, err := captureRuntimeConfig(experimentDir, options.RuntimeConfig, options.Model, options.Variant)
+	if err != nil {
+		return "", nil, 2, err
+	}
+	if runtimeConfig != nil {
+		inputs = append(inputs, *runtimeConfig)
+	}
 	manifest, err := runner.createManifest(ctx, options, experimentID, configs, SnapshotMetadata{Path: "repository", SHA256: repositoryHash, FileCount: repositoryFiles}, runtime)
 	if err != nil {
 		return "", nil, 2, err
 	}
 	manifest.Pricing = pricing
 	manifest.Inputs = inputs
+	manifest.RuntimeConfig = runtimeConfig
+	manifest.ReadDescription, err = captureReadDescription(experimentDir, options)
+	if err != nil {
+		return experimentDir, nil, 2, err
+	}
+	if manifest.ReadDescription != nil {
+		manifest.Inputs = append(manifest.Inputs, manifest.ReadDescription.Original, manifest.ReadDescription.Candidate)
+	}
 	if cacheAwareMethodology(options.methodologyVersion) {
 		manifest.CacheControl = &CacheControlManifest{Mode: cacheControl.mode, Source: cacheControl.source, NamespaceSHA256: cacheControl.hashes, WarmupCount: options.Warmup, IdleGapMS: 0, Model: options.Model, Provider: provider, Variant: options.Variant, RuntimeVersion: manifest.Identities["opencode"], TTFTAvailable: false, TTFTUnavailableReason: "retained OpenCode stream timestamps do not provide a reliable request start"}
 	}
 	if err := WriteJSON(filepath.Join(experimentDir, "manifest.json"), manifest); err != nil {
 		return "", nil, 2, err
+	}
+	if options.EstimatedCostLimit != nil {
+		if _, err := runner.costCheckpoint(experimentDir, manifest, 0); err != nil {
+			return experimentDir, nil, 2, err
+		}
 	}
 	attempts := []Attempt{}
 	ordinals := map[string]int{Baseline: 0, Candidate: 0}
@@ -219,13 +270,15 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 			attempts = append(attempts, attempt)
 		}
 	}
+	var executionStop *ExecutionStop
+measured:
 	for cycle := 1; len(attempts) < options.MaxAttempts; cycle++ {
 		valid := CountValidForMethodology(attempts, options.Task.MinimumToolCalls, options.methodologyVersion)
 		if valid[Baseline] >= options.TargetValid && valid[Candidate] >= options.TargetValid {
 			break
 		}
 		order := Sides
-		if cycle%2 == 0 {
+		if (cycle%2 == 0) != (options.FirstArm == Candidate) {
 			order = []string{Candidate, Baseline}
 		}
 		for _, side := range order {
@@ -243,9 +296,24 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 			}
 			attempt, err := runner.runAttempt(ctx, options, manifest, experimentDir, side, role, cycle, ordinals[side], executionOrder, cacheControl)
 			if err != nil {
+				if options.EstimatedCostLimit != nil {
+					stopErr := retainExecutionStop(experimentDir, &ExecutionStop{Reason: "evidence_invalid", Detail: err.Error(), AfterAttemptID: fmt.Sprintf("%s-%03d", side, ordinals[side])})
+					if stopErr != nil {
+						return experimentDir, nil, 2, errors.Join(err, stopErr)
+					}
+				}
 				return experimentDir, nil, 2, err
 			}
 			attempts = append(attempts, attempt)
+			if options.EstimatedCostLimit != nil {
+				executionStop, err = runner.costCheckpoint(experimentDir, manifest, len(attempts))
+				if err != nil {
+					return experimentDir, nil, 2, err
+				}
+				if executionStop != nil {
+					break measured
+				}
+			}
 			valid = CountValidForMethodology(attempts, options.Task.MinimumToolCalls, options.methodologyVersion)
 		}
 	}
@@ -263,13 +331,16 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 		return experimentDir, nil, 2, err
 	}
 	valid := CountValidForMethodology(attempts, options.Task.MinimumToolCalls, options.methodologyVersion)
-	if valid[Baseline] >= options.TargetValid && valid[Candidate] >= options.TargetValid {
+	if valid[Baseline] >= options.TargetValid && valid[Candidate] >= options.TargetValid && (executionStop == nil || executionStop.Reason == "estimated_cost_limit_reached") {
 		return experimentDir, summary, 0, nil
 	}
 	return experimentDir, summary, 1, nil
 }
 
 func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
+	if err := validateExecutionControlOptions(*options); err != nil {
+		return err
+	}
 	if options.RepoRoot == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -391,7 +462,7 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 		return err
 	}
 	cacheAware := cacheAwareMethodology(methodology.Version)
-	if !cacheAware && (options.CacheControl != "" || options.WarmupSet || options.Warmup != 0) {
+	if !cacheAware && (options.CacheControl != "" || options.WarmupSet || options.Warmup != 0) && options.ReadDescriptionTreatment == "" {
 		return errors.New("--cache-control and --warmup require a cache-aware methodology")
 	}
 	if options.TargetValid <= 0 {
@@ -433,7 +504,7 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 			return err
 		}
 	}
-	return nil
+	return validateReadDescriptionOptions(*options)
 }
 
 func (runner *Runner) preparePaidRun(options *CompareOptions) error {
@@ -467,6 +538,17 @@ func (runner *Runner) Preflight(ctx context.Context, options CompareOptions) (Pr
 
 func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOptions) (PreflightReport, benchmarkRuntime, error) {
 	report := PreflightReport{Image: options.Image, Model: options.Model, Variant: options.Variant, ModelAttempts: 0, ArtifactCreation: false, Reasons: []string{}}
+	if options.RuntimeConfig != "" {
+		data, err := os.ReadFile(options.RuntimeConfig)
+		if err != nil || validateRuntimeConfig(data, options.Model, options.Variant) != nil {
+			report.Reasons = append(report.Reasons, "runtime_config_invalid")
+			return report, benchmarkRuntime{}, nil
+		}
+		if err := rejectProjectRuntimeConfig(options.RepoRoot); err != nil {
+			report.Reasons = append(report.Reasons, "project_runtime_config_conflict")
+			return report, benchmarkRuntime{}, nil
+		}
+	}
 	var pinned *pinnedPricingSnapshot
 	if options.PricingSnapshot != "" {
 		for _, path := range []string{options.BaselineConfig, options.CandidateConfig} {
@@ -513,6 +595,10 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 	report.KTXVersion, report.OpenCodeVersion, report.PluginSHA256, report.EventCollectorContract = capabilities.KTXVersion, capabilities.OpenCodeVersion, capabilities.GeneratedPluginSHA256, capabilities.EventCollectorContract
 	if reason := validateBenchmarkCapabilities(capabilities); reason != "" {
 		report.Reasons = append(report.Reasons, reason)
+		return report, runtime, nil
+	}
+	if options.ReadDescriptionTreatment != "" && (capabilities.ReadDescriptionTreatment != options.ReadDescriptionTreatment || !validSHA256(capabilities.BinarySHA256)) {
+		report.Reasons = append(report.Reasons, "read_description_hook_unavailable")
 		return report, runtime, nil
 	}
 	runtime.Pricing = pinned
@@ -653,6 +739,8 @@ type benchmarkRuntime struct {
 }
 
 type benchmarkCapabilities struct {
+	BinarySHA256                 string   `json:"ktx_binary_sha256"`
+	ReadDescriptionTreatment     string   `json:"read_description_treatment"`
 	KTXVersion                   string   `json:"ktx_version"`
 	OpenCodeVersion              string   `json:"opencode_version"`
 	GeneratedPluginSHA256        string   `json:"generated_plugin_sha256"`
@@ -708,6 +796,10 @@ func (runner *Runner) inspectBenchmarkRuntime(ctx context.Context, options Compa
 		return benchmarkRuntime{}, benchmarkCapabilities{}, fmt.Errorf("decode benchmark capabilities: %w", err)
 	}
 	identities := normalizeRuntimeIdentities(map[string]string{"ktx": capabilities.KTXVersion, "opencode": capabilities.OpenCodeVersion})
+	if options.ReadDescriptionTreatment != "" {
+		identities["generated_plugin_sha256"] = capabilities.GeneratedPluginSHA256
+		identities["ktx_binary_sha256"] = capabilities.BinarySHA256
+	}
 	return benchmarkRuntime{ImageID: identity, Identities: identities}, capabilities, nil
 }
 
@@ -759,6 +851,16 @@ func (runner *Runner) createManifest(ctx context.Context, options CompareOptions
 		PipelineExecutionPolicy: map[string]any{"kind": "alternating_by_cycle", "first_cycle": []string{Baseline, Candidate}, "second_cycle": []string{Candidate, Baseline}},
 		Repository:              repository, Image: map[string]string{"name": options.Image, "id": runtime.ImageID},
 		Identities: runtime.Identities, Pipelines: configs, Methodology: methodology,
+	}
+	if options.FirstArm != "" || options.EstimatedCostLimit != nil {
+		manifest.FirstArm = options.FirstArm
+		if manifest.FirstArm == "" {
+			manifest.FirstArm = Baseline
+		}
+		manifest.EstimatedCostLimit = options.EstimatedCostLimit
+		first, second := pairOrder(manifest.FirstArm)
+		manifest.PipelineExecutionPolicy["first_cycle"] = first
+		manifest.PipelineExecutionPolicy["second_cycle"] = second
 	}
 	return manifest, nil
 }
@@ -879,6 +981,25 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		"-e", benchcontract.ContractEnv + "=" + benchcontract.ContractVersion,
 		"-e", benchcontract.CollectorModeEnv + "=" + benchcontract.CollectorRequired,
 	}
+	if manifest.ReadDescription != nil {
+		mounts, err := prepareReadDescriptionAttempt(experimentDir, attemptDir, side, manifest)
+		if err != nil {
+			return Attempt{}, err
+		}
+		command = append(command, mounts...)
+	}
+	if manifest.RuntimeConfig != nil {
+		config, err := runtimeConfigInput(manifest)
+		if err != nil {
+			return Attempt{}, err
+		}
+		path := archivePath(experimentDir, config.Path)
+		hash, err := fileSHA256(path)
+		if err != nil || hash != config.SHA256 {
+			return Attempt{}, errors.New("retained runtime configuration changed before execution")
+		}
+		command = append(command, "-e", "OPENCODE_CONFIG=/home/node/.config/ktx/opencode.json", "-v", path+":/home/node/.config/ktx/opencode.json:ro")
+	}
 	if role != "" {
 		command = append(command, "-e", "KTX_BENCH_CACHE_PHASE="+role)
 	}
@@ -890,7 +1011,8 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		}
 		command = append(command, "-e", "OPENCODE_CONFIG_CONTENT="+content)
 	}
-	command = append(command,
+	command = append(
+		command,
 		"-v", options.AuthPath+":/home/node/.local/share/opencode/auth.json:ro",
 		"-v", archivePath(experimentDir, manifest.Pipelines[side].Path)+":/home/node/.config/ktx/ktx.toml:ro",
 		"-v", database+":/home/node/.local/share/ktx/ktx.db:rw",
@@ -899,7 +1021,15 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	if options.Variant != "" {
 		command = append(command, "--variant", options.Variant)
 	}
+	if manifest.Task.FollowupPrompt != "" {
+		command = append(command, "--followup", manifest.Task.FollowupPrompt)
+	}
 	command = append(command, manifest.Task.Prompt)
+	if manifest.ReadDescription != nil {
+		if err := WriteJSON(filepath.Join(attemptDir, "launch.json"), command); err != nil {
+			return Attempt{}, err
+		}
+	}
 	result, runErr := runner.runContainer(ctx, "ktx-"+manifest.ExperimentID+"-"+attemptID, Command{Args: command, Stdout: stream, Stderr: stderr, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
 	streamErr, stderrErr := stream.Close(), stderr.Close()
 	if err := ctx.Err(); err != nil {
@@ -922,8 +1052,9 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	if err := WriteJSON(afterPath, after); err != nil {
 		return Attempt{}, err
 	}
-	if err := validateAttemptDatabase(database, attemptID, interval.SessionID, interval.ID); err != nil {
-		return Attempt{}, err
+	completionErr := validateAttemptDatabase(database, attemptID, interval.SessionID, interval.ID)
+	if completionErr != nil && manifest.ReadDescription == nil {
+		return Attempt{}, completionErr
 	}
 	newIDs := []string{interval.SessionID}
 	metrics := parseSchema3Stream(streamPath, manifest.Task.ExpectedOutput, manifest.Task.ExpectedFacts)
@@ -938,6 +1069,9 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	estimated := estimateAttempts([]Attempt{{Metrics: metrics}}, pricing)
 	metrics.EstimatedAPICost = estimated[0].EstimatedAPICost
 	status := AttemptStatus(result.ExitCode, newIDs, metrics)
+	if completionErr != nil && status == "completed" {
+		status = "invalid"
+	}
 	sessionID := &interval.SessionID
 	links := []RecordedStreamLink{}
 	if sessionID != nil {
@@ -975,6 +1109,42 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		Metrics: metrics, ConfigSHA256: manifest.Pipelines[side].SHA256, Artifacts: artifacts,
 		ContentHashes: map[string]string{"stream": streamHash, "stderr": stderrHash, "workspace": workspaceHash},
 	}
+	if manifest.FirstArm != "" {
+		attempt.FirstArm, attempt.ExecutionOrder = manifest.FirstArm, executionOrder
+	}
+	if manifest.RuntimeConfig != nil {
+		attempt.RuntimeConfigSHA256 = manifest.RuntimeConfig.SHA256
+	}
+	if manifest.ReadDescription != nil {
+		attempt.ReadDescriptionTreatment = manifest.ReadDescription.Version
+		for name, relative := range map[string]string{"read_description": "read-description/hooks.jsonl", "launch": "launch.json", "turn_1": "read-description/turn-1.jsonl"} {
+			path := filepath.Join(attemptDir, relative)
+			attempt.Artifacts[name] = relativePath(experimentDir, path)
+			// Keep a failed attempt even when its required evidence is absent.
+			if hash, err := fileSHA256(path); err == nil {
+				attempt.ContentHashes[name] = hash
+			}
+		}
+		if manifest.Task.FollowupPrompt != "" {
+			path := filepath.Join(attemptDir, "read-description/turn-2.jsonl")
+			attempt.Artifacts["turn_2"] = relativePath(experimentDir, path)
+			if hash, err := fileSHA256(path); err == nil {
+				attempt.ContentHashes["turn_2"] = hash
+			}
+		}
+		if manifest.Task.ScoringKind == "read_preservation" {
+			// The retained ledger is a projection; regeneration independently
+			// recomputes this score from turn streams and persisted tool calls.
+			scored, scoreErr := scoreLocalReadAttempt(manifest.Task, interval.SessionID, attemptDir)
+			if scoreErr != nil {
+				return Attempt{}, scoreErr
+			}
+			attempt.Score = scored
+			if status != "completed" || result.ExitCode != 0 || !metrics.StreamComplete {
+				attempt.FullPass, attempt.Score.Score = false, 0
+			}
+		}
+	}
 	if role != "" {
 		provider, _, _ := splitModel(options.Model)
 		attempt.CacheControl = &CacheControlMetadata{Mode: cacheControl.mode, Source: cacheControl.source, Phase: role, ExecutionOrder: executionOrder, Model: options.Model, Provider: provider, Variant: options.Variant, RuntimeVersion: manifest.Identities["opencode"]}
@@ -984,6 +1154,20 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	}
 	if err := AppendAttempt(experimentDir, attempt); err != nil {
 		return Attempt{}, err
+	}
+	if manifest.ReadDescription != nil {
+		// Retain the attempt before rejecting its evidence; never start another
+		// paid arm after an unproven application or incomplete follow-up.
+		if completionErr != nil {
+			return Attempt{}, completionErr
+		}
+		materialized, err := materializeAttempt(experimentDir, manifest, attempt)
+		if err != nil {
+			return Attempt{}, err
+		}
+		if len(materialized.validationReasons) > 0 {
+			return Attempt{}, fmt.Errorf("attempt %q evidence invalid: %s", attemptID, strings.Join(materialized.validationReasons, "; "))
+		}
 	}
 	return attempt, nil
 }

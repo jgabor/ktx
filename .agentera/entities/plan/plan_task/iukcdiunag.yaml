@@ -1,0 +1,23 @@
+id: iukcdiunag
+artifact: plan
+record:
+  name: Run bounded correctness-scored paid comparisons
+  depends_on:
+    - dbiazwvkct
+  status: complete
+  acceptance:
+    - GIVEN the qualified environment WHEN rechecked THEN prescribed identities, collector and cost evidence remain valid.
+    - GIVEN passing gates WHEN comparisons run THEN frozen cases, ordering, repetitions and spending limits are followed.
+    - GIVEN attempts WHEN evaluated THEN task outcomes and semantic behavior are scored; failures, retries and incurred costs remain visible.
+    - GIVEN retained results WHEN validated THEN costs and diagnostics have explicit coverage; missing correctness or cost evidence forbids savings recommendations.
+  plan: ohkdxdskpy
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: normalization-campaign-audit-20260930-1
+      source: "Independent audit ses_f0e3816d5ffelsZWZHWcjO7eYI: campaign AC1-4 and evidence audit PASS; all 24 attempts retained and validated, exact schedule and priced coverage. Scientific quality and economic gates FAIL, no adoption claim."
+      recorded_at: 2026-09-30 12:19
+      writer_command: agentera state plan record-evaluation

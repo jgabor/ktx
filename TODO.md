@@ -10,8 +10,6 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 
 ## → Normal
 
-- [ ] [id:symvxmfbwz] **Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)
-
 - [ ] [id:rnyddtdowi] **Instruction indexing and retrieval** — Run a structured discussion and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)
 
 - [ ] [id:nopgfefdwe] **Trust, redaction, and audit** — Run a structured discussion and record the stage-execution threat model, redaction boundary, integrity requirements, and audit contract. → [Question](ARCHITECTURE.md#trust-redaction-and-audit)
@@ -77,3 +75,4 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [x] [id:xlobowaevu] [task] Reject empty record-stream values — `ktx run --record-stream=` now rejects the empty explicit value once while preserving bare, boolean, numeric, and wrapped-command forms.
 
 - [x] [id:ytambionvu] [discussion] Benchmark recording resource coverage — Resolved under standing authority: normal benchmark capture and aggregate/answer interpretation use bounded working memory over one private stdout spool, including accepted streams beyond SQLite L; temporary storage scales with input, and whole-value publication/replay retain L-derived budgets. Preserve the separate 4 MiB scoring stop and 64 MiB usage skip behaviors, exact failed-wrapper stderr forwarding, completion authority and last-copy retention. Implementation and representative qualification are complete above; this is not decision-satisfaction confirmation. → [Recorded decision](.agentera/entities/decisions/decision/zyeasphydk.yaml) · [Evidence and qualification cases](.agentera/verification/recording-resource-lifecycle.md)
+- [x] [id:symvxmfbwz] [task] Instruction and tool-schema normalization

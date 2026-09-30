@@ -1,0 +1,24 @@
+id: dbiazwvkct
+artifact: plan
+record:
+  name: Establish preservation, update and scoring tests
+  depends_on:
+    - pydfsugykw
+  status: complete
+  acceptance:
+    - GIVEN candidates WHEN cases are scored THEN instruction constraints, tool behavior and task completion determine correctness.
+    - GIVEN source, transformation or schema updates WHEN exercised THEN changed behavior takes effect without stale reuse.
+    - GIVEN broken controls WHEN checked THEN preservation failures are detected.
+    - GIVEN offline checks WHEN run THEN no provider is needed; live-only semantic cases remain campaign gates.
+    - GIVEN testable rules WHEN verified THEN one pass and one fail per unit, justified adversarial cases and repository checks are retained.
+  plan: ohkdxdskpy
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: internal/experiment/read_preservation.go:234 applies window-only omitted-argument restriction to config; line 215 requires exactly one read for all cases although A/B allow rereads of requested file. docs/pipelines.md:1401 retains superseded noReply/no-go description. Correct scoring to frozen case contracts and update guidance.
+    provenance:
+      attempt_id: preservation-gates-audit-20260929-2
+      source: Independent audit ses_f15bb2ec2ffePxx9KdMUhYxF2m verified case-specific scorer and documentation correction; AC1-5 and evidence audit PASS. Real offline tool/ingress gates and full mage check passed; upstream reload untested, live quality/cost pending.
+      recorded_at: 2026-09-29 01:26
+      writer_command: agentera state plan record-evaluation

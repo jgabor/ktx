@@ -42,11 +42,12 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 	}
 	fs := flag.NewFlagSet("ktx bench agent", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var model, format, variant string
+	var model, format, variant, followup string
 	fs.StringVar(&model, "model", os.Getenv("MODEL"), "model id (provider/name)")
 	fs.StringVar(&model, "m", os.Getenv("MODEL"), "model id (provider/name)")
 	fs.StringVar(&variant, "variant", os.Getenv("MODEL_VARIANT"), "model variant (e.g. high)")
 	fs.StringVar(&format, "format", "json", "OpenCode output format")
+	fs.StringVar(&followup, "followup", "", "same-session second prompt for an owned read-description benchmark")
 	if err := fs.Parse(args); err != nil || model == "" || len(fs.Args()) != 1 {
 		if err == nil {
 			err = errors.New("usage: ktx bench agent -m <model> <prompt>")
@@ -61,6 +62,11 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 	collectorEnv, collectorPresent, err := benchcontract.ReadEnvironment()
 	if err != nil {
 		printError(stderr, usageError("ktx bench agent: %v", err), opts.Format)
+		return ExitUsage
+	}
+	readTreatment := os.Getenv(benchcontract.ReadDescriptionEnv)
+	if (followup != "" && readTreatment == "") || (readTreatment != "" && (!collectorPresent || format != "json" || model != "openai/gpt-6-luna" || variant != "high" || (readTreatment != experiment.Baseline && readTreatment != experiment.Candidate))) {
+		printError(stderr, usageError("ktx bench agent: read-description turns require the owned JSON benchmark with openai/gpt-6-luna/high"), opts.Format)
 		return ExitUsage
 	}
 	var collectorDB *dbpkg.DB
@@ -123,7 +129,13 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 	opencodeArgs = append(opencodeArgs, fs.Arg(0))
 	command := exec.Command("opencode", opencodeArgs...)
 	command.Stdin, command.Stdout, command.Stderr = os.Stdin, stdout, stderr
-	if err := command.Run(); err != nil {
+	runErr := error(nil)
+	if readTreatment != "" {
+		runErr = runReadDescriptionTurns(opencodeArgs, followup, benchcontract.ReadDescriptionDir, stdout, stderr)
+	} else {
+		runErr = command.Run()
+	}
+	if err := runErr; err != nil {
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
 			if collectorDB != nil {
@@ -183,11 +195,29 @@ func printBenchAgentCapabilities(format string, stdout, stderr io.Writer) int {
 	}
 	digest := fmt.Sprintf("%x", sha256.Sum256(pluginBytes))
 	expectedDigest := fmt.Sprintf("%x", sha256.Sum256([]byte(ktxOpencodePluginTemplate)))
+	binaryPath, err := os.Executable()
+	if err != nil {
+		printError(stderr, internalError("ktx bench agent capabilities: %v", err), format)
+		return ExitInternal
+	}
+	binary, err := os.Open(binaryPath)
+	if err != nil {
+		printError(stderr, internalError("ktx bench agent capabilities: %v", err), format)
+		return ExitInternal
+	}
+	binaryDigest := sha256.New()
+	_, hashErr := io.Copy(binaryDigest, binary)
+	if err := errors.Join(hashErr, binary.Close()); err != nil {
+		printError(stderr, internalError("ktx bench agent capabilities: %v", err), format)
+		return ExitInternal
+	}
 	capabilities := map[string]any{
 		"ktx_version": version.Version, "opencode_version": opencodeVersion, "generated_plugin_sha256": digest,
 		"generated_plugin_matches_binary": digest == expectedDigest,
 		"event_collector_contract":        benchcontract.ContractVersion, "explicit_session_ownership": true,
-		"serialized_callbacks": true, "complete_interval_lifecycle": true, "epoch_tracking": true,
+		"read_description_treatment": benchcontract.ReadDescriptionTreatment,
+		"ktx_binary_sha256":          fmt.Sprintf("%x", binaryDigest.Sum(nil)),
+		"serialized_callbacks":       true, "complete_interval_lifecycle": true, "epoch_tracking": true,
 		"strict_acknowledgements": true, "exact_model_step_identity": true,
 		"retained_duplicate_callbacks": true, "accepted_model_step_projection": true, "callback_queue_continuation": true,
 		"fail_closed_interval_validation": true, "preflight_before_auth": true,
@@ -255,6 +285,9 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	var model, variant, taskID string
 	var baseline, candidate, auth, image, experimentID, format, repoRoot, specID string
 	var pricingSnapshot, pricingSHA256 string
+	var runtimeConfig, readDescriptionTreatment string
+	var firstArm string
+	var estimatedCostLimit float64
 	var cacheControl string
 	var target, maxAttempts, warmup int
 	var timeout, grace time.Duration
@@ -273,6 +306,10 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 	fs.StringVar(&specID, "spec", "", "registered benchmark spec ID")
 	fs.StringVar(&pricingSnapshot, "pricing-snapshot", "", "retained pricing.json to pin before model calls")
 	fs.StringVar(&pricingSHA256, "pricing-sha256", "", "required SHA-256 identity for --pricing-snapshot")
+	fs.StringVar(&runtimeConfig, "runtime-config", "", "self-contained OpenCode model registration JSON (retained and shared by both arms)")
+	fs.StringVar(&readDescriptionTreatment, "read-description-treatment", "", "benchmark-only frozen read-three-bullets-v1 description treatment")
+	fs.StringVar(&firstArm, "first-arm", "", "first actual arm: baseline or candidate (two-attempt read-description compare only)")
+	fs.Float64Var(&estimatedCostLimit, "estimated-cost-limit", 0, "finite positive estimated API USD stop threshold (read-description compare only)")
 	fs.StringVar(&cacheControl, "cache-control", "", "cache control: auto, isolated, or observed (cache-aware methodologies v5 and v6)")
 	fs.IntVar(&warmup, "warmup", 0, "warm-up attempts per side (cache-aware methodologies v5 and v6 default 1)")
 	fs.IntVar(&target, "target-valid", 0, "valid measured attempts required per side")
@@ -287,11 +324,23 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		return ExitUsage
 	}
 	warmupSet := false
+	var costLimit *float64
+	firstArmSet := false
 	fs.Visit(func(flag *flag.Flag) {
 		if flag.Name == "warmup" {
 			warmupSet = true
 		}
+		if flag.Name == "estimated-cost-limit" {
+			costLimit = &estimatedCostLimit
+		}
+		if flag.Name == "first-arm" {
+			firstArmSet = true
+		}
 	})
+	if firstArmSet && firstArm == "" {
+		printError(stderr, usageError("ktx bench compare: --first-arm must be baseline or candidate"), opts.Format)
+		return ExitUsage
+	}
 	if preflight {
 		if pricingSHA256 != "" && pricingSnapshot == "" {
 			printError(stderr, usageError("ktx bench compare: --pricing-sha256 requires --pricing-snapshot"), opts.Format)
@@ -304,6 +353,8 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 			AttemptTimeout: timeout, TerminationGrace: grace, Image: image, AuthPath: auth,
 			BaselineConfig: baseline, CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: specID,
 			CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet, PricingSnapshot: pricingSnapshot, PricingSHA256: pricingSHA256,
+			RuntimeConfig: runtimeConfig, ReadDescriptionTreatment: readDescriptionTreatment,
+			FirstArm: firstArm, EstimatedCostLimit: costLimit,
 			DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
 			RegisteredInputs: true,
 		})
@@ -337,6 +388,8 @@ func runBenchCompare(args []string, opts Options, stdout, stderr io.Writer) int 
 		CandidateConfig: candidate, BuildImage: build, RepoRoot: repoRoot, MethodologyPath: specID,
 		CacheControl: cacheControl, Warmup: warmup, WarmupSet: warmupSet,
 		PricingSnapshot: pricingSnapshot, PricingSHA256: pricingSHA256,
+		RuntimeConfig: runtimeConfig, ReadDescriptionTreatment: readDescriptionTreatment,
+		FirstArm: firstArm, EstimatedCostLimit: costLimit,
 		DockerBin: os.Getenv("DOCKER_BIN"), KTXBin: os.Getenv("KTX_BIN"),
 		RegisteredInputs: true,
 	})

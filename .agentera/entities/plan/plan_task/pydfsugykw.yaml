@@ -1,0 +1,23 @@
+id: pydfsugykw
+artifact: plan
+record:
+  name: Extend bounded comparison inputs and retained evidence
+  depends_on:
+    - wtqqagykgw
+  status: complete
+  acceptance:
+    - GIVEN frozen candidates WHEN compared THEN only selected instruction or schema inputs differ between arms.
+    - GIVEN experiment inputs WHEN retained THEN exact bytes, versions and application provenance remain reproducible without private data.
+    - GIVEN missing or altered evidence WHEN validated THEN results fail closed while supported comparisons remain compatible.
+    - GIVEN changed behavior WHEN verified THEN focused, repository and isolated local-binary checks pass, targeting one pass and one fail per unit.
+  plan: ohkdxdskpy
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: internal/experiment/runner.go:1105 ignores materialized validationReasons before next arm. internal/experiment/runner.go:1018 rejects incomplete follow-up before AppendAttempt, losing failed-attempt ledger accounting. Keep invalid evidence invalid while retaining it and stopping immediately.
+    provenance:
+      attempt_id: treatment-evidence-audit-20260928-2
+      source: Independent audit ses_f16090b0dffe2h0U4xObafoTEc verified both bounded runner corrections; AC1-4 and evidence audit PASS. Full mage check forbidden=0/18329, rebuilt CLI valid/invalid archive evidence; semantic scoring and paid work remain deferred.
+      recorded_at: 2026-09-28 23:57
+      writer_command: agentera state plan record-evaluation

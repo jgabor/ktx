@@ -2,8 +2,7 @@ id: symvxmfbwz
 artifact: todo
 record:
   severity: normal
-  status: open
-  description: "**Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)"
+  status: resolved
   readiness:
     capability: discuss
     reason: Resolve semantic safety and invalidation before normalizing instructions or schemas.
@@ -17,7 +16,20 @@ record:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "**Instruction and tool-schema normalization** — Run a structured discussion and record the semantic-safety, canonicalization, invalidation, and evidence choice. → [Question](ARCHITECTURE.md#instruction-and-tool-schema-normalization)"
+      description: "[task] Instruction and tool-schema normalization"
+      status: resolved
+      order: 47
       severity: normal
-      status: open
-      order: 1
+  kind: task
+  target_version: null
+  requirements:
+    - "User approved no normalizer now: retain ordinary instruction bytes and tool definitions, do not adopt the tested read-description deduplication, leave schema ordering and serialization with the runtime, and retain benchmark machinery and evidence only."
+    - Recorded [bounded choice and limits](.agentera/entities/decisions/decision/wyhmfqkjtz.yaml); see [conclusion and evidence](docs/normalization-conclusion.md). Revisit only with concrete overhead, a qualified runtime/update boundary, and a correctness-gated whole-task cost study; no mandatory spending or speculative backlog.
+  acceptance:
+    []
+  release_blocker: false
+  title: Instruction and tool-schema normalization
+  lifecycle:
+    operation: resolve
+    reason: User approved bounded no-normalizer-now choice; decision wyhmfqkjtz records alternatives, evidence and limits. Close only this discussion, without rollout or satisfaction.
+    date: 2026-09-30

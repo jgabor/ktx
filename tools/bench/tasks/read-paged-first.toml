@@ -1,0 +1,8 @@
+id = "read-paged-first"
+workspace_mode = "corpus"
+corpus_files = ["log-a.txt"]
+prompt = "Use read on /work/tools/bench/corpus/log-a.txt with offset=4 and limit=2. Reply with only the FACT line. Do not edit files or use any non-read tool."
+minimum_tool_calls = 1
+[scoring]
+kind = "read_preservation"
+expected_output = "FACT=quartz"

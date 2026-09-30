@@ -1,0 +1,9 @@
+id = "read-paged-repeated"
+workspace_mode = "corpus"
+corpus_files = ["log-a.txt", "log-b.txt"]
+prompt = "Use read on /work/tools/bench/corpus/log-a.txt with offset=4 and limit=2. Reply with only the FACT line. Do not edit files or use any non-read tool."
+followup_prompt = "Now use read on /work/tools/bench/corpus/log-b.txt with offset=4 and limit=2. Reply with only the FACT line. Do not edit files or use any non-read tool."
+minimum_tool_calls = 2
+[scoring]
+kind = "read_preservation"
+expected_output = "FACT=amber"

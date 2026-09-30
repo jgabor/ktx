@@ -1,0 +1,98 @@
+{
+  "artifact_type": "sanitized-non-generating-model-inventory",
+  "date": "2026-09-28",
+  "image": "sha256:7ba62d87f79d46d9bba62388eda2faf46ae4a88bb0122cf438853327e9d262da",
+  "runtime": "OpenCode 1.18.5",
+  "runtime_source_commit": "e5cc278dec9294a627a7b05f47ce6a564408c1a2",
+  "local_binary_sha256": "13f1933e9be0dede4e010f7fc6a2c2db4aae171d76cea1c288157ebe0a913c3e",
+  "catalog_url": "https://models.dev/api.json",
+  "catalog_sha256": "b65d346bd912f6d940286af06a127eefe965c5c5fed468476f87a54b0b031605",
+  "catalog_recorded_at": "2026-09-28T18:50:23.997872+00:00",
+  "official_model_reference": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+  "configuration_fixture": "normalization-model-registration.json",
+  "configuration_sha256": "7d6e7ec5f4ad84f017793cd80c41fa707fe3e72efbf8702fb053ae12f7f5d827",
+  "cases": [
+    {
+      "mode": "baseline",
+      "exit_code": 0,
+      "cleanup_exit_code": 0,
+      "model_count": 13,
+      "requested_model_present": false,
+      "network_disabled": false
+    },
+    {
+      "mode": "refreshed",
+      "exit_code": 0,
+      "cleanup_exit_code": 0,
+      "model_count": 13,
+      "requested_model_present": false,
+      "network_disabled": false
+    },
+    {
+      "mode": "frozen-noauth",
+      "exit_code": 0,
+      "cleanup_exit_code": 0,
+      "model_count": 57,
+      "requested_model_present": true,
+      "network_disabled": true
+    },
+    {
+      "mode": "frozen-auth",
+      "exit_code": 0,
+      "cleanup_exit_code": 0,
+      "model_count": 13,
+      "requested_model_present": false,
+      "network_disabled": true
+    },
+    {
+      "mode": "registered",
+      "exit_code": 0,
+      "cleanup_exit_code": 0,
+      "model_count": 14,
+      "requested_model_present": true,
+      "network_disabled": true
+    },
+    {
+      "mode": "registered-bundled",
+      "exit_code": 0,
+      "cleanup_exit_code": 0,
+      "model_count": 14,
+      "requested_model_present": true,
+      "network_disabled": true
+    }
+  ],
+  "exact_cause": {
+    "component": "built-in OpenAI OAuth model filter",
+    "path": "packages/opencode/src/plugin/openai/codex.ts",
+    "lines": "280-292",
+    "version_pattern": "^gpt-(\\d+\\.\\d+)",
+    "requested_api_id": "gpt-6-luna",
+    "pattern_matches_requested_api_id": false,
+    "filter_source_sha256": "f3f9525559c5774ab420ed3c425fd13dfd16fdffd1140345ee510d79f0efd5df"
+  },
+  "recovered_registry_record": {
+    "provider_id": "openai",
+    "id": "gpt-6-luna",
+    "api_id": "gpt-6-luna",
+    "api_npm": "@ai-sdk/openai",
+    "limit": { "context": 1050000, "input": 922000, "output": 128000 },
+    "reasoning": true,
+    "toolcall": true,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "high_variant": {
+      "reasoningEffort": "high",
+      "reasoningSummary": "auto",
+      "include": ["reasoning.encrypted_content"]
+    }
+  },
+  "fix_scope": "disposable configuration; registry visibility verified without generation",
+  "qualification_blocker": "compare has no supported input to retain and mount the OpenCode runtime configuration for the existing corpus task",
+  "new_agent_attempts": 0,
+  "new_paid_qualification_attempts": 0,
+  "historical_failed_agent_attempts": 2,
+  "historical_cost_state": "unknown",
+  "cumulative_cost_state": "unknown",
+  "qualification_result": "not_run_in_this_recovery; original_archive_remains_failed",
+  "private_evidence_root": "/tmp/opencode/ktx-container-registry-20260928"
+}

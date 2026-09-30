@@ -89,6 +89,28 @@ func TestBenchComparePreflightIsDBFreeAndKeepsMachineOutputSeparated(t *testing.
 		}
 		assertDatabaseUntouched(t, databasePath)
 	})
+
+	t.Run("explicit runtime config accepts only the selected model", func(t *testing.T) {
+		registration := `{"provider":{"openai":{"npm":"@ai-sdk/openai","models":{"test":{"id":"test","name":"Test","attachment":true,"reasoning":true,"temperature":false,"tool_call":true,"modalities":{"input":["text"],"output":["text"]},"limit":{"context":1000,"input":800,"output":200},"variants":{"high":{"reasoningEffort":"high"}}}}}}}`
+		path := filepath.Join(t.TempDir(), "runtime.json")
+		if err := os.WriteFile(path, []byte(registration), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			model, reason string
+			code          int
+		}{{"openai/test", "", ExitOK}, {"openai/other", "runtime_config_invalid", 1}} {
+			var stdout, stderr bytes.Buffer
+			code := runBenchCompare([]string{"--preflight", "--repo-root", root, "--spec", "exact-match", "--task", "crossfile-nav", "--model", tc.model, "--variant", "high", "--runtime-config", path, "--format", "json"}, Options{Format: FormatJSON}, &stdout, &stderr)
+			var report struct {
+				Eligible bool     `json:"eligible"`
+				Reasons  []string `json:"reasons"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &report); err != nil || code != tc.code || report.Eligible != (tc.code == ExitOK) || (tc.reason != "" && !slices.Contains(report.Reasons, tc.reason)) {
+				t.Fatalf("model=%s code=%d report=%+v err=%v stderr=%s", tc.model, code, report, err, stderr.String())
+			}
+		}
+	})
 }
 
 func TestBenchComparePreflightRejectsUnregisteredSelectorsBeforeEffects(t *testing.T) {

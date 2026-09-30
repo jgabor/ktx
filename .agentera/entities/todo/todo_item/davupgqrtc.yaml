@@ -24,4 +24,4 @@ record:
       description: "**Structured parsers for high-volume tools** — Trigger only when the representative residual-delivery study shows that one recurring command or output shape dominates safely addressable raw-delivered volume and existing stages cannot represent it faithfully. Validate the parser through the targeted residual-delivery experiment; preserve failure blocks, exact occurrence counts, and the smallest faithful representation before the global gate. → [Pipeline](ARCHITECTURE.md#pipeline)"
       severity: normal
       status: open
-      order: 6
+      order: 5

@@ -1,0 +1,9 @@
+id = "read-config-repeated"
+workspace_mode = "corpus"
+corpus_files = ["owner.txt", "deployment.txt"]
+prompt = "Use read on /work/tools/bench/corpus/owner.txt. Reply with only its key=value line. Do not edit files or use any non-read tool."
+followup_prompt = "Now use read on /work/tools/bench/corpus/deployment.txt. Reply with only its key=value line. Do not edit files or use any non-read tool."
+minimum_tool_calls = 2
+[scoring]
+kind = "read_preservation"
+expected_output = "deployment=blue"

@@ -290,12 +290,6 @@ The CLI surface stays narrow. The space behind the router stays wide.
 
 These questions do not select an implementation. Each has one executable discussion task in [`TODO.md`](TODO.md#architectural-discussions). When a choice is recorded, follow [AGENTS.md — Documentation maintenance](AGENTS.md#documentation-maintenance).
 
-### Instruction and tool-schema normalization
-
-Which deterministic normalizations, if any, are semantically safe for stable instructions and tool schemas; where should canonical ordering and serialization occur; and how should byte identity, semantic equivalence, provider-specific behavior, and invalidation be evidenced?
-
-→ TODO discussion task **Instruction and tool-schema normalization** (`symvxmfbwz`).
-
 ### Instruction indexing and retrieval
 
 Should instruction context be indexed and retrieved selectively rather than always loaded, and if so, what retrieval unit, relevance signal, safety floor, freshness rule, and recovery path prevent omission of applicable constraints?

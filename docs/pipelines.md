@@ -1337,6 +1337,131 @@ methodology, configurations, image contract, model, variant, and pricing pin
 without reading auth, creating an experiment, or starting an attempt. Omitting
 the pin preserves the existing catalog-backed workflow.
 
+For an explicit OpenCode model registration, `bench compare` accepts
+`--runtime-config <file.json>` (also checked by `--preflight` without model
+calls). The JSON must contain only `provider.openai` with
+`npm: "@ai-sdk/openai"` and exactly the model named by `--model`, including
+its matching `id`, name, capabilities, modalities, limits, and optional
+reasoning-effort variants. Other settings, plugins, additional models, and
+project-level `opencode.json` or `opencode.jsonc` are rejected. Project
+`.opencode` directories are excluded from the opt-in workspace snapshot so
+host plugins cannot load. Keys must use the exact supported spelling without
+duplicates, and raw `{env:...}` and `{file:...}` references are rejected. For example,
+use `--model openai/gpt-6-luna --variant high` with
+`--runtime-config docs/normalization-model-registration.json` to register the
+requested model API ID without changing the pinned OpenCode image. The exact
+JSON bytes and SHA-256 are retained under `inputs/runtime-config/opencode.json` and the manifest's
+optional `runtime_config` identity. Both arms mount that single retained file
+read-only through `OPENCODE_CONFIG`; the source is not read again after capture.
+Validation requires the matching input inventory, bytes and identity, and
+accepts older archives without `runtime_config`. Keep archives private: model
+registration is retained verbatim. This option is limited to `bench compare`,
+not `bench rank`, and cannot be combined with isolated cache configuration;
+use `--cache-control observed` for cache-aware comparisons. It does not replace
+the existing generated collector plugin or relax runtime/model attestation.
+Before an explicit-config comparison creates an archive or launches attempts,
+auth entries of type `wellknown` are rejected because they load unretained remote
+configuration. API and OAuth auth remain supported; both arms use a checked,
+temporary read-only auth copy outside the archive, removed when comparison
+returns. Generic preflight does not read auth or check this paid-run prerequisite.
+
+The opt-in `--read-description-treatment read-three-bullets-v1` supports the
+frozen public-source read-description experiment. It requires `--spec exact-match`,
+`--baseline passthrough --candidate passthrough`, a corpus-only task without a
+skill, `--model openai/gpt-6-luna --variant high`, `--runtime-config`, pinned
+pricing, `--cache-control observed`, `--target-valid 1 --max-attempts 2`, and no
+warmup. The generated collector plugin applies only the three frozen bullet
+deletions to the candidate's `read` description at `tool.definition`; ordinary
+adapter use has no such hook. Both arms retain exact original/candidate bytes,
+source and transform identities, binary/plugin attestations, launch arguments,
+and owned per-invocation hook evidence. Other descriptions and parameter
+identities must agree across the retained attempts. The parameter AST snapshot
+is a hook observation, not serialized validator code or a provider request.
+The post-hook provider schema remains unknown.
+
+This two-attempt treatment also accepts compare-only controls:
+
+- `--first-arm baseline|candidate` chooses the **actual** first arm. It never
+  swaps pipeline labels, case identity or treatment. Without the option,
+  comparisons retain their existing schedule. The manifest retains `first_arm`
+  and the matching `pipeline_execution_policy`; each attempt retains
+  `first_arm` and contiguous `execution_order`. Regeneration and validation
+  reject mismatched requested, policy or executed order.
+- `--estimated-cost-limit <USD>` requires a finite positive value,
+  `--pricing-snapshot`, `--pricing-sha256` and `--runtime-config`. Before the first
+  call it checks retained pricing. After **every** retained attempt, before
+  scheduling another arm, it reloads authoritative evidence and frozen pricing
+  for all started work in this invocation. A reached cumulative estimate or
+  unknown/invalid coverage stops execution. Complete coverage requires completed
+  process, turns and collector authority, reconciled projections, and measured
+  input, output, reasoning and cache read/write usage for every model step.
+  A non-null partial estimate is not complete coverage; reported USD zero is not
+  used as a free-cost assertion. A fully observed wrong answer still incurs cost
+  and does not by itself stop the other arm.
+
+Both options are restricted to this fixed `--target-valid 1 --max-attempts 2`
+treatment, not cache-aware scheduling or `bench rank`. No-option comparisons and
+old archives keep their existing contracts. The limit is retained in the
+manifest's `estimated_cost_limit`. Stops retain `execution-stop.json` with a
+reason and the triggering attempt; all attempt evidence and partial usage stay
+in place. Budget/coverage stops return exit 1 with a partial summary, while
+existing evidence errors return exit 2 and can leave summary regeneration for
+inspection. A missing counterpart cannot count as a complete pair. A complete
+pair may return success if its last attempt crosses the limit with complete
+coverage. Validation/regeneration also reject an attempt launched after a
+previous attempt had already reached the limit or lost coverage.
+
+For a multi-invocation campaign, pass its **remaining** cumulative budget to each
+pair, for example `--first-arm candidate --estimated-cost-limit "$remaining_usd"`
+for candidate-first pairs. The operator must check campaign-wide cost coverage,
+attempt count, identity and wall time between calls. This is an estimated-spend
+operational stop, **not a hard provider-bill cap**: the last attempt can overshoot
+and unobserved provider work can add cost. Use existing attempt timeouts bounded
+by remaining campaign time; these flags do not implement a campaign runner or
+change cost methodology or summary metrics.
+
+A task's optional `followup_prompt` is supported only with this treatment. The
+agent runner retains separate turn streams and launches the second prompt with
+the first completed turn's explicit OpenCode `--session` identity. One attempt
+owner and collector interval cover both turns; validation reconciles their
+bytes with the whole-attempt stream and rejects session changes or missing
+turns. Failed or incomplete treatment evidence is retained and stops execution
+before another arm. Archive inspection and validation need neither a provider
+nor mutable external fixtures.
+
+Six registered `read-config-*`, `read-paged-*`, and `read-window-*` corpus tasks
+use a separate `read_preservation` scorer. Their first/repeated contracts score
+each retained turn's exact answer, typed read arguments, successful tool output,
+forbidden calls, and persisted tool outcomes. Regeneration recomputes the score
+instead of trusting the attempt ledger; the manifest records scorer identity.
+The long window inputs are generated from the frozen decimal-line rule with
+fixed byte hashes. Existing exact-match tasks and summaries retain their
+meaning. This is **not a cost-first campaign runner** or a savings claim. The
+preservation and campaign gates in the [frozen protocol](normalization-experiment-protocol.md)
+remain independent: the [paid campaign](normalization-campaign.md) completed
+24 attempts in 12 pairs and failed the quality and cost gates. Under the
+protocol's premeasurement revision 2, the offline gate executes the real pinned
+read tool using a test-only loopback synthetic Responses transport. Earlier
+test hooks alter read-description or parameter-AST ingress; the unchanged KTX
+hook rejects that drift without valid treatment evidence. Mounted transform
+fixture mismatch and unchanged restart identities are checked separately.
+Upstream source-file reload remains **UNTESTED**; this is ingress-boundary
+coverage, not a runtime-upgrade or provider-final schema claim. See the
+[offline gate observations](normalization-offline-gates.md) for retained runtime
+results and limits. These receipts do not replace case-specific scorer checks
+or establish campaign readiness; the [approved conclusion](normalization-conclusion.md)
+is no normalizer now, with no adoption justified by the failed live gates.
+
+Generic preflight checks the generated hook's advertised capability, not live
+model semantics. The real-tool offline gate can be run after `mage build` using
+`KTX_READ_DESCRIPTION_PROBE_IMAGE=<pinned-image-id> go test ./internal/experiment
+-run '^TestReadDescriptionRuntimeBoundary$' -count=1 -v` in a disposable
+HOME/XDG environment with `KTX_DB` unset. That check installs public plugin
+dependencies inside a disposable container, disconnects its external network,
+and runs standalone same-session CLI turns with the full collector and a local
+synthetic model, without credentials or external provider requests. Synthetic
+completions do not qualify live Luna semantics or provider behavior.
+
 Each fresh attempt database starts with exactly one `agent=opencode` owner and
 one open event interval. The container receives that owner, interval, contract,
 and required-collector mode explicitly. The generated plugin opens a random

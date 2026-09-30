@@ -34,4 +34,4 @@ record:
       description: "[feature] Allow verified wrapper extraction with inner JSON protection"
       severity: normal
       status: open
-      order: 10
+      order: 9

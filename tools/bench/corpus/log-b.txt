@@ -1,0 +1,6 @@
+start
+noise-c
+noise-d
+FACT=amber
+end-c
+end-d

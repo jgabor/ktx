@@ -11,6 +11,7 @@ import (
 type taskFile struct {
 	ID               string   `toml:"id"`
 	Prompt           string   `toml:"prompt"`
+	FollowupPrompt   string   `toml:"followup_prompt"`
 	MinimumToolCalls *int     `toml:"minimum_tool_calls"`
 	Skill            string   `toml:"skill"`
 	TokenBand        []int    `toml:"token_band"`
@@ -52,7 +53,8 @@ func LoadTask(path string) (Task, error) {
 	}
 	task := Task{
 		ID: raw.ID, Prompt: strings.TrimSpace(raw.Prompt), MinimumToolCalls: minimumToolCalls,
-		Skill: raw.Skill, TokenBand: raw.TokenBand, CorpusFiles: raw.CorpusFiles,
+		FollowupPrompt: raw.FollowupPrompt,
+		Skill:          raw.Skill, TokenBand: raw.TokenBand, CorpusFiles: raw.CorpusFiles,
 		WorkspaceMode: raw.WorkspaceMode, QualityRisks: raw.QualityRisks, ScoringKind: kind,
 		TaskFile: absolute,
 	}
@@ -84,6 +86,14 @@ func LoadTask(path string) (Task, error) {
 			return Task{}, fmt.Errorf("task file needs scoring.facts string list: %s", absolute)
 		}
 		task.ExpectedFacts = raw.Scoring.Facts
+	case "read_preservation":
+		if raw.Scoring.ExpectedOutput == nil || len(raw.Scoring.Facts) != 0 {
+			return Task{}, fmt.Errorf("read_preservation requires only expected_output: %s", absolute)
+		}
+		task.ExpectedOutput = raw.Scoring.ExpectedOutput
+		if err := validateReadPreservationTask(task); err != nil {
+			return Task{}, err
+		}
 	default:
 		return Task{}, fmt.Errorf("unsupported scoring.kind %q in %s", kind, absolute)
 	}

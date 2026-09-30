@@ -1,0 +1,23 @@
+id: wtqqagykgw
+artifact: plan
+record:
+  name: Freeze the preservation and cost experiment
+  depends_on:
+    - wrxpgxaifk
+  status: complete
+  acceptance:
+    - GIVEN viable candidates WHEN the protocol freezes THEN each arm isolates one change against unchanged original behavior.
+    - GIVEN the experiment WHEN reviewed THEN semantic expectations, updates, provenance and collection boundaries are explicit.
+    - GIVEN measured testing WHEN scheduled THEN quality, cost, coverage, ordering, repetitions, caps and stop rules are fixed beforehand.
+    - GIVEN existing benchmarks WHEN cost-first evaluation is defined THEN their established metric contracts remain unchanged.
+  plan: ohkdxdskpy
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: normalization-protocol-audit-20260928-1
+      source: "Independent audit ses_f163dc771ffepee05Em9qEJHgT: AC1-4 and evidence audit PASS. docs/normalization-experiment-protocol.md plus exact three-line fixtures; 24-attempt schedule, quality and additive cost rules frozen, implementation gates explicit."
+      recorded_at: 2026-09-28 22:46
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,23 @@
+id: byxmadmlqg
+artifact: plan
+record:
+  plan: ohkdxdskpy
+  name: Retain explicit runtime configuration for pinned-model qualification
+  status: complete
+  depends_on:
+    []
+  acceptance:
+    - GIVEN an explicit runtime configuration WHEN compared THEN both arms execute identical retained configuration without changing model or runtime.
+    - GIVEN captured inputs WHEN original files change THEN execution and evidence use the retained bytes and identity.
+    - GIVEN missing or altered required configuration WHEN validated THEN evidence fails closed; existing configuration-free comparisons remain compatible.
+    - GIVEN the new input WHEN verified THEN focused tests, repository checks and isolated local-binary checks pass, with one passing and failing case per rule.
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "internal/experiment/runtime_config.go:38: case-insensitive JSON aliases bypass model/package restrictions; runtime substitutions permit mutable dependencies. internal/experiment/runner.go:456: configuration-bearing auth can import remote settings. internal/cli/contract_sync_test.go:222: mage check fails on Markdown-coupled TODO assertion."
+    provenance:
+      attempt_id: runtime-config-audit-20260928-2
+      source: Independent audit ses_f1674dc1bffeZJFnQ4GyFYOO9J verified all four bounded corrections and AC1-4 PASS; full mage check log /tmp/opencode/ktx-runtime-check.vYiko3/check.log, focused races and rebuilt-binary archive/smoke evidence.
+      recorded_at: 2026-09-28 22:18
+      writer_command: agentera state plan record-evaluation

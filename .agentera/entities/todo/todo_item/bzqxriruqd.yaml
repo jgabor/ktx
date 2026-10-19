@@ -1,0 +1,23 @@
+id: bzqxriruqd
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Optimization readiness margin** — Run a structured discussion and record whether a minimum runtime-token improvement or pair-consistency requirement applies before an optimization result becomes ready, and how it is expressed. → [Question](ARCHITECTURE.md#optimization-readiness-margin)"
+  readiness:
+    capability: discuss
+    reason: Resolve the readiness margin before changing optimization apply eligibility.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 23
+    order_reason: TODO.md architectural-discussion order after immediate work.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Optimization readiness margin** — Run a structured discussion and record whether a minimum runtime-token improvement or pair-consistency requirement applies before an optimization result becomes ready, and how it is expressed. → [Question](ARCHITECTURE.md#optimization-readiness-margin)"
+      severity: normal
+      status: open
+      order: 13

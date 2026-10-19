@@ -1,0 +1,23 @@
+id: fehjnqmrts
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Optimization cost acceptance** — Run a structured discussion and record whether optimization apply eligibility depends on cost evidence beyond runtime tokens per correct task, and how unavailable or rising cost is reported. → [Question](ARCHITECTURE.md#optimization-cost-acceptance)"
+  readiness:
+    capability: discuss
+    reason: Resolve the cost role in optimization eligibility before changing ready semantics.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 24
+    order_reason: TODO.md architectural-discussion order after immediate work.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Optimization cost acceptance** — Run a structured discussion and record whether optimization apply eligibility depends on cost evidence beyond runtime tokens per correct task, and how unavailable or rising cost is reported. → [Question](ARCHITECTURE.md#optimization-cost-acceptance)"
+      severity: normal
+      status: open
+      order: 14

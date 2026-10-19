@@ -308,6 +308,18 @@ What threat model governs user-configured stages, scripts, and plugins; which se
 
 → TODO discussion task **Trust, redaction, and audit** (`nopgfefdwe`).
 
+### Optimization readiness margin
+
+What minimum improvement, if any, must a controlled optimization qualification show before its result becomes ready and apply-eligible? If a margin applies, is it expressed as an absolute or relative runtime-token difference, a pair-consistency requirement, a noise estimate from repeated observations, or another rule, and how does it fit five-pair descriptive evidence that makes no causal or significance claim?
+
+→ TODO discussion task **Optimization readiness margin** (`bzqxriruqd`).
+
+### Optimization cost acceptance
+
+Should apply eligibility for an optimization result depend on cost evidence in addition to runtime tokens per correct task? How should the existing benchmark acceptance result, unavailable cost, and a candidate whose available cost rises while its runtime tokens fall affect eligibility, the reported outcome, and next actions?
+
+→ TODO discussion task **Optimization cost acceptance** (`fehjnqmrts`).
+
 ---
 
 ## Document maintenance

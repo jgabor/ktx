@@ -24,6 +24,8 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [ ] [id:uqzkhxblqv] [feature] Load and expand local stage recipes
 - [ ] [id:xcgrunrboy] [feature] Inspect expanded recipe configuration
 - [ ] [id:wfotebznsl] [feature] Preserve recipe-aware benchmark snapshots
+- [ ] [id:bzqxriruqd] **Optimization readiness margin** — Run a structured discussion and record whether a minimum runtime-token improvement or pair-consistency requirement applies before an optimization result becomes ready, and how it is expressed. → [Question](ARCHITECTURE.md#optimization-readiness-margin)
+- [ ] [id:fehjnqmrts] **Optimization cost acceptance** — Run a structured discussion and record whether optimization apply eligibility depends on cost evidence beyond runtime tokens per correct task, and how unavailable or rising cost is reported. → [Question](ARCHITECTURE.md#optimization-cost-acceptance)
 
 ## ✓ Resolved
 

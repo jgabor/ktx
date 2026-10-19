@@ -302,7 +302,7 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 	fs.BoolVar(&subQuiet, "quiet", false, "suppress non-essential output")
 	fs.BoolVar(&subQuiet, "q", false, "suppress non-essential output (shorthand)")
 	flagArgs := rest
-	if verb == "db" || verb == "stats" || verb == "bench" || verb == "plugin" {
+	if verb == "db" || verb == "stats" || verb == "bench" || verb == "plugin" || verb == "optimize" {
 		// Common booleans are interspersed, but never taken from bound values
 		// or from the escaped tail. Keep explicit false and occurrence order.
 		var common, command []string

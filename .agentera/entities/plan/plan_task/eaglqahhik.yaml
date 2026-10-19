@@ -1,0 +1,24 @@
+id: eaglqahhik
+artifact: plan
+record:
+  name: Qualify one candidate with bounded live evaluation
+  depends_on:
+    - wyviyfkfmw
+  status: complete
+  acceptance:
+    - GIVEN explicit live consent WHEN evaluation starts THEN configs, scoring, runtime, pricing, and the displayed cycle-wide attempt limit remain fixed.
+    - GIVEN both cohorts WHEN qualified THEN ready requires validated quality-preserving runtime-token improvement; unavailable cost stays unavailable.
+    - GIVEN absent routing authority or altered evidence WHEN checked THEN qualification blocks before further paid calls.
+    - GIVEN cancellation or exhaustion WHEN observed THEN scheduling stops, partial evidence remains, and application stays disabled.
+    - GIVEN each behavior WHEN tested THEN passing and failing cases cover it.
+  plan: ciottglsts
+  evaluation:
+    attempt_count: 2
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: bounded-correction-f00ce2c5c
+      source: Initial review live criteria PASS reused for unchanged scope; final corrected reader regressions and native mage check PASS. Qualification evidence is simulated, no real provider savings claim.
+      recorded_at: 2026-10-03 05:43
+      writer_command: agentera state plan record-evaluation

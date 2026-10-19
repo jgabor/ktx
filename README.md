@@ -64,6 +64,37 @@ with redirected stdin. The requirement does not extend to non-terminal runs
 or unrelated commands. See the [wrapper guide](.agents/skills/ktx/references/cli.md#terminal-cancellation)
 for cancellation, terminal preservation, and evidence behavior.
 
+### Optimize configuration without guessing
+
+```bash
+ktx optimize --format text                  # offline, no model calls or config writes
+ktx optimize show <result-id> --format text
+```
+
+The report gives the captured target, tested scope, bounds, eligibility, reasons,
+and next commands. JSON is the default. Offline generated cases can screen a
+proposal, but cannot make it apply-ready. This version changes only
+`pipeline.default.stages`; supplied route, logging, timeout/recovery, or other
+profile changes block before paid evaluation. Built-in proposals preserve the
+other configuration bytes and settings.
+
+If you explicitly authorize paid controlled qualification, choose a permitted
+model and have Docker, a compatible prebuilt `ktx-bench` image, and OpenCode auth:
+
+```bash
+ktx optimize --live --model provider/name --format text  # replace provider/name
+ktx optimize apply <ready-result-id> --dry-run
+ktx optimize apply <ready-result-id>
+ktx optimize rollback <ready-result-id>
+```
+
+Live qualification uses embedded controlled assets, not representative user
+workload. Its default bound is 24 benchmark agent launches, including setup and
+retries, not provider requests or a bill cap. No configuration is auto-applied.
+`ktx optimize --help` explains prerequisites, optional price snapshots, refusal
+conditions, and exit codes. See [the optimization contract](docs/pipelines.md#configuration-optimization)
+for the evidence and recovery limits.
+
 ### Compress tool output in flight
 
 Install the adapter for your runtime:

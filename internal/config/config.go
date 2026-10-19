@@ -209,6 +209,12 @@ func UserConfigPath() (string, error) {
 	return userPath, nil
 }
 
+// ResolveUserConfigPath returns the user-level config path without creating,
+// reading, or requiring anything at that path.
+func ResolveUserConfigPath() (string, error) {
+	return userConfigFile()
+}
+
 // Load is per-invocation only: it does not cache across processes
 // (no global state).
 func Load() (*Config, error) {

@@ -168,4 +168,6 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  are sensitive. Unsafe targets are rejected. File logging is independent of stderr.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx <command> --help' for command-specific help.")
+	fmt.Fprintln(w, "Start config optimization safely: ktx optimize --format text (offline, no model calls or config writes).")
+	fmt.Fprintln(w, "Use 'ktx optimize --help' for explicit live consent, supported default-stage changes, and apply/rollback.")
 }

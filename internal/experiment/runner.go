@@ -61,7 +61,21 @@ type CompareOptions struct {
 	CandidateID              string
 	ContractID               string
 	ContractPath             string
-	methodologyVersion       string
+	// AdmitAttempt runs immediately before a model-bearing container launch.
+	// A nil callback preserves the public benchmark admission policy.
+	AdmitAttempt         func(context.Context, AttemptAdmission) error
+	RetainFailedAttempts bool
+	MinimumCompletePairs int
+	methodologyVersion   string
+}
+
+type AttemptAdmission struct {
+	Directory string
+	Manifest  Manifest
+	AttemptID string
+	Side      string
+	Role      string
+	Cycle     int
 }
 
 type Runner struct {
@@ -274,7 +288,7 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 measured:
 	for cycle := 1; len(attempts) < options.MaxAttempts; cycle++ {
 		valid := CountValidForMethodology(attempts, options.Task.MinimumToolCalls, options.methodologyVersion)
-		if valid[Baseline] >= options.TargetValid && valid[Candidate] >= options.TargetValid {
+		if valid[Baseline] >= options.TargetValid && valid[Candidate] >= options.TargetValid && completeAttemptPairs(attempts, options) >= options.MinimumCompletePairs {
 			break
 		}
 		order := Sides
@@ -285,7 +299,7 @@ measured:
 			if len(attempts) >= options.MaxAttempts {
 				break
 			}
-			if valid[side] >= options.TargetValid {
+			if options.MinimumCompletePairs == 0 && valid[side] >= options.TargetValid {
 				continue
 			}
 			ordinals[side]++
@@ -331,7 +345,7 @@ measured:
 		return experimentDir, nil, 2, err
 	}
 	valid := CountValidForMethodology(attempts, options.Task.MinimumToolCalls, options.methodologyVersion)
-	if valid[Baseline] >= options.TargetValid && valid[Candidate] >= options.TargetValid && (executionStop == nil || executionStop.Reason == "estimated_cost_limit_reached") {
+	if valid[Baseline] >= options.TargetValid && valid[Candidate] >= options.TargetValid && completeAttemptPairs(attempts, options) >= options.MinimumCompletePairs && (executionStop == nil || executionStop.Reason == "estimated_cost_limit_reached") {
 		return experimentDir, summary, 0, nil
 	}
 	return experimentDir, summary, 1, nil
@@ -488,6 +502,9 @@ func (runner *Runner) prepareStructuralOptions(options *CompareOptions) error {
 		} else {
 			options.MaxAttempts = 12
 		}
+	}
+	if options.MinimumCompletePairs < 0 || (options.MinimumCompletePairs > 0 && (!cacheAware || options.MinimumCompletePairs*2+setupAttempts > options.MaxAttempts)) {
+		return errors.New("complete paired cycles require a cache-aware methodology and sufficient attempts")
 	}
 	if setupAttempts+options.TargetValid*2 > options.MaxAttempts {
 		return errors.New("max attempts must allow setup and requested measured completions")
@@ -917,7 +934,7 @@ func (runner *Runner) experimentID(ctx context.Context, options CompareOptions) 
 	return fmt.Sprintf("%s-%s-%d", runner.Now().UTC().Format("20060102T150405Z"), suffix, runner.PID)
 }
 
-func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, manifest Manifest, experimentDir, side, role string, cycle, ordinal, executionOrder int, cacheControl resolvedCacheControl) (Attempt, error) {
+func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, manifest Manifest, experimentDir, side, role string, cycle, ordinal, executionOrder int, cacheControl resolvedCacheControl) (returned Attempt, returnedErr error) {
 	if err := ctx.Err(); err != nil {
 		return Attempt{}, err
 	}
@@ -933,11 +950,47 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		return Attempt{}, err
 	}
 	startedAt := runner.timestamp()
+	launched, appended := false, false
+	launchExitCode := -1
+	var owner, intervalID string
+	defer func() {
+		if !options.RetainFailedAttempts || !launched || appended || returnedErr == nil {
+			return
+		}
+		attempt := Attempt{
+			SchemaVersion: 3, ExperimentID: manifest.ExperimentID, AttemptID: attemptID, Side: side, Role: role,
+			PipelineID: manifest.Pipelines[side].PipelineID, Cycle: cycle, Ordinal: ordinal, StartedAt: startedAt, EndedAt: runner.timestamp(),
+			Status: "invalid", ProcessExitCode: launchExitCode, SessionID: &owner, RuntimeEventIntervalID: &intervalID,
+			SessionLink:  SessionLink{State: "linked", NewSessionCount: 1, NewSessionIDs: []string{owner}},
+			ConfigSHA256: manifest.Pipelines[side].SHA256, Artifacts: map[string]string{}, ContentHashes: map[string]string{},
+		}
+		for name, path := range map[string]string{"database": database, "stream": streamPath, "stderr": stderrPath, "workspace": workspace} {
+			attempt.Artifacts[name] = relativePath(experimentDir, path)
+			if name != "workspace" {
+				if hash, err := fileSHA256(path); err == nil {
+					attempt.ContentHashes[name] = hash
+				}
+			}
+		}
+		if manifest.RuntimeConfig != nil {
+			attempt.RuntimeConfigSHA256 = manifest.RuntimeConfig.SHA256
+		}
+		if role != "" {
+			provider, _, _ := splitModel(options.Model)
+			attempt.CacheControl = &CacheControlMetadata{Mode: cacheControl.mode, Source: cacheControl.source, Phase: role, ExecutionOrder: executionOrder, Model: options.Model, Provider: provider, Variant: options.Variant, RuntimeVersion: manifest.Identities["opencode"]}
+			if cacheControl.mode == "isolated" {
+				attempt.CacheControl.NamespaceSHA256 = cacheControl.hashes[side]
+			}
+		}
+		returned = attempt
+		returnedErr = errors.Join(returnedErr, AppendAttempt(experimentDir, attempt))
+	}()
 	attemptDB, err := db.Open(database)
 	if err != nil {
 		return Attempt{}, fmt.Errorf("initialize attempt database: %w", err)
 	}
 	interval, err := attemptDB.CreateBenchmarkEventInterval(attemptID, benchcontract.Runtime, benchcontract.RuntimeVersion, benchcontract.ContractVersion, startedAt)
+	owner, intervalID = interval.SessionID, interval.ID
 	if err == nil {
 		_, err = attemptDB.EnsureCollectionInterval(interval.ID, []string{"run"}, startedAt)
 	}
@@ -1030,7 +1083,14 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 			return Attempt{}, err
 		}
 	}
+	if options.AdmitAttempt != nil {
+		if err := options.AdmitAttempt(ctx, AttemptAdmission{experimentDir, manifest, attemptID, side, role, cycle}); err != nil {
+			return Attempt{}, errors.Join(err, stream.Close(), stderr.Close())
+		}
+	}
+	launched = true
 	result, runErr := runner.runContainer(ctx, "ktx-"+manifest.ExperimentID+"-"+attemptID, Command{Args: command, Stdout: stream, Stderr: stderr, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
+	launchExitCode = result.ExitCode
 	streamErr, stderrErr := stream.Close(), stderr.Close()
 	if err := ctx.Err(); err != nil {
 		return Attempt{}, errors.Join(runErr, err)
@@ -1109,6 +1169,13 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 		Metrics: metrics, ConfigSHA256: manifest.Pipelines[side].SHA256, Artifacts: artifacts,
 		ContentHashes: map[string]string{"stream": streamHash, "stderr": stderrHash, "workspace": workspaceHash},
 	}
+	if options.RetainFailedAttempts {
+		hash, err := fileSHA256(database)
+		if err != nil {
+			return Attempt{}, err
+		}
+		attempt.ContentHashes["database"] = hash
+	}
 	if manifest.FirstArm != "" {
 		attempt.FirstArm, attempt.ExecutionOrder = manifest.FirstArm, executionOrder
 	}
@@ -1155,6 +1222,7 @@ func (runner *Runner) runAttempt(ctx context.Context, options CompareOptions, ma
 	if err := AppendAttempt(experimentDir, attempt); err != nil {
 		return Attempt{}, err
 	}
+	appended = true
 	if manifest.ReadDescription != nil {
 		// Retain the attempt before rejecting its evidence; never start another
 		// paid arm after an unproven application or incomplete follow-up.

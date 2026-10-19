@@ -161,6 +161,24 @@ ktx config show --format json
 ktx plugin list --json
 ```
 
+### Optimize configuration
+
+```bash
+ktx optimize --format text
+ktx optimize show <result-id> --format text
+```
+
+Offline is the default and never apply-ready. Only `pipeline.default.stages`
+changes are supported; unrelated settings/routes and plugins block before paid
+evaluation. Reports/help give bounds, reasons and next commands. Explicit
+`--live --model provider/name` authorizes controlled behavioral qualification,
+not representative workload claims. It requires a prebuilt compatible benchmark
+image, Docker and OpenCode auth; assets are embedded. The 24-launch default is
+not a provider-request or USD cap. Apply requires validated ready evidence and an
+unchanged captured target: preview with `optimize apply <id> --dry-run`, then
+explicitly apply. Rollback refuses later edits; rolled-back IDs are retired.
+See [CLI workflows](references/cli.md#configuration-optimization).
+
 ### Explicit reversible compression
 
 ```bash

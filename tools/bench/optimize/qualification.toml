@@ -1,0 +1,9 @@
+id = "controlled-optimize-preservation"
+prompt = "Use the bash tool to run cat tools/bench/corpus/qualification.txt. Read the entire output. Report the four release-control values for custodian, retry policy, release key, and escalation destination. Do not edit any files. Your final answer must contain all four values from the file."
+minimum_tool_calls = 1
+workspace_mode = "corpus"
+corpus_files = ["qualification.txt"]
+quality_risks = ["controlled planted facts only; not representative user workload", "values distributed across a padded release-control record"]
+[scoring]
+kind = "multi_fact_fractional"
+facts = ["custodian=cedar-otter", "retry-policy=bounded-three", "release-key=violet-73", "escalation=harbor-queue"]

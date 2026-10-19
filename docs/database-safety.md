@@ -23,6 +23,24 @@ the database-unavailable result are defined in the
 | Isolated owner databases                  | Normal benchmark compare and rank                                                                                                               | Creates a fresh database for each attempt and rejects attempt-directory reuse.                                                                                                                                                                                                                                                                 |
 | Forbidden ambient-live development access | Any development, test, CI, or rehearsal command that could discover the normal user database                                                    | Use a fresh disposable application root and, for migration rehearsal, an explicitly seeded temporary database.                                                                                                                                                                                                                                 |
 
+Optimization command classification:
+
+| Surface                                     | Database and mutation behavior                                                                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ktx optimize` without `--live`             | DB-free generated screening. Writes private config/result artifacts, not active config or any ktx database.                                                                    |
+| `ktx optimize --live --model ...`           | Explicit, potentially paid controlled qualification. Creates isolated owner databases per admitted benchmark attempt; never opens the ambient database.                        |
+| `ktx optimize show <id>`                    | Read-only retained-artifact inspection. Live validation reads confined private copies of retained attempt databases, not ambient data or archive originals.                    |
+| `ktx optimize apply <id> --dry-run`         | Read-only qualification/target validation and scoped preview. No configuration, backup, recovery-record, or target-directory writes.                                           |
+| `ktx optimize apply <id>` / `rollback <id>` | Revalidates retained qualification without ambient database access. Writes only the captured config target and private recovery artifacts; refuses conflicts and unsafe paths. |
+
+Development optimization and eligible lifecycle rehearsal must use disposable
+owned config targets as well as the fresh HOME/XDG roots below. An explicit
+`--config` does not prove disposability. Do not run live qualification, mutate an
+operator config, or access ambient data merely to verify this feature. Simulated
+retained qualification fixtures establish lifecycle behavior, not real provider
+performance. See [configuration optimization](pipelines.md#configuration-optimization)
+for consent, launch bounds, evidence, and recovery limits.
+
 Path precedence remains explicit flag, then `KTX_DB`, then the default
 `$XDG_DATA_HOME/ktx/ktx.db`. `KTX_DB` selects a path; it does not prove that the
 path is disposable or safe.

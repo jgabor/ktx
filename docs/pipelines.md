@@ -14,6 +14,140 @@ Methodology source notes (adapted, not copied):
 | headroom                   | recovery path measurement when `recover_footer` is enabled                                |
 | prior pipeline experiments | rank work by tool volume; conservative failure passthrough as a control task              |
 
+## Configuration optimization
+
+```bash
+ktx optimize --format text
+ktx optimize show <result-id> --format text
+```
+
+JSON is the default. Reports give target/baseline identities and original absence,
+tested scope, bounds, quality/integrity, runtime-token/cost availability,
+eligibility, reasons, missing inputs, and next commands. Ordinary reports omit
+full configuration and tool content. `--config path` selects an existing explicit
+target; otherwise the effective user config, including absence, is the incumbent.
+No ambient database is opened to discover opportunities.
+
+### Supported changes and offline screening
+
+Only `pipeline.default.stages` may change. Routes/order, other profiles,
+timeout/recovery, logging, and other settings must remain unchanged. There is no
+merge, force, routing optimizer, or plugin execution. `--candidate proposal.toml`
+accepts one full proposed config, not a fragment. Unsupported changes block
+during screening, before live preflight or paid launches, without apply eligibility.
+Targets that apply could not replace and restore exactly also block during
+screening with `target_not_safely_applicable`: a symlinked target or parent path
+(as dotfile managers often create), extra hard links, a file owned by another
+user, or setuid/setgid/sticky bits. Screening resolves the default target
+without creating its directory.
+
+Two built-in proposals append JSON compaction or sanitization to the incumbent,
+not generic benchmark replacements. A narrow textual edit preserves bytes outside
+the default-stage array. It accepts a plain `[pipeline.default]` table and ordinary
+single/multiline `stages` array, or adds an absent table. Ambiguous/unsupported
+syntax blocks rather than re-encoding unrelated content. Supplied full configs
+are captured exactly and checked for unrelated setting changes.
+
+Development uses seven controlled generated cases per config, at most three
+proposals, 8 KiB per case, 64 KiB per config, 16 profiles/routes, 32 stages/profile,
+and numeric stage arguments at most 1,048,576. Production failure-passthrough,
+anti-worsening, structure, and recovery-cue gates plus fact-preservation assertions
+apply. Routing is limited to default fallback or tool-only `any` rules for
+bash/read/view_image. Metadata/outcome routes block, including success-only read
+routes without OpenCode pre-delivery outcome authority. Plugins, unknown stages,
+regex filters/replacements, and unsupported arguments block without execution.
+Unknown outcome is never success. Offline runtime tokens and provider cost are
+unavailable; byte-based token estimates are labeled. Generated cases alone never
+yield `ready` or apply eligibility.
+
+### Explicit controlled live qualification
+
+```bash
+ktx optimize --live --model provider/name --format text
+# Optional: --variant name --max-attempts 14..64 --pricing-snapshot prices.json
+```
+
+Replace `provider/name` with an explicitly chosen permitted model.
+`github-copilot/*` is rejected. Prerequisites are Docker on PATH, a prebuilt
+`ktx-bench` image that passes immutable-image and pinned OpenCode 1.18.5/collector
+capability preflight, and OpenCode auth at `$HOME/.local/share/opencode/auth.json`.
+Optimize never builds an image or chooses a provider/model automatically. Missing
+or mismatched inputs block before model calls. The task, independent planted-fact
+corpus, and recovery-aware scoring spec are embedded; no source checkout is needed.
+
+At most one mechanically screened candidate enters the existing benchmark
+producer with exact complete configs. Development/qualification content and
+identities differ. Configs, scoring, runtime/image, binary, corpus, and pricing
+stay frozen. The displayed default cycle-wide allowance is 24 model-bearing
+container/agent launches: two cold observations, one warmup per arm, and retries
+are included. A clean qualification needs 14 launches. Capability inspection has
+no agent/model call and is excluded. The allowance bounds **launches, not provider
+requests or dollars**. Each attempt has a 10-minute timeout and 30-second grace.
+
+`ready` requires production archive validation, both arm quality gates, no lower
+candidate measured full-pass rate, at least five complete qualified same-cycle
+pairs, and lower complete runtime input + output + reasoning tokens per correct
+controlled task. Cache logicals are not added. This is descriptive controlled
+behavioral qualification, not representative user-workload improvement, causal or
+significant evidence, or a provider-internal claim.
+
+Cost follows the reported-first whole-cohort contract below. An optional snapshot
+freezes price inputs. Without usable rates, API estimates are unavailable, not
+zero; usable reported cost can still be selected. Missing cost does not invalidate
+valid token qualification. Price identity/provenance errors do. Cancellation,
+exhaustion, invalid authority, or detected drift stops scheduling, retains partial
+and unsuccessful attempts, and disables application.
+
+### Apply, rollback, and another cycle
+
+```bash
+ktx optimize apply <ready-result-id> --dry-run
+ktx optimize apply <ready-result-id>
+ktx optimize rollback <ready-result-id>
+ktx optimize --format text                  # next cycle uses the current incumbent
+```
+
+Preview reports the captured target and scoped diff without writes. Apply
+revalidates retained qualification, exact baseline/selected config, and current
+captured target. It never substitutes today's default target or accepts `--config`
+to retarget. Changed bytes, an appeared file when originally absent,
+ineligible/missing/tampered evidence, unsafe paths, and unsupported changes refuse
+without overwrite. Existing mode/group are captured at first apply and preserved;
+new files are private. Private originals and recovery records precede atomic
+publication. Interruption leaves a complete old/new active file, not partial
+content; retries reconcile the recovery record.
+
+Apply retries are no-ops. Rollback refuses later byte/mode/group edits; otherwise
+it restores exact original bytes/mode/group or absence. Rollback retries are
+no-ops. Rolled-back results are retired: start a new cycle. Each cycle has a new
+immutable identity and does not rewrite old qualification. `show` reports mutable
+application state separately and removes eligibility from retired results.
+
+Sensitive archives live in `.ktx/optimizations/<result-id>` relative to the working
+directory. Checksums detect drift, not authenticity against an owner who can
+rewrite the whole archive. Rooted operations reject escapes and unsafe targets.
+Five-second directory leases coordinate cooperating optimize mutations. External
+editors must cooperate for full lost-update protection; the final check-to-write
+window is not filesystem compare-and-swap. Simulated regression fixtures do not
+establish real provider performance or physical power-loss behavior.
+
+### Outcomes and exits
+
+| Outcome      | Meaning and next action                                                                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `screened`   | Generated gates passed; explicitly authorize live qualification before apply.                                              |
+| `ready`      | Validated token improvement in the exact controlled scope; preview, then explicitly apply to an unchanged captured target. |
+| `no_change`  | No qualified improvement; keep the incumbent or propose another supported change.                                          |
+| `blocked`    | Unsupported changes, absent prerequisites/authority, or invalid evidence; fix the reason before a new cycle.               |
+| `incomplete` | Interrupted, exhausted, or unavailable qualification; inspect retained partial evidence, never apply it.                   |
+
+Exit 0 means a report was produced, including blocked/incomplete, not that
+optimization succeeded. Inspect `outcome` and `apply_eligible`. Error envelopes
+go to stderr: 1 usage, 2 missing result, 3 mutation conflict, 4 I/O/integrity.
+Mutation success reports use `preview`, `applied`, `rolled_back`, or `noop`.
+JSON/text share facts, commands never prompt, and help/reports expose inputs and
+next commands without requiring this document.
+
 ## Named pipelines
 
 Configs live in `tools/bench/pipelines/`. Stage lists are the source of truth.

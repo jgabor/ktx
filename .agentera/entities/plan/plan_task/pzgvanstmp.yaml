@@ -1,0 +1,24 @@
+id: pzgvanstmp
+artifact: plan
+record:
+  name: Deliver safe configuration apply and rollback
+  depends_on:
+    - eaglqahhik
+  status: complete
+  acceptance:
+    - GIVEN eligible unchanged configuration WHEN previewed THEN target and scoped diff appear without writes.
+    - GIVEN changed configuration or ineligible evidence WHEN applied THEN nothing is overwritten.
+    - GIVEN successful application WHEN repeated THEN unrelated settings remain unchanged, originals remain recoverable, and retries are no-ops.
+    - GIVEN rollback WHEN subsequent edits exist THEN they remain untouched; otherwise original bytes or absence return.
+    - GIVEN interruption or write failure WHEN tested THEN no partial active config survives; passing and failing cases cover each behavior.
+  plan: ciottglsts
+  evaluation:
+    attempt_count: 2
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: bounded-correction-f00ce2c5c
+      source: Initial review mutation criteria PASS reused; final rebuilt-binary mutation lifecycle and native mage check PASS after bounded correction. Disposable fixtures only.
+      recorded_at: 2026-10-03 05:43
+      writer_command: agentera state plan record-evaluation

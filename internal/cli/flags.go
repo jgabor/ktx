@@ -52,6 +52,8 @@ func normalizeCommandValues(verb string, args []string) ([]string, error) {
 		names = "--limit --window --from --to --collection --ingress --candidate --matrix --receipt -from -to -collection -ingress -candidate -matrix -receipt"
 	case "plugin":
 		names = "--description"
+	case "optimize":
+		names = "--config --candidate --model --variant --max-attempts --pricing-snapshot -config -candidate -model -variant -max-attempts -pricing-snapshot"
 	case "bench":
 		names = "--spec --replay --replay-file --output --population --config --anchor-config --model --variant --task --baseline --candidate --auth --image --experiment-id --campaign-id --repo-root --pricing-snapshot --pricing-sha256 --runtime-config --read-description-treatment --first-arm --estimated-cost-limit --followup --cache-control --warmup --target-valid --rounds --max-attempts --attempt-timeout --termination-grace -m --m -format"
 		// Benchmark FlagSets also accept the stdlib single-dash spelling.

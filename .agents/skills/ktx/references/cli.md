@@ -13,25 +13,26 @@ clear.
 ktx [--format text|json] [--quiet|-q] <command> [args]
 ```
 
-| Command      | Purpose                                                            | Database behavior          |
-| ------------ | ------------------------------------------------------------------ | -------------------------- |
-| `run`        | Wrap an agent process and record events                            | Write-capable              |
-| `init`       | Install or remove OpenCode/Codex adapters                          | DB-free                    |
-| `hook`       | Adapter ingress: persist and compress a tool result                | Write-capable              |
-| `write`      | Persist a flat sidecar tool-call record                            | Write-capable              |
-| `list`       | List sessions                                                      | Read-only                  |
-| `get`        | Formatted lookup of tool call or session                           | Read-only                  |
-| `read`       | Raw JSON lookup of tool call or session                            | Read-only                  |
-| `compress`   | Explicitly compress one persisted tool call                        | Write-capable              |
-| `decompress` | Return original bytes referenced by compressed ID                  | Read-only                  |
-| `config`     | Inspect active profiles and routes                                 | DB-free                    |
-| `plugin`     | Manage external compression stages                                 | DB-free                    |
-| `stats`      | Rank residual context or emit window summary and breakdown reports | Read-only                  |
-| `telemetry`  | Record or inspect optional model-step observations                 | Mixed                      |
-| `doctor`     | Diagnose an existing database and installation                     | Read-only inspection       |
-| `db`         | Path, read-only report, and explicit migration                     | Mixed                      |
-| `prices`     | Inspect or update the models.dev price cache                       | DB-free, network on update |
-| `bench`      | Run, compare, validate, replay, and report benchmarks              | Mixed                      |
+| Command      | Purpose                                                            | Database behavior                                          |
+| ------------ | ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `run`        | Wrap an agent process and record events                            | Write-capable                                              |
+| `init`       | Install or remove OpenCode/Codex adapters                          | DB-free                                                    |
+| `hook`       | Adapter ingress: persist and compress a tool result                | Write-capable                                              |
+| `write`      | Persist a flat sidecar tool-call record                            | Write-capable                                              |
+| `list`       | List sessions                                                      | Read-only                                                  |
+| `get`        | Formatted lookup of tool call or session                           | Read-only                                                  |
+| `read`       | Raw JSON lookup of tool call or session                            | Read-only                                                  |
+| `compress`   | Explicitly compress one persisted tool call                        | Write-capable                                              |
+| `decompress` | Return original bytes referenced by compressed ID                  | Read-only                                                  |
+| `config`     | Inspect active profiles and routes                                 | DB-free                                                    |
+| `plugin`     | Manage external compression stages                                 | DB-free                                                    |
+| `stats`      | Rank residual context or emit window summary and breakdown reports | Read-only                                                  |
+| `telemetry`  | Record or inspect optional model-step observations                 | Mixed                                                      |
+| `doctor`     | Diagnose an existing database and installation                     | Read-only inspection                                       |
+| `db`         | Path, read-only report, and explicit migration                     | Mixed                                                      |
+| `prices`     | Inspect or update the models.dev price cache                       | DB-free, network on update                                 |
+| `bench`      | Run, compare, validate, replay, and report benchmarks              | Mixed                                                      |
+| `optimize`   | Screen configs, explicitly qualify one, inspect/apply/rollback     | Offline DB-free; live isolated owners; retained inspection |
 
 Use `ktx <command> --help` for the syntax and outcomes it documents. Not every
 help surface lists all nested flags or exit codes; project docs and this skill
@@ -39,7 +40,7 @@ may cover those parts more completely.
 
 ## Paths and Precedence
 
-For `init`, `db`, `stats`, `bench`, and `plugin`, owned options may surround
+For `init`, `db`, `stats`, `bench`, `plugin`, and `optimize`, owned options may surround
 the runtime or subcommand. Value-taking options consume their next token even
 when it looks like `--help` or `--format`; use `--name=value` for clarity.
 The first standalone `--` ends option handling, and the command still validates
@@ -79,6 +80,42 @@ ktx db --path <file> ... > KTX_DB > $XDG_DATA_HOME/ktx/ktx.db
 
 The `--path` override belongs to the `db` namespace. Use `KTX_DB` to select a
 database for normal commands.
+
+## Configuration optimization
+
+```bash
+ktx optimize --format text
+ktx optimize show <result-id> --format text
+# Only with explicit paid consent and a chosen permitted model:
+ktx optimize --live --model provider/name --format text
+ktx optimize apply <ready-result-id> --dry-run
+ktx optimize apply <ready-result-id>
+ktx optimize rollback <ready-result-id>
+```
+
+Replace `provider/name`. Offline generated evidence is never apply-ready. Only
+`pipeline.default.stages` may change; unrelated settings/routes, unsupported
+plugins/stages, or missing routing authority block before paid evaluation.
+Built-in proposals preserve unrelated config bytes. A supplied `--candidate` is
+one full config. `--config` selects an existing target; without it, effective
+config/absence is captured. Mutations cannot retarget and refuse later edits.
+
+Live requires Docker, a compatible prebuilt `ktx-bench` image with pinned runtime/
+collector preflight, and `$HOME/.local/share/opencode/auth.json`. Assets are
+embedded, so no checkout is needed. The default 24 benchmark launch allowance
+includes setup/retries, not provider requests or USD. Five complete qualified
+pairs and runtime-token improvement establish only the controlled cohort. Cost
+availability is independent; `--pricing-snapshot` is optional. Commands never
+prompt; reports include next commands. Exit 0 means report produced, even for
+blocked/incomplete; inspect outcome/eligibility. Errors use exits 1 usage, 2 missing
+result, 3 conflict, 4 integrity/I/O.
+
+Apply/rollback retries are no-ops. Rollback restores original bytes/mode/group or
+absence only when later edits are absent. Rolled-back IDs are retired. Another
+cycle uses the current incumbent without rewriting old evidence. Private
+archives/recovery live under `.ktx/optimizations`. Checksums are drift checks, not
+same-owner authentication; directory leases require cooperating external editors
+for full lost-update protection. See the [canonical contract](../../../../docs/pipelines.md#configuration-optimization).
 
 ## Adapter Workflows
 

@@ -1,0 +1,57 @@
+Release-control rehearsal record, controlled fixture, no user workload.
+custodian=cedar-otter
+
+
+
+
+
+
+
+
+The first verification window checks formatting without changing identifiers.
+Background note 01: no release values are defined in this note.
+Background note 02: retain the complete record, not only its header.
+Background note 03: the following blank separators are intentional padding.
+
+
+
+
+
+
+
+
+retry-policy=bounded-three
+Background note 04: confirm the retry limit from the release-control value.
+Background note 05: generated separators are not representative production logs.
+
+
+
+
+
+
+
+
+The second verification window checks identifiers across separated sections.
+Background note 06: do not infer a value from these explanatory lines.
+Background note 07: the release key is provided below, not in the prompt.
+
+
+
+
+
+
+
+
+release-key=violet-73
+Background note 08: record all four values, including the final destination.
+Background note 09: no external repository, network, or secret content is needed.
+
+
+
+
+
+
+
+
+escalation=harbor-queue
+End of controlled release-control rehearsal record.

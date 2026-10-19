@@ -1,0 +1,24 @@
+id: vvihegjfpl
+artifact: plan
+record:
+  name: Verify and document the short-command lifecycle
+  depends_on:
+    - pzgvanstmp
+  status: complete
+  acceptance:
+    - GIVEN fresh supported operator state WHEN the short command runs THEN inputs, bounds, and next actions are discoverable without external documentation.
+    - GIVEN applied improvement WHEN another cycle runs THEN the current incumbent is evaluated and prior evidence remains unchanged.
+    - GIVEN every outcome WHEN used non-interactively THEN reports, exit behavior, help, and scoped claims agree.
+    - GIVEN disposable development roots WHEN local checks run THEN native Linux verification passes without ambient database access or unauthorized provider calls.
+    - GIVEN each behavior WHEN tested THEN passing and failing cases cover it.
+  plan: ciottglsts
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Review ses_f00482592ffeDCuVLKVJt8Bt7Y: internal/cli/optimize.go:897 absent-config handoff blocks; :270 FIFO reader hangs. Required fresh-state/non-interactive behavior is not complete."
+    provenance:
+      attempt_id: bounded-correction-f00ce2c5c
+      source: "Initial review plus bounded correction: generated next command executes correctly; no-writer FIFO config/candidate/pricing refuse promptly; current docs inventory confirmed; final native mage check PASS with forbidden DB accesses zero."
+      recorded_at: 2026-10-03 05:43
+      writer_command: agentera state plan record-evaluation

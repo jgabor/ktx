@@ -1,0 +1,24 @@
+id: wyviyfkfmw
+artifact: plan
+record:
+  name: Deliver offline optimization and result inspection
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN supported configuration WHEN screened offline THEN bounded candidates run without provider calls or configuration changes.
+    - GIVEN candidates WHEN screened THEN preservation gates apply and unsupported stages block without execution.
+    - GIVEN an outcome WHEN inspected as text or JSON THEN scope, eligibility, reasons, bounds, and next actions agree.
+    - GIVEN missing workload evidence WHEN screening completes THEN generated cases cannot produce an apply-ready workload claim.
+    - GIVEN each behavior WHEN tested THEN one passing and one failing case cover it.
+  plan: ciottglsts
+  evaluation:
+    attempt_count: 2
+    failure_count: 1
+    last_verdict: pass
+    last_failure_evidence: "Review ses_f00482592ffeDCuVLKVJt8Bt7Y: internal/cli/optimize.go:897 recommends explicit absent config; :270 opens FIFOs before rejection. Fresh-state next action and bounded refusal need correction."
+    provenance:
+      attempt_id: bounded-correction-f00ce2c5c
+      source: "Initial review ses_f00482592ffeDCuVLKVJt8Bt7Y plus correction ses_f00ce2c5cffekfQ3Hr35TsHMl1: absent-default next-action and FIFO actual-binary regressions pass; final native mage check pass."
+      recorded_at: 2026-10-03 05:43
+      writer_command: agentera state plan record-evaluation

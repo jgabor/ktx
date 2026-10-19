@@ -1,0 +1,40 @@
+id: ciottglsts
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-10-03
+    status: complete
+    reviewed: 2026-10-03
+    critic_issues: 5 found, 5 addressed, 0 dismissed
+    revised: Separate generated-case screening from workload qualification, provide exact candidate handoff, preserve token evidence without cost, reject stale configuration changes, and distinguish attempt limits from dollar caps.
+    title: "Plan: Bounded compression optimization with safe config application"
+  what: Deliver a short, non-interactive optimization workflow that screens small configuration changes, optionally qualifies one candidate through live benchmarks, explains the outcome to humans and agents, and separately previews, applies, or rolls back an eligible result. Each later cycle evaluates the current configuration as its incumbent.
+  why: Turn existing measurement, deterministic compression, recovery, and benchmark evidence into repeatable improvement without requiring operators to study runbooks or build a new evaluation system.
+  constraints: Preserve deterministic compression, supported routing, failure passthrough, anti-worsening, structure protection, recovery, benchmark contracts, configuration precedence, and first-evidence ownership. Preserve reported-first whole-cohort cost selection; unavailable cost limits cost claims, not valid token evidence. Require explicit live consent and finite cycle-wide attempt admission covering setup, retries, and qualification. Never auto-apply or execute proposed plugins. Do not export unsanitized content or expand content-derived retention. Limit claims to recorded scope. Keep development databases disposable. Test each behavior with one passing and one failing case, plus extra mutation-failure coverage.
+  design: Observation prioritizes safely addressable opportunities without broad content collection. Bounded proposal screening removes mechanically unsafe candidates before one candidate enters independent behavioral qualification. Validated evidence determines recommendation eligibility and retains unsuccessful outcomes. Explicit application checks the current target against the evaluated incumbent, preserves the original, and enables conservative rollback. Repeated cycles use the new incumbent without rewriting previous evidence.
+  overall_acceptance: GIVEN a supported configuration WHEN a human or agent runs one bounded cycle THEN the result identifies target, tested scope, quality, integrity, runtime-token outcome, cost availability, apply eligibility, and next action. GIVEN an eligible result WHEN previewed, applied, repeated, and rolled back THEN changes remain scoped and originals stay recoverable without overwriting later edits. GIVEN screened, no-change, blocked, or incomplete outcomes WHEN application is requested THEN configuration remains unchanged. GIVEN missing authority WHEN qualification is attempted THEN no authority or workload-wide improvement is inferred.
+  scope:
+    included:
+      - "Public workflow: ktx optimize defaults to offline screening; --live --model authorizes live evaluation; --candidate accepts one proposed configuration; --config selects an explicit target; --format text or json selects presentation."
+      - "Result lifecycle: ktx optimize show, apply --dry-run, apply, and rollback address a retained result ID. Existing JSON-default behavior remains unchanged; missing inputs produce actionable, non-interactive responses."
+      - A small finite built-in candidate set plus an optional supplied configuration; at most one shortlisted candidate reaches live qualification per cycle. No embedded proposer is required.
+      - Incumbent capture, supported aggregate prioritization, approved generated controlled cases, preservation assertions, and separate development and qualification populations. Generated cases alone do not establish workload qualification.
+      - Exact full-configuration handoff into existing behavioral evaluation with frozen configuration, scoring, binary, runtime, and pricing identities. Preserve existing public compare and rank contracts.
+      - "Versioned outcomes: screened, ready, no_change, blocked, and incomplete. Reports include target, scope, quality, integrity, token outcomes, selected cost basis or unavailable reason, apply eligibility, and usable next actions."
+      - Finite whole-cycle attempt limits, existing deadlines, cancellation, retained failed attempts, and explicit unavailable fields. Attempt limits are not dollar caps; descriptive results make no causal or significance claim.
+      - "Safe application to the captured target: previewed diff, baseline conflict detection, preservation of unrelated settings, recoverable originals, no-op retries, and rollback that refuses later conflicting edits. Preserve original absence when the target did not exist."
+      - Qualification and validation reuse existing experiment evidence without a second database or provider collector. User-supplied external stages remain unsupported by the first optimization workflow.
+      - Short command help, consistent existing documentation, stable exit behavior, repeated-cycle verification, and required local native Linux checks. No paid verification is authorized merely by publishing this plan.
+    excluded:
+      - Production code rewriting, new compression algorithms, model training, instruction normalization, tool-schema canonicalization, and history or memory compression.
+      - Automatic deployment, background scheduling, embedded proposer models, additional agent runtimes, new database schema, and a general-purpose evaluation harness.
+      - General raw-prompt mining, unsanitized-content export, external plugin execution, provider-internal cache claims, and weakening scoring or evidence validation.
+      - Changing shipped defaults from task-specific evidence, overwriting subsequent config edits, silently guessing models or authorization, and treating unknown cost or tool outcome as zero or success.
+    deferred:
+      - Direct screening of arbitrary retained raw output bodies, subject to the trust and redaction discussion and a concrete measured need.
+      - New deterministic stages or broader deployment only after scoped configuration experiments establish the need and separate authorization is granted.
+  unknowns:
+    []
+  rejected:
+    []

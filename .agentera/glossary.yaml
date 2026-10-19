@@ -1,0 +1,40 @@
+schema_version: agentera.projectGlossary.v1
+approvals:
+  - proposal_digest: d53675f0394f7c1dd0b23b546290aa4b3c9abe51306b399c785111d9121643d0
+    proposal:
+      family: terminology_drift
+      concept: Tool output exactly as the tool produced it, before any ktx compression
+      proposed_canonical_term: raw output
+      canonical_evidence:
+        - source_path: .agents/skills/ktx/references/database-telemetry.md
+          line: 99
+          source_record_sha256: cc990bdb130119874bac3e20a1e83d6063621e09084af5ff9cc5449b87be8cc3
+        - source_path: .agents/skills/ktx/references/database-telemetry.md
+          line: 107
+          source_record_sha256: a1827a746606d3eab9846823c0d4eb5e38f30a857349b3847265e23a237f311d
+      variants:
+        - term: original output
+          evidence:
+            - source_path: .agents/skills/ktx/references/pipelines.md
+              line: 112
+              source_record_sha256: 319ed561db5ec6d9760cdb0b8bf481fc2136cb8f4e25997e6c16133f78e9a33a
+      severity: info
+      confidence: 60
+      proposal_digest: d53675f0394f7c1dd0b23b546290aa4b3c9abe51306b399c785111d9121643d0
+    confirmation:
+      proposal_digest: d53675f0394f7c1dd0b23b546290aa4b3c9abe51306b399c785111d9121643d0
+      confirmed_by: user
+      confirmed_at: 2026-10-18T15:11:59+02:00
+entries:
+  - term: raw output
+    meaning: Tool output exactly as the tool produced it, before any ktx compression
+    confidence: 60
+    permanence: stable
+    temporal:
+      observed_at: 2026-10-18
+      last_confirmed_at: 2026-10-18
+    provenance:
+      kind: project_file
+      evidence:
+        - source_path: .agents/skills/ktx/references/database-telemetry.md
+          source_record_sha256: cc990bdb130119874bac3e20a1e83d6063621e09084af5ff9cc5449b87be8cc3

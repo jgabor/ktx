@@ -403,11 +403,18 @@ func TestOptimizeLiveReportedCostAndBadPricing(t *testing.T) {
 }
 
 func TestOptimizeLiveConsentAndRoutingBlock(t *testing.T) {
-	for _, argv := range [][]string{{"--live"}, {"--model", "openai/test"}, {"--live", "--model", "github-copilot/test"}, {"--live", "--model", "openai/test", "--max-attempts", "13"}} {
+	for _, argv := range [][]string{{"--live"}, {"--model", "openai/test"}, {"--live", "--model", "github-copilot/test"}, {"--live", "--model", "openai/test", "--max-attempts", "13"}, {"--max-attempts", "24"}} {
 		optimizeTestRoot(t)
 		code, _, _ := optimizeInvoke(t, argv...)
 		if code != ExitUsage {
 			t.Fatalf("consent %v: %d", argv, code)
+		}
+	}
+	for flag, want := range map[string]string{"--model=": "nonempty provider/name", "--variant=": "nonempty name", "--max-attempts=": "nonempty number", "--config=": "nonempty path"} {
+		optimizeTestRoot(t)
+		code, _, stderr := optimizeInvoke(t, "--live", flag)
+		if code != ExitUsage || !strings.Contains(stderr, flag[:len(flag)-1]+" requires a "+want) {
+			t.Fatalf("empty %s: %d %s", flag, code, stderr)
 		}
 	}
 	_, args, runner, fake := optimizeLiveFixture(t)

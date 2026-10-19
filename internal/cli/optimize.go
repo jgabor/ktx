@@ -40,6 +40,7 @@ type optimizeArgs struct {
 	live                                       bool
 	dryRun                                     bool
 	maxAttempts                                int
+	maxAttemptsSet                             bool
 }
 
 type optimizeConfigIdentity struct {
@@ -149,7 +150,11 @@ func parseOptimizeArgs(args []string) ([]string, any, error) {
 			}
 		case "--config", "-config", "--candidate", "-candidate", "--model", "-model", "--variant", "-variant", "--pricing-snapshot", "-pricing-snapshot", "--max-attempts", "-max-attempts":
 			if !hasValue || value == "" {
-				return nil, nil, fmt.Errorf("%s requires a nonempty path", name)
+				kind := map[string]string{"model": "provider/name", "variant": "name", "max-attempts": "number"}[strings.TrimLeft(name, "-")]
+				if kind == "" {
+					kind = "path"
+				}
+				return nil, nil, fmt.Errorf("%s requires a nonempty %s", name, kind)
 			}
 			switch strings.TrimLeft(name, "-") {
 			case "model":
@@ -161,6 +166,7 @@ func parseOptimizeArgs(args []string) ([]string, any, error) {
 			case "max-attempts":
 				var err error
 				parsed.maxAttempts, err = strconv.Atoi(value)
+				parsed.maxAttemptsSet = true
 				if err != nil || parsed.maxAttempts < 14 || parsed.maxAttempts > 64 {
 					return nil, nil, fmt.Errorf("--max-attempts must be 14..64 container/agent launches, not requests or USD")
 				}
@@ -181,7 +187,7 @@ func optimizeCommand(ctx *DispatchContext) (any, error) {
 	if args.live && (args.model == "" || strings.HasPrefix(args.model, "github-copilot/") || !strings.Contains(args.model, "/")) {
 		return nil, usageError("--live requires an explicit permitted --model provider/name")
 	}
-	if !args.live && (args.model != "" || args.variant != "" || args.pricing != "" || args.maxAttempts != 24) {
+	if !args.live && (args.model != "" || args.variant != "" || args.pricing != "" || args.maxAttemptsSet) {
 		return nil, usageError("model, variant, pricing snapshot and attempt limits require --live")
 	}
 	var result optimizeResult

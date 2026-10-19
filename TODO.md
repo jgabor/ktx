@@ -26,6 +26,8 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [ ] [id:wfotebznsl] [feature] Preserve recipe-aware benchmark snapshots
 - [ ] [id:bzqxriruqd] **Optimization readiness margin** — Run a structured discussion and record whether a minimum runtime-token improvement or pair-consistency requirement applies before an optimization result becomes ready, and how it is expressed. → [Question](ARCHITECTURE.md#optimization-readiness-margin)
 - [ ] [id:fehjnqmrts] **Optimization cost acceptance** — Run a structured discussion and record whether optimization apply eligibility depends on cost evidence beyond runtime tokens per correct task, and how unavailable or rising cost is reported. → [Question](ARCHITECTURE.md#optimization-cost-acceptance)
+- [ ] [id:uwuhoalkjq] **Routed-profile optimization** — Run a structured discussion and record whether optimization may change stages of routed profiles, and the per-route controlled cases, qualification tasks, launch bounds, and apply scope that would require. → [Question](ARCHITECTURE.md#routed-profile-optimization)
+- [ ] [id:vsbpexziab] **Workload-informed optimization targeting** — Run a structured discussion and record whether retained aggregate tool-call evidence may select optimization targets or describe a result's traffic share, and under which privacy, coverage, and claim limits. → [Question](ARCHITECTURE.md#workload-informed-optimization-targeting)
 
 ## ✓ Resolved
 

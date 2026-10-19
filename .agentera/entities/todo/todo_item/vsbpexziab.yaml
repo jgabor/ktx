@@ -1,0 +1,26 @@
+id: vsbpexziab
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Workload-informed optimization targeting** — Run a structured discussion and record whether retained aggregate tool-call evidence may select optimization targets or describe a result's traffic share, and under which privacy, coverage, and claim limits. → [Question](ARCHITECTURE.md#workload-informed-optimization-targeting)"
+  readiness:
+    capability: discuss
+    reason: Resolve workload-informed targeting after the trust and redaction boundary.
+    dependencies:
+      - artifact: todo
+        id: nopgfefdwe
+      - artifact: todo
+        id: tklctomuvz
+    blocked: null
+    gate: null
+    queue_rank: 26
+    order_reason: TODO.md architectural-discussion order after immediate work.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Workload-informed optimization targeting** — Run a structured discussion and record whether retained aggregate tool-call evidence may select optimization targets or describe a result's traffic share, and under which privacy, coverage, and claim limits. → [Question](ARCHITECTURE.md#workload-informed-optimization-targeting)"
+      severity: normal
+      status: open
+      order: 16

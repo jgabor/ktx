@@ -320,6 +320,18 @@ Should apply eligibility for an optimization result depend on cost evidence in a
 
 → TODO discussion task **Optimization cost acceptance** (`fehjnqmrts`).
 
+### Routed-profile optimization
+
+Should configuration optimization be able to change the stages of profiles selected by command-prefix, subcommand, or other-tool routes, not only `pipeline.default.stages`? If so, which controlled screening cases and qualification tasks must exercise each changed route, how are launch bounds and paid consent counted across several routes in one cycle, and how do preview, apply, and rollback scope a change to one routed profile?
+
+→ TODO discussion task **Routed-profile optimization** (`uwuhoalkjq`).
+
+### Workload-informed optimization targeting
+
+May configuration optimization use retained aggregate tool-call evidence, such as volume by route, profile, and disposition, to choose which profile to qualify or to report the share of real traffic a result affects? If so, which aggregates are permitted before content-derived retention is broadened, what collection coverage is required before such a share is reported, and how is the reported scope kept separate from the controlled qualification claim?
+
+→ TODO discussion task **Workload-informed optimization targeting** (`vsbpexziab`).
+
 ---
 
 ## Document maintenance

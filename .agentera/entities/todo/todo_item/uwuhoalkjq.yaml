@@ -1,0 +1,23 @@
+id: uwuhoalkjq
+artifact: todo
+record:
+  severity: normal
+  status: open
+  description: "**Routed-profile optimization** — Run a structured discussion and record whether optimization may change stages of routed profiles, and the per-route controlled cases, qualification tasks, launch bounds, and apply scope that would require. → [Question](ARCHITECTURE.md#routed-profile-optimization)"
+  readiness:
+    capability: discuss
+    reason: Resolve routed-profile scope before extending optimization beyond default stages.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 25
+    order_reason: TODO.md architectural-discussion order after immediate work.
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "**Routed-profile optimization** — Run a structured discussion and record whether optimization may change stages of routed profiles, and the per-route controlled cases, qualification tasks, launch bounds, and apply scope that would require. → [Question](ARCHITECTURE.md#routed-profile-optimization)"
+      severity: normal
+      status: open
+      order: 15

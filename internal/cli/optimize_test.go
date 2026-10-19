@@ -356,7 +356,8 @@ func TestOptimizeShowCannotPromoteGeneratedEvidence(t *testing.T) {
 
 const optimizeRoutedConfig = "[pipeline.default]\nstages = []\n[pipeline.search]\nstages = ['dedup-blank']\n[pipeline.git-status]\nstages = ['normalize']\n" +
 	"[[route]]\ntool = 'bash'\ncommand_prefix = 'rg'\nprofile = 'search'\n[[route]]\ntool = 'grep'\nprofile = 'search'\n" +
-	"[[route]]\ntool = 'bash'\ncommand_prefix = 'git'\nsubcommand = 'status'\nprofile = 'git-status'\n[[route]]\ntool = 'todowrite'\nprofile = 'search'\n"
+	"[[route]]\ntool = 'bash'\ncommand_prefix = 'git'\nsubcommand = 'status'\nprofile = 'git-status'\n[[route]]\ntool = 'todowrite'\nprofile = 'search'\n" +
+	"[pipeline.json-block]\nstages = ['json-block']\n[[route]]\ntool = 'bash'\ncommand_prefix = 'npx -y agentera@next prime'\nprofile = 'json-block'\n"
 
 // Unreached command, subcommand, and other-tool routes are admitted, and the
 // traffic they select is delivered byte-identically by every candidate.
@@ -378,6 +379,7 @@ func TestOptimizeUnreachedRoutesScreenUnchanged(t *testing.T) {
 		{Tool: "grep", Input: `{"pattern":"x"}`},
 		{Tool: "bash", Input: `{"command":"git status --short"}`},
 		{Tool: "todowrite", Input: `{}`},
+		{Tool: "bash", Input: `{"command":"npx -y agentera@next prime"}`},
 	}
 	deliver := func(cfg *config.Config, call dbpkg.ToolCall) pipelineExecution {
 		t.Helper()
@@ -421,5 +423,28 @@ func TestOptimizeQualificationCommandMatchesEmbeddedTask(t *testing.T) {
 	}
 	if strings.Contains(string(assets["qualification.toml"]), "run cat tools/bench/corpus/other.txt") {
 		t.Fatal("unexpected qualification command")
+	}
+}
+
+func TestOptimizeStageAllowlistAppliesToReachableProfiles(t *testing.T) {
+	const routed = "[pipeline.default]\nstages = []\n[pipeline.json-block]\nstages = %s\n[[route]]\ntool = %s\ncommand_prefix = %s\nprofile = 'json-block'\n"
+	for _, tt := range []struct{ name, stages, tool, prefix, outcome, reason string }{
+		{"unreached-builtin", "['json-block', 'keep-ends:2000000:1']", "'bash'", "'npx -y agentera@next prime'", "screened", ""},
+		{"unreached-unknown", "['mystery']", "'bash'", "'npx'", "blocked", "invalid_stage_in_unreached_profile"},
+		{"exercised-route", "['json-block']", "'read'", "''", "blocked", "unsupported_stage_not_executed"},
+		{"default-profile", "[]", "'bash'", "'npx'", "blocked", "unsupported_stage_not_executed"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			optimizeTestRoot(t)
+			data := fmt.Sprintf(routed, tt.stages, tt.tool, tt.prefix)
+			if tt.name == "default-profile" {
+				data = strings.Replace(data, "[pipeline.default]\nstages = []", "[pipeline.default]\nstages = ['json-block']", 1)
+			}
+			optimizeWrite(t, "target.toml", data)
+			r := optimizeRun(t, "--config", "target.toml")
+			if r.Outcome != tt.outcome || (tt.reason != "" && strings.Join(r.Reasons, ",") != tt.reason) {
+				t.Fatalf("reasons %v outcome %s", r.Reasons, r.Outcome)
+			}
+		})
 	}
 }

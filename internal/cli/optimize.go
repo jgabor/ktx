@@ -255,6 +255,7 @@ func printOptimizeHelp(w io.Writer) {
 	fmt.Fprintln(w, "Without --config, targets the effective user config (including original absence).")
 	fmt.Fprintln(w, "External plugins, outcome routes, and unsupported stages block before execution. Command, subcommand,")
 	fmt.Fprintln(w, "and other-tool routes stay unchanged and block only if a controlled or qualification call reaches them.")
+	fmt.Fprintln(w, "The stage allowlist covers reachable profiles; profiles behind unreached routes need only valid built-ins.")
 	fmt.Fprintln(w, "Targets apply cannot replace exactly block during screening: symlinks or symlinked parents,")
 	fmt.Fprintln(w, "extra hard links, files owned by another user, or setuid/setgid/sticky bits.")
 	fmt.Fprintln(w, "Private full configs and evidence are retained in .ktx/optimizations/<result-id>.")
@@ -527,6 +528,15 @@ func optimizeSupported(cfg *config.Config) []string {
 	if optimizeUnqualifiedReach(calls, cfg.Routes) {
 		return []string{"route_shadows_controlled_case"}
 	}
+	// Controlled calls can reach only the default profile and profiles of
+	// exercised routes. Other profiles stay byte-identical and are never run
+	// by screening, so they need valid built-in stages but not the allowlist.
+	reachable := map[string]bool{"default": true}
+	for _, route := range cfg.Routes {
+		if optimizeRouteExercised(route) {
+			reachable[route.Profile] = true
+		}
+	}
 	reg := pipeline.NewRegistry()
 	stages.RegisterBuiltins(reg)
 	names := make([]string, 0, len(cfg.Profiles))
@@ -540,6 +550,12 @@ func optimizeSupported(cfg *config.Config) []string {
 			return []string{"stage_count_exceeds_bound"}
 		}
 		for _, token := range profile.Stages {
+			if !reachable[name] {
+				if _, found, err := reg.Lookup(token); !found || err != nil {
+					return []string{"invalid_stage_in_unreached_profile"}
+				}
+				continue
+			}
 			base, arg, _ := strings.Cut(token, ":")
 			switch base {
 			case "json-compact", "unwrap-result", "strip-ansi", "dedup-blank", "normalize":

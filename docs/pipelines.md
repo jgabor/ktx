@@ -62,8 +62,12 @@ end, and blocks with `qualification_reached_unqualified_route` if one selected
 such a route. Their profiles stay byte-identical, so traffic they select is
 unchanged and outside the claimed scope. Outcome routes block, including
 success-only read routes without OpenCode pre-delivery outcome authority.
-Plugins, unknown stages,
-regex filters/replacements, and unsupported arguments block without execution.
+Plugins and unknown stages block without execution. In the default profile and
+profiles of exercised tool-only routes, regex filters/replacements, other
+unlisted built-ins, and unsupported arguments also block. Profiles reached only
+by unreached routes are never run by screening, so they need valid built-in
+stages but not that allowlist; an invalid one blocks with
+`invalid_stage_in_unreached_profile`.
 Unknown outcome is never success. Offline runtime tokens and provider cost are
 unavailable; byte-based token estimates are labeled. Generated cases alone never
 yield `ready` or apply eligibility.

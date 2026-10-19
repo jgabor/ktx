@@ -32,6 +32,7 @@ type optimizeFakeExecutor struct {
 	seenConfigs           map[string][]byte
 	beforeLaunch          func()
 	pendingDatabaseTamper string
+	extraCommand          string
 }
 
 func optimizeMount(args []string, target string) string {
@@ -160,6 +161,16 @@ func (f *optimizeFakeExecutor) Run(ctx context.Context, command experiment.Comma
 		_, err = store.PersistToolCallOnce(&dbpkg.ToolCall{ID: toolID, SessionID: owner, Tool: "bash", Input: `{"command":"cat tools/bench/corpus/qualification.txt"}`, Output: "controlled fixture", IsError: &success, ContentHash: dbpkg.ContentHash("controlled fixture")})
 		if err != nil {
 			return experiment.CommandResult{}, err
+		}
+		if f.extraCommand != "" {
+			extraID, err := dbpkg.NewID()
+			if err != nil {
+				return experiment.CommandResult{}, err
+			}
+			_, err = store.PersistToolCallOnce(&dbpkg.ToolCall{ID: extraID, SessionID: owner, Tool: "bash", Input: string(mustJSON(map[string]string{"command": f.extraCommand})), Output: "qualification.txt", IsError: &success, ContentHash: dbpkg.ContentHash("qualification.txt")})
+			if err != nil {
+				return experiment.CommandResult{}, err
+			}
 		}
 		if err := store.SealRuntimeEventInterval(interval, owner, captured, dbpkg.RuntimeComplete, ""); err != nil {
 			return experiment.CommandResult{}, err
@@ -457,5 +468,35 @@ func TestOptimizeLivePairGate(t *testing.T) {
 	assessOptimizeQualification(&r, summary)
 	if r.ApplyEligible || r.Outcome == "ready" || r.Reasons[0] != "behavioral_quality_not_preserved" {
 		t.Fatal("retries hid a candidate quality regression")
+	}
+}
+
+func TestOptimizeLiveRoutedConfigReachability(t *testing.T) {
+	for _, extra := range []string{"", "rg release-key tools/bench/corpus"} {
+		t.Run(fmt.Sprintf("extra=%q", extra), func(t *testing.T) {
+			_, args, runner, fake := optimizeLiveFixture(t)
+			fake.extraCommand = extra
+			optimizeWrite(t, "target.toml", optimizeRoutedConfig)
+			development := optimizeRun(t, "--config", "target.toml")
+			r, err := qualifyOptimize(context.Background(), development, args, runner, io.Discard)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if extra == "" {
+				if r.Outcome != "ready" || !r.ApplyEligible {
+					t.Fatalf("unreached routes blocked qualification: %+v", r)
+				}
+				if report, err := mutateOptimize(r.ID, "apply", true, optimizeMutationHooks{}); err != nil || report.Outcome != "preview" {
+					t.Fatalf("routed ready result not previewable: %+v %v", report, err)
+				}
+				return
+			}
+			if r.Outcome != "blocked" || r.ApplyEligible || strings.Join(r.Reasons, ",") != "qualification_reached_unqualified_route" {
+				t.Fatalf("routed agent call admitted: %+v", r)
+			}
+			if fake.launches != 1 || r.Live.AttemptsAdmitted != 1 {
+				t.Fatalf("paid launches continued after routed call: %d %+v", fake.launches, r.Live)
+			}
+		})
 	}
 }

@@ -1,0 +1,19 @@
+id: curwztcion
+artifact: decisions
+record:
+  date: 2026-10-19
+  question: Which configured routes may an optimization incumbent contain when only `pipeline.default.stages` can change?
+  context: Plan ciottglsts blocked every command-prefix, subcommand, and other-tool route as untested routing, so typical routed configurations, including the operator's own, could not be screened. The stage-only diff already keeps every route and routed profile byte-identical between baseline and candidate, and the router selects the first matching rule, so traffic a routed rule selects never reaches the default profile. The remaining risks are a route that captures a controlled screening or qualification call, so the default change is not exercised, and claims that imply savings on routed traffic. Outcome routes remain unqualified because OpenCode provides no pre-delivery outcome authority.
+  alternatives:
+    - name: Admit command-prefix, subcommand, and other-tool routes unchanged while no controlled screening case, the qualification command, or any retained qualification agent call selects them; keep outcome routes blocked.
+      status: chosen
+    - name: Keep blocking every route other than tool-only any-outcome rules for bash, read, and view_image.
+      status: rejected
+    - name: Admit routed configurations without checking whether controlled or agent calls reach the routes.
+      status: rejected
+    - name: Allow optimization to change routed profile stages in the same cycle.
+      status: rejected
+  choice: Screening resolves every generated case and the embedded qualification command through the production router in rule order and blocks with `route_shadows_controlled_case` when one selects a command-prefix, subcommand, or other-tool route. Such routes are otherwise admitted unchanged; their profiles stay byte-identical and their traffic is outside the claimed scope. Live qualification reads every retained agent tool call before each further model-bearing launch, after the run, and during apply revalidation, and blocks with `qualification_reached_unqualified_route` when one selected such a route. Outcome routes block with `outcome_routing_not_qualified`. Byte-identical routed delivery across candidates, with a default-traffic control, is the regression test. Routed-profile changes and workload-informed targeting remain open discussions uwuhoalkjq and vsbpexziab.
+  reasoning: Routes cannot change under the stage-only boundary, so the only way they invalidate evidence is by intercepting a controlled call, which the router can decide exactly for fixed inputs and retained agent calls. Checking between launches stops spending as soon as an agent strays onto a routed command. Keeping outcome routes blocked preserves the unknown-is-not-success rule. This unblocks routed configurations without broadening what optimization may change or claim.
+  confidence: provisional
+  feeds_into: internal/cli/optimize.go route admission; docs/pipelines.md configuration optimization routing; TODO uwuhoalkjq and vsbpexziab

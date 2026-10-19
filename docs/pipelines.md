@@ -52,9 +52,17 @@ Development uses seven controlled generated cases per config, at most three
 proposals, 8 KiB per case, 64 KiB per config, 16 profiles/routes, 32 stages/profile,
 and numeric stage arguments at most 1,048,576. Production failure-passthrough,
 anti-worsening, structure, and recovery-cue gates plus fact-preservation assertions
-apply. Routing is limited to default fallback or tool-only `any` rules for
-bash/read/view_image. Metadata/outcome routes block, including success-only read
-routes without OpenCode pre-delivery outcome authority. Plugins, unknown stages,
+apply. Controlled cases exercise default fallback and tool-only `any` rules for
+bash/read/view_image. Command-prefix, subcommand, and other-tool routes are
+admitted unchanged only while no generated case or the qualification command
+(`cat tools/bench/corpus/qualification.txt`) selects them; otherwise screening
+blocks with `route_shadows_controlled_case`. Live qualification rechecks every
+retained agent tool call before each further launch, during apply, and at the
+end, and blocks with `qualification_reached_unqualified_route` if one selected
+such a route. Their profiles stay byte-identical, so traffic they select is
+unchanged and outside the claimed scope. Outcome routes block, including
+success-only read routes without OpenCode pre-delivery outcome authority.
+Plugins, unknown stages,
 regex filters/replacements, and unsupported arguments block without execution.
 Unknown outcome is never success. Offline runtime tokens and provider cost are
 unavailable; byte-based token estimates are labeled. Generated cases alone never

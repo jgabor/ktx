@@ -4,7 +4,7 @@
 
 ### Added
 
-- `ktx optimize` adds offline screening, explicit 24-launch controlled live qualification, outcome inspection, and conflict-checked preview/apply/rollback with private originals. Only `pipeline.default.stages` may change; generated-only results remain ineligible. Targets that apply cannot replace exactly (symlinked paths, extra hard links, other owners, special mode bits) block during screening, before paid qualification.
+- `ktx optimize` adds offline screening, explicit 24-launch controlled live qualification, outcome inspection, and conflict-checked preview/apply/rollback with private originals. Only `pipeline.default.stages` may change; generated-only results remain ineligible. Targets that apply cannot replace exactly (symlinked paths, extra hard links, other owners, special mode bits) block during screening, before paid qualification. Command-prefix, subcommand, and other-tool routes are admitted unchanged while no controlled or retained qualification call selects them.
 - `ktx doctor` now reports informational database/WAL/SHM file sizes with observed, absent, and unavailable states, and points to `ktx db report` for record totals and logical payload bytes without running aggregates or cleanup.
 - `ktx doctor` now reports static pipeline configuration validity, ordered route-to-profile mappings, stage warnings, and effective plugin overrides without executing stages or changing configuration; existing database-readiness behavior is preserved.
 - Active benchmark inputs now use one explicit semantic registry, and new experiment manifests retain archive-relative byte snapshots and SHA-256 identities for source-independent validation and regeneration.

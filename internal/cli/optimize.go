@@ -27,12 +27,15 @@ import (
 	"github.com/jgabor/ktx/internal/experiment"
 	"github.com/jgabor/ktx/internal/pipeline"
 	"github.com/jgabor/ktx/internal/pipeline/stages"
+	"github.com/jgabor/ktx/internal/router"
 	"github.com/jgabor/ktx/internal/version"
 )
 
 const (
 	optimizeSchema      = "ktx.optimize.result.v1"
 	optimizeConfigLimit = 64 << 10
+	// The embedded qualification prompt asks the agent to run this command.
+	optimizeQualificationCommand = "cat tools/bench/corpus/qualification.txt"
 )
 
 type optimizeArgs struct {
@@ -250,7 +253,8 @@ func printOptimizeHelp(w io.Writer) {
 	fmt.Fprintln(w, "Ready requires five complete qualified paired cycles and complete runtime-token improvement.")
 	fmt.Fprintln(w, "Without an explicit pricing snapshot, API estimates are unavailable; reported cost remains independent.")
 	fmt.Fprintln(w, "Without --config, targets the effective user config (including original absence).")
-	fmt.Fprintln(w, "External plugins, untested routing, and unsupported stages block before execution.")
+	fmt.Fprintln(w, "External plugins, outcome routes, and unsupported stages block before execution. Command, subcommand,")
+	fmt.Fprintln(w, "and other-tool routes stay unchanged and block only if a controlled or qualification call reaches them.")
 	fmt.Fprintln(w, "Targets apply cannot replace exactly block during screening: symlinks or symlinked parents,")
 	fmt.Fprintln(w, "extra hard links, files owned by another user, or setuid/setgid/sticky bits.")
 	fmt.Fprintln(w, "Private full configs and evidence are retained in .ktx/optimizations/<result-id>.")
@@ -300,7 +304,7 @@ func screenOptimize(args optimizeArgs) (result optimizeResult, resultErr error) 
 		NextActions:   []string{"inspect_result", "qualify_one_full_config_with_explicit_live_consent_before_apply"},
 	}
 	r.Scope.Population = "generated_preservation_v1"
-	r.Scope.Routing = "controlled bash/read/view_image; any-outcome tool routes and default only; unknown is not success"
+	r.Scope.Routing = "controlled bash/read/view_image through default and tool-only any-outcome routes; command, subcommand and other-tool routes stay unchanged and unexercised; unknown is not success"
 	r.Scope.SupportedChanges = "pipeline.default.stages only; all unrelated settings and route order unchanged"
 	r.Bounds.MaxCandidates, r.Bounds.CasesPerConfig, r.Bounds.MaxCaseBytes = 3, 7, 8192
 	r.Bounds.MaxConfigBytes, r.Bounds.MaxProfiles, r.Bounds.MaxStagesPerProfile = optimizeConfigLimit, 16, 32
@@ -512,9 +516,16 @@ func optimizeSupported(cfg *config.Config) []string {
 		return []string{"configuration_complexity_exceeds_bound"}
 	}
 	for _, route := range cfg.Routes {
-		if route.CommandPrefix != "" || route.Subcommand != "" || (route.ExitStatus != "" && route.ExitStatus != "any") || (route.Tool != "" && route.Tool != "bash" && route.Tool != "read" && route.Tool != "view_image") {
-			return []string{"metadata_or_outcome_routing_not_qualified"}
+		if route.ExitStatus != "" && route.ExitStatus != "any" {
+			return []string{"outcome_routing_not_qualified"}
 		}
+	}
+	calls, err := optimizeControlledCalls()
+	if err != nil {
+		return []string{"controlled_population_unavailable"}
+	}
+	if optimizeUnqualifiedReach(calls, cfg.Routes) {
+		return []string{"route_shadows_controlled_case"}
 	}
 	reg := pipeline.NewRegistry()
 	stages.RegisterBuiltins(reg)
@@ -553,6 +564,51 @@ func optimizeSupported(cfg *config.Config) []string {
 		}
 	}
 	return []string{}
+}
+
+// optimizeControlledCalls lists every tool call the controlled populations
+// route: the generated screening cases and the qualification corpus read.
+func optimizeControlledCalls() ([]*dbpkg.ToolCall, error) {
+	cases, _, err := optimizePopulation()
+	if err != nil {
+		return nil, err
+	}
+	calls := make([]*dbpkg.ToolCall, 0, len(cases)+1)
+	for _, c := range cases {
+		calls = append(calls, &dbpkg.ToolCall{Tool: c.Tool, Input: string(c.Input), IsError: c.Expected.Errors.IsError})
+	}
+	input := mustJSON(map[string]string{"command": optimizeQualificationCommand})
+	return append(calls, &dbpkg.ToolCall{Tool: "bash", Input: string(input)}), nil
+}
+
+// optimizeRouteExercised reports whether controlled cases exercise a route
+// directly: a tool-only rule over bash, read, or view_image.
+func optimizeRouteExercised(route config.RouteRule) bool {
+	return route.CommandPrefix == "" && route.Subcommand == "" && (route.Tool == "" || route.Tool == "bash" || route.Tool == "read" || route.Tool == "view_image")
+}
+
+// optimizeMatchedRoute returns the index of the first route that selects tc,
+// or -1 for the default fallback. Rules match independently, so the first
+// rule that matches alone is the router's ordered choice.
+func optimizeMatchedRoute(tc *dbpkg.ToolCall, routes []config.RouteRule) int {
+	for i := range routes {
+		if router.Resolve(tc, routes[i:i+1], "").Route == router.RouteMatched {
+			return i
+		}
+	}
+	return -1
+}
+
+// optimizeUnqualifiedReach reports whether any call selects a command,
+// subcommand, or other-tool route. Such routes are admitted only while no
+// controlled call reaches them; their profiles stay byte-identical.
+func optimizeUnqualifiedReach(calls []*dbpkg.ToolCall, routes []config.RouteRule) bool {
+	for _, tc := range calls {
+		if i := optimizeMatchedRoute(tc, routes); i >= 0 && !optimizeRouteExercised(routes[i]) {
+			return true
+		}
+	}
+	return false
 }
 
 func optimizeDerivedConfig(data []byte, cfg *config.Config, additions []string) ([]byte, error) {

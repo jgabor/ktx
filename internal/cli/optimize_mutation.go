@@ -125,6 +125,9 @@ func validateOptimizeApplication(r optimizeResult, dir string) ([]byte, []byte, 
 	if err != nil || len(optimizeSupported(bCfg)) > 0 {
 		return refuse()
 	}
+	if err := optimizeRetainedRouting(experimentDir, bCfg.Routes); err != nil {
+		return refuse()
+	}
 	cCfg, err := config.LoadFile(filepath.Join(dir, r.SelectedCandidate.Artifact))
 	if err != nil || len(optimizeSupported(cCfg)) > 0 {
 		return refuse()

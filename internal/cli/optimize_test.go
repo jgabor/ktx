@@ -13,6 +13,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/jgabor/ktx/internal/config"
+	dbpkg "github.com/jgabor/ktx/internal/db"
+	benchdata "github.com/jgabor/ktx/tools/bench"
 )
 
 func optimizeTestRoot(t *testing.T) string {
@@ -192,8 +194,10 @@ func TestOptimizeInvalidAndUnsupported(t *testing.T) {
 		{"argument", "[pipeline.default]\nstages = ['head:bad']\n", "blocked", "invalid_or_excessive_stage_arguments_not_executed"},
 		{"resource", "[pipeline.default]\nstages = ['token-budget:9223372036854775807']\n", "blocked", "invalid_or_excessive_stage_arguments_not_executed"},
 		{"regex", "[pipeline.default]\nstages = ['replace:x::y']\n", "blocked", "unsupported_stage_not_executed"},
-		{"outcome-route", "[pipeline.default]\nstages = []\n[[route]]\nexit_status = 'success'\nprofile = 'default'\n", "blocked", "metadata_or_outcome_routing_not_qualified"},
-		{"metadata-route", "[pipeline.default]\nstages = []\n[[route]]\ncommand_prefix = 'git'\nprofile = 'default'\n", "blocked", "metadata_or_outcome_routing_not_qualified"},
+		{"outcome-route", "[pipeline.default]\nstages = []\n[[route]]\nexit_status = 'success'\nprofile = 'default'\n", "blocked", "outcome_routing_not_qualified"},
+		{"screening-shadow", "[pipeline.default]\nstages = []\n[[route]]\ncommand_prefix = 'printf'\nprofile = 'default'\n", "blocked", "route_shadows_controlled_case"},
+		{"qualification-shadow", "[pipeline.default]\nstages = []\n[[route]]\ntool = 'bash'\ncommand_prefix = 'cat'\nprofile = 'default'\n", "blocked", "route_shadows_controlled_case"},
+		{"other-tool-shadow", "[pipeline.default]\nstages = []\n[[route]]\ntool = 'read'\nsubcommand = 'x'\nprofile = 'default'\n[[route]]\ncommand_prefix = 'printf controlled'\nprofile = 'default'\n", "blocked", "route_shadows_controlled_case"},
 		{"size", strings.Repeat("#", optimizeConfigLimit+1), "incomplete", "target_unreadable_or_exceeds_bound"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -347,5 +351,75 @@ func TestOptimizeShowCannotPromoteGeneratedEvidence(t *testing.T) {
 				t.Fatal("generated evidence promoted")
 			}
 		})
+	}
+}
+
+const optimizeRoutedConfig = "[pipeline.default]\nstages = []\n[pipeline.search]\nstages = ['dedup-blank']\n[pipeline.git-status]\nstages = ['normalize']\n" +
+	"[[route]]\ntool = 'bash'\ncommand_prefix = 'rg'\nprofile = 'search'\n[[route]]\ntool = 'grep'\nprofile = 'search'\n" +
+	"[[route]]\ntool = 'bash'\ncommand_prefix = 'git'\nsubcommand = 'status'\nprofile = 'git-status'\n[[route]]\ntool = 'todowrite'\nprofile = 'search'\n"
+
+// Unreached command, subcommand, and other-tool routes are admitted, and the
+// traffic they select is delivered byte-identically by every candidate.
+func TestOptimizeUnreachedRoutesScreenUnchanged(t *testing.T) {
+	optimizeTestRoot(t)
+	optimizeWrite(t, "target.toml", optimizeRoutedConfig)
+	r := optimizeRun(t, "--config", "target.toml")
+	if r.Outcome != "screened" || r.SelectedCandidate == nil || len(r.Candidates) != 2 {
+		t.Fatalf("unreached routes blocked: %+v", r)
+	}
+	dir := filepath.Join(".ktx", "optimizations", r.ID)
+	baseline, err := config.LoadFile(filepath.Join(dir, "baseline.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := "match   \n\n\n\nsecond   \n\n\n\nthird\n"
+	routed := []dbpkg.ToolCall{
+		{Tool: "bash", Input: `{"command":"rg pattern"}`},
+		{Tool: "grep", Input: `{"pattern":"x"}`},
+		{Tool: "bash", Input: `{"command":"git status --short"}`},
+		{Tool: "todowrite", Input: `{}`},
+	}
+	deliver := func(cfg *config.Config, call dbpkg.ToolCall) pipelineExecution {
+		t.Helper()
+		call.Output = output
+		var warnings bytes.Buffer
+		execution, err := compressPipelineWithConfig(&call, cfg, nil, &warnings, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return execution
+	}
+	for _, c := range r.Candidates {
+		candidate, err := config.LoadFile(filepath.Join(dir, c.Config.Artifact))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, call := range routed {
+			before, after := deliver(baseline, call), deliver(candidate, call)
+			if before.profile == "default" || before.profile != after.profile || before.output != after.output || before.transformed != after.transformed {
+				t.Fatalf("%s changed routed %s traffic: %+v -> %+v", c.Name, call.Tool, before, after)
+			}
+		}
+		if *r.SelectedCandidate == c.Config {
+			// Control: the same output on default traffic does change, so the
+			// routed comparison above can detect a difference.
+			call := dbpkg.ToolCall{Tool: "bash", Input: `{"command":"printf controlled"}`}
+			if before, after := deliver(baseline, call), deliver(candidate, call); before.output == after.output {
+				t.Fatalf("%s did not change default traffic", c.Name)
+			}
+		}
+	}
+}
+
+func TestOptimizeQualificationCommandMatchesEmbeddedTask(t *testing.T) {
+	assets, err := benchdata.OptimizationAssets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(assets["qualification.toml"]), "run "+optimizeQualificationCommand+".") {
+		t.Fatal("reachability check no longer names the embedded qualification command")
+	}
+	if strings.Contains(string(assets["qualification.toml"]), "run cat tools/bench/corpus/other.txt") {
+		t.Fatal("unexpected qualification command")
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/jgabor/ktx/internal/config"
+	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/experiment"
 	benchdata "github.com/jgabor/ktx/tools/bench"
 )
@@ -127,6 +128,10 @@ func qualifyOptimize(ctx context.Context, development optimizeResult, args optim
 		r.NextActions = []string{"change_only_pipeline_default_stages_and_start_a_new_cycle"}
 		return publishOptimize(dir, root, r)
 	}
+	baselineCfg, err := config.LoadFile(filepath.Join(dir, development.Baseline.Artifact))
+	if err != nil {
+		return r, err
+	}
 	inputs := filepath.Join(dir, "qualification-inputs")
 	assets, err := benchdata.OptimizationAssets()
 	if err != nil {
@@ -190,7 +195,7 @@ func qualifyOptimize(ctx context.Context, development optimizeResult, args optim
 		return r, err
 	}
 	options.Task = task
-	guard := &optimizeAdmission{dir: dir, development: development, result: &r, diagnostics: diagnostics, task: task, frozen: map[string]string{}}
+	guard := &optimizeAdmission{dir: dir, development: development, result: &r, diagnostics: diagnostics, task: task, frozen: map[string]string{}, routes: baselineCfg.Routes}
 	binary, err := os.Executable()
 	if err != nil {
 		return r, err
@@ -230,6 +235,14 @@ func qualifyOptimize(ctx context.Context, development optimizeResult, args optim
 				r.Outcome = "blocked"
 				r.Reasons = []string{"frozen_evidence_changed"}
 				r.Integrity = "frozen_evidence_validation_failed"
+			} else if err := optimizeRetainedRouting(experimentDir, guard.routes); err != nil {
+				var stop *optimizeStop
+				r.Outcome = "blocked"
+				r.Reasons = []string{"retained_evidence_invalid"}
+				if errors.As(err, &stop) {
+					r.Reasons = []string{stop.reason}
+				}
+				r.Integrity = "retained_routing_validation_failed"
 			} else {
 				regenerated, err := experiment.RegenerateSummary(experimentDir)
 				if err != nil {
@@ -284,6 +297,7 @@ type optimizeAdmission struct {
 	diagnostics io.Writer
 	task        experiment.Task
 	frozen      map[string]string
+	routes      []config.RouteRule
 }
 
 func (g *optimizeAdmission) verify() error {
@@ -370,6 +384,14 @@ func (g *optimizeAdmission) admit(ctx context.Context, launch experiment.Attempt
 		if err := experiment.ValidateCollectedAttempts(launch.Directory); err != nil {
 			return &optimizeStop{"prior_attempt_evidence_invalid"}
 		}
+		// Stop paid launches as soon as an agent call reaches an unexercised route.
+		if err := optimizeRetainedRouting(launch.Directory, g.routes); err != nil {
+			var stop *optimizeStop
+			if errors.As(err, &stop) {
+				return err
+			}
+			return &optimizeStop{"prior_attempt_evidence_invalid"}
+		}
 		attempts, err := experiment.LoadAttempts(launch.Directory)
 		if err != nil {
 			return err
@@ -385,6 +407,23 @@ func (g *optimizeAdmission) admit(ctx context.Context, launch experiment.Attempt
 		}
 	}
 	g.result.Live.AttemptsAdmitted++ // Never refund a launched attempt after collection failure.
+	return nil
+}
+
+// optimizeRetainedRouting refuses qualification evidence in which a persisted
+// tool call selected a route that screening admitted only as unreached.
+func optimizeRetainedRouting(experimentDir string, routes []config.RouteRule) error {
+	retained, err := experiment.RetainedToolCalls(experimentDir)
+	if err != nil {
+		return err
+	}
+	calls := make([]*dbpkg.ToolCall, 0, len(retained))
+	for _, call := range retained {
+		calls = append(calls, &dbpkg.ToolCall{Tool: call.Tool, Input: call.Input, IsError: call.IsError})
+	}
+	if optimizeUnqualifiedReach(calls, routes) {
+		return &optimizeStop{"qualification_reached_unqualified_route"}
+	}
 	return nil
 }
 

@@ -88,7 +88,7 @@ func TestBackpressuredReadReleasesDatabaseBeforeExactOutputCompletes(t *testing.
 		_ = readerStdout.Close()
 		_ = reader.Process.Kill()
 		select {
-		case <-readerDone:
+		case <-readerDone: //nolint:errcheck // cleanup drains a killed reader; its wait error is not actionable
 		default:
 		}
 	})

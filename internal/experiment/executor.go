@@ -75,7 +75,7 @@ func (OSExecutor) Run(ctx context.Context, command Command) (CommandResult, erro
 		// Do not skip escalation when only the leader has exited.
 		<-timer.C
 		killErr := killProcessGroup(cmd.Process.Pid, syscall.SIGKILL)
-		<-wait
+		<-wait //nolint:errcheck // the killed group's wait error only restates the timeout
 		return CommandResult{ExitCode: 124, TimedOut: true}, errors.Join(termErr, killErr)
 	}
 }

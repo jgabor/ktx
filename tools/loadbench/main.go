@@ -1511,7 +1511,7 @@ func runBlockedReaderTarget(root string, runner processRunner, hookFixture, read
 		_ = readerStdout.Close()
 		_ = reader.Process.Kill()
 		select {
-		case <-readerDone:
+		case <-readerDone: //nolint:errcheck // cleanup drains a killed reader; its wait error is not actionable
 		case <-time.After(processTimeout):
 		}
 	}()
@@ -1612,7 +1612,7 @@ func runBlockedDecompressionTarget(root string, runner processRunner, hookFixtur
 		}
 		_ = stdout.Close()
 		_ = command.Process.Kill()
-		<-done
+		<-done //nolint:errcheck // cleanup drains a killed process; its wait error is not actionable
 	}()
 	var first [1]byte
 	if _, err := io.ReadFull(stdout, first[:]); err != nil {
@@ -1638,7 +1638,7 @@ func runBlockedDecompressionTarget(root string, runner processRunner, hookFixtur
 		}
 	case <-time.After(processTimeout):
 		_ = command.Process.Kill()
-		<-done
+		<-done //nolint:errcheck // the process was killed after the timeout; its wait error only restates that
 		finished = true
 	}
 	reconciled, err := reconcileDecompressionDatabase(environment.db, hook.Code == "ok")

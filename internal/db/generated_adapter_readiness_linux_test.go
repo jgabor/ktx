@@ -363,11 +363,11 @@ func startCapturedProcess(t *testing.T, executable string, args []string, direct
 func waitCapturedProcess(t *testing.T, process *capturedProcess, timeout time.Duration) {
 	t.Helper()
 	select {
-	case <-process.done:
+	case <-process.done: //nolint:errcheck // callers check the exit status through ProcessState
 		return
 	case <-time.After(timeout):
 		_ = process.command.Process.Kill()
-		<-process.done
+		<-process.done //nolint:errcheck // the timeout fails the test below
 		t.Fatalf("outer process timeout fired for %s", strings.Join(process.command.Args, " "))
 	}
 }

@@ -119,7 +119,7 @@ while :; do sleep 0.05; done
 					t.Fatal(err)
 				}
 				select {
-				case <-wait:
+				case <-wait: //nolint:errcheck // the exit status is checked through ProcessState below
 				case <-time.After(5 * time.Second):
 					t.Fatal("wrapper cancellation exceeded 5 seconds")
 				}
@@ -218,10 +218,10 @@ func TestRunForegroundStdin(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		_ = command.Process.Signal(syscall.SIGTERM)
 		select {
-		case <-wait:
+		case <-wait: //nolint:errcheck // the test fails below regardless of the wait result
 		case <-time.After(5 * time.Second):
 			_ = command.Process.Kill()
-			<-wait
+			<-wait //nolint:errcheck // the test fails below regardless of the wait result
 		}
 		t.Fatal("wrapper child cannot read inherited foreground terminal stdin")
 	}

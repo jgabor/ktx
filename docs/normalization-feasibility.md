@@ -865,7 +865,7 @@ The pricing key is compatible with that configured exact model. No claim of
 provider identity attestation, internal reasoning effort, or invoice accuracy is
 made. Zero reported reasoning tokens does not prove that `high` was ignored.
 
-New [local retained archive](../.ktx/experiments/gpt-6-luna-qualification-runtime-config-20260928/):
+New local retained archive (untracked, under `.ktx/experiments/`):
 **`gpt-6-luna-qualification-runtime-config-20260928`**.
 These local-binary checks each used separately isolated HOME/XDG roots:
 

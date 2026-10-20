@@ -2,6 +2,7 @@ package pipeline_test
 
 import (
 	"bytes"
+	"math"
 	"runtime"
 	"testing"
 
@@ -20,13 +21,19 @@ func TestLineWorkAllocationBudgets(t *testing.T) {
 				r.Pipeline = []string{token}
 			}
 			r.Run(input)
-			runtime.GC()
-			var before, after runtime.MemStats
-			runtime.ReadMemStats(&before)
-			result := r.Run(input)
-			runtime.ReadMemStats(&after)
-			runtime.KeepAlive(result)
-			allocated := after.TotalAlloc - before.TotalAlloc
+			// TotalAlloc is process-wide, so the race detector or other
+			// goroutines can allocate inside one sample. Keep the smallest
+			// of several samples: a real per-run allocation shows up in all.
+			allocated := uint64(math.MaxUint64)
+			for range 5 {
+				runtime.GC()
+				var before, after runtime.MemStats
+				runtime.ReadMemStats(&before)
+				result := r.Run(input)
+				runtime.ReadMemStats(&after)
+				runtime.KeepAlive(result)
+				allocated = min(allocated, after.TotalAlloc-before.TotalAlloc)
+			}
 			budget := uint64(8 << 20)
 			if token == "empty" {
 				budget = 0

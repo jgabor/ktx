@@ -28,7 +28,7 @@ PREPARED_MANIFEST = "prepared-fixtures.json"
 HISTORICAL_MANIFEST = Path("internal/db/testdata/historical/manifest.json")
 HISTORICAL_FIXTURE = Path("internal/db/testdata/historical/schema-15.db.gz")
 HISTORICAL_FAILURE_REPORT = Path(
-    "docs/notes/schema-readiness-release.json.failed.json"
+    "docs/evidence/schema-readiness/schema-readiness-release.json.failed.json"
 )
 HISTORICAL_FAILURE_SHA256 = (
     "714ca5fc25609115cacf5f499200e72b181f5ce85a8d89a9f3405217da92bfba"

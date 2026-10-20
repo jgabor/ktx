@@ -137,7 +137,7 @@ env -u KTX_DB \
   python3 tools/schema_readiness_evidence.py measure \
     --binary ./build/ktx \
     --work-root "$root/work" \
-    --output docs/notes/schema-readiness-baseline.json
+    --output docs/evidence/schema-readiness/schema-readiness-baseline.json
 ```
 
 The harness requires Linux `/proc`, `taskset`, `strace`, Python SQLite, and GNU
@@ -179,7 +179,7 @@ the explicit release gate, which is intentionally not part of `mage check`:
 ```bash
 env -u KTX_DB \
   KTX_SCHEMA_RELEASE_WORK_ROOT="$root/work" \
-  KTX_SCHEMA_RELEASE_REPORT="docs/notes/schema-readiness-release.json" \
+  KTX_SCHEMA_RELEASE_REPORT="docs/evidence/schema-readiness/schema-readiness-release.json" \
   mage schemaReleaseGate
 ```
 

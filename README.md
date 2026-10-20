@@ -336,14 +336,14 @@ then run:
 ```bash
 env -u KTX_DB \
   KTX_SCHEMA_RELEASE_WORK_ROOT="$root/work" \
-  KTX_SCHEMA_RELEASE_REPORT="docs/notes/schema-readiness-release.json" \
+  KTX_SCHEMA_RELEASE_REPORT="docs/evidence/schema-readiness/schema-readiness-release.json" \
   mage schemaReleaseGate
 ```
 
 This gate is not part of `mage check`. The named report is current passing
 authority only after a complete pass; the latest failed attempt uses
-`docs/notes/schema-readiness-release.json.attempt.failed.json` and never replaces
-passing authority.
+`docs/evidence/schema-readiness/schema-readiness-release.json.attempt.failed.json`
+and never replaces passing authority.
 
 `mage verify` runs `mage check` (test, vet, lint, and build), `govulncheck`,
 and the portable replay gate. Tracked CI runs this same command on every push

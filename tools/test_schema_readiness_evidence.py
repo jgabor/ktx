@@ -16,7 +16,7 @@ class MeasureTest(unittest.TestCase):
     def test_current_guidance_matches_passing_report(self):
         repository = Path.cwd()
         guidance = (repository / "docs/schema-readiness.md").read_text()
-        report_path = repository / "docs/notes/schema-readiness-release.json"
+        report_path = repository / "docs/evidence/schema-readiness/schema-readiness-release.json"
         report = json.loads(report_path.read_text())
 
         match = re.search(

@@ -5,3 +5,4 @@ docs/notes/
 .playwright-cli/
 .opencode/
 .ruff_cache/
+docs/evidence/schema-readiness/*.attempt.failed.json

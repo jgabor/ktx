@@ -102,7 +102,7 @@ Schema releases also require the production-scale gate outside routine
 ```bash
 env -u KTX_DB \
   KTX_SCHEMA_RELEASE_WORK_ROOT="$root/work" \
-  KTX_SCHEMA_RELEASE_REPORT="docs/notes/schema-readiness-release.json" \
+  KTX_SCHEMA_RELEASE_REPORT="docs/evidence/schema-readiness/schema-readiness-release.json" \
   mage schemaReleaseGate
 ```
 

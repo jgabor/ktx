@@ -31,7 +31,7 @@ HISTORICAL_FAILURE_REPORT = Path(
     "docs/evidence/schema-readiness/schema-readiness-release.json.failed.json"
 )
 HISTORICAL_FAILURE_SHA256 = (
-    "714ca5fc25609115cacf5f499200e72b181f5ce85a8d89a9f3405217da92bfba"
+    "b6a9d72bf7e7d794923b5c1474704c83dbf84731d6da55762012bd6ad1dbd007"
 )
 APPROVED_LIMITS = {
     "readiness_latency_ns": 35_322_974,

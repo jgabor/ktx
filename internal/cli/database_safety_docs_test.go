@@ -70,7 +70,7 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 		"preparation is automatic for every supported older schema",
 		"former rule",
 		"schema-migration-required",
-		"notes/schema-readiness-baseline.json",
+		"evidence/schema-readiness/schema-readiness-baseline.json",
 		"tools/schema_readiness_evidence.py",
 		"runtime-startup-timeout",
 		"operation-timeout",

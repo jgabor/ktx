@@ -30,6 +30,11 @@ root only makes its specific historical procedure unavailable. Original proof
 snapshots also retain bounded checkout paths and temporary roots. Do not rewrite
 those bytes or claim that they are sanitized.
 
+One exception predates publication: home-directory paths in
+`external-validation/evidence/contract-repair/strace.log` were replaced with
+`~`. Its SHA-256 in `SHA256SUMS`, `manifest.json`, and the proof derivative
+records the original bytes and no longer matches the archived file.
+
 Routine verification uses the maintained tracked-only check under
 [`tools/bench/external-identity/`](../../external-identity/). Do not restore or
 run archived procedures merely to make a fresh checkout pass.

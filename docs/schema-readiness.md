@@ -106,7 +106,7 @@ peak remain supporting observations. For release migration, readiness starts at
 the deterministic overlap release, and completion spans the normal query and
 generated callback workload.
 
-[`notes/schema-readiness-baseline.json`](notes/schema-readiness-baseline.json)
+[`evidence/schema-readiness/schema-readiness-baseline.json`](evidence/schema-readiness/schema-readiness-baseline.json)
 retains every warmup and measured sample, command stdout, fixture input and
 hash, boundary definition, observed worst value, fixed limit, and limit basis. Regenerate
 it from an isolated disposable root on the recorded host:
@@ -196,14 +196,15 @@ does not replace the last passing report.
 
 Report roles are path-specific:
 
-- `notes/schema-readiness-release.json` is the current passing authority and is
-  replaced atomically only by a complete passing gate.
-- `notes/schema-readiness-release.json.failed.json` is immutable
+- `evidence/schema-readiness/schema-readiness-release.json` is the current
+  passing authority and is replaced atomically only by a complete passing gate.
+- `evidence/schema-readiness/schema-readiness-release.json.failed.json` is immutable
   historical failure evidence from the corrected gate before the combined-limit
-  revision. Its SHA-256 is
-  `714ca5fc25609115cacf5f499200e72b181f5ce85a8d89a9f3405217da92bfba`.
-- `notes/schema-readiness-release.json.attempt.failed.json`, when present, is the latest
-  failed attempt and is never passing authority.
+  revision. Its recorded home-directory path was replaced with `~` before
+  publication; its SHA-256 is
+  `b6a9d72bf7e7d794923b5c1474704c83dbf84731d6da55762012bd6ad1dbd007`.
+- `evidence/schema-readiness/schema-readiness-release.json.attempt.failed.json`,
+  when present, is the latest failed attempt and is never passing authority.
 
 The historical failure preserved exact evidence in five of five measured
 combined samples and automatic query recovery. It failed only the former lock

@@ -2,6 +2,8 @@ module github.com/jgabor/ktx
 
 go 1.26.5
 
+toolchain go1.26.10
+
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/matoous/go-nanoid/v2 v2.1.0

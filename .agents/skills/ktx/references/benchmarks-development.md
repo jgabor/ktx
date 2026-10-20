@@ -101,8 +101,6 @@ list/show inspection is not validation. Do not delete user-owned archives.
   --rounds 5
 ```
 
-Provider policy: do not run paid/live experiments with `github-copilot/*`.
-
 The generic preflight returns before task loading. It requires no authentication
 or model call and creates no experiment artifact. The `--build` form adds local
 source checking and benchmark-image creation before capability attestation.

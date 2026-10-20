@@ -34,6 +34,10 @@
 - Real-process load reports now compare matched writers-only and mixed-agent workloads with distinct sessions, exact reconciliation, supported failure rates, and actual and percentage contention penalties.
 - A pinned developer hook-only contention workload uses the 4,096-byte seed-6001 fixture at concurrency 1/2/4/8/16/32. Its one warmup and five measured rounds per level produced 6 warmup and 30 measured labels, 378/378 completions, 36/36 reconciled rounds, zero observed failures, and exact totals of 378 sources, artifacts, dispositions, source producers, and artifact producers on disposable databases.
 
+### Removed
+
+- `ktx bench agent`, `ktx bench compare`/`rank`, and `ktx optimize --live` no longer reject `github-copilot/*` models; every `provider/name` model is accepted.
+
 ### Fixed
 
 - Live-validation uses a provenance-free seven-case matrix at the existing path with a new exact pinned digest; previous matrix identities are no longer accepted.

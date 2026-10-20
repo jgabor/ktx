@@ -287,19 +287,3 @@ profile = "logs"
 		t.Errorf("Routes = %v, want 1 rule (route rules must not break stage resolution)", cfg.Routes)
 	}
 }
-
-// TestBenchAgentRejectsCopilotModels verifies that the github-copilot/*
-// prohibition is enforced on the directly-callable `ktx bench agent`
-// path, not only on the compare/rank paths that go through runner.Compare.
-func TestBenchAgentRejectsCopilotModels(t *testing.T) {
-	for _, model := range []string{"github-copilot/claude-sonnet-4.5", "github-copilot/gpt-4"} {
-		var stdout, stderr bytes.Buffer
-		code := runBenchAgent([]string{"-m", model, "do work"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitUsage {
-			t.Fatalf("model %q: code = %d, want %d (stderr=%s)", model, code, ExitUsage, stderr.String())
-		}
-		if !strings.Contains(stderr.String(), "github-copilot") || !strings.Contains(stderr.String(), "--model openai/gpt-5.6-luna --variant high") {
-			t.Fatalf("model %q: stderr should identify the prohibition and correction, got: %s", model, stderr.String())
-		}
-	}
-}

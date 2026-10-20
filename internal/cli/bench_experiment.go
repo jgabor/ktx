@@ -55,10 +55,6 @@ func runBenchAgent(args []string, opts Options, stdout, stderr io.Writer) int {
 		printError(stderr, usageError("ktx bench agent: %v", err), opts.Format)
 		return ExitUsage
 	}
-	if strings.HasPrefix(model, "github-copilot/") {
-		printError(stderr, usageError("ktx bench agent: github-copilot/* models are not permitted for this repo; use --model openai/gpt-5.6-luna --variant high"), opts.Format)
-		return ExitUsage
-	}
 	collectorEnv, collectorPresent, err := benchcontract.ReadEnvironment()
 	if err != nil {
 		printError(stderr, usageError("ktx bench agent: %v", err), opts.Format)

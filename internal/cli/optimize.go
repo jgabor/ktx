@@ -187,8 +187,8 @@ func parseOptimizeArgs(args []string) ([]string, any, error) {
 
 func optimizeCommand(ctx *DispatchContext) (any, error) {
 	args := ctx.ParsedArgs.(optimizeArgs)
-	if args.live && (args.model == "" || strings.HasPrefix(args.model, "github-copilot/") || !strings.Contains(args.model, "/")) {
-		return nil, usageError("--live requires an explicit permitted --model provider/name")
+	if args.live && (args.model == "" || !strings.Contains(args.model, "/")) {
+		return nil, usageError("--live requires an explicit --model provider/name")
 	}
 	if !args.live && (args.model != "" || args.variant != "" || args.pricing != "" || args.maxAttemptsSet) {
 		return nil, usageError("model, variant, pricing snapshot and attempt limits require --live")
@@ -806,7 +806,7 @@ func evaluateOptimizeConfiguration(id string, cases []screenCase, outputs [][]by
 
 func publishOptimize(dir, root string, r optimizeResult) (optimizeResult, error) {
 	r.NextCommands = optimizeNextCommands(r)
-	r.LiveRequirements = []string{"explicit --live consent and permitted --model provider/name (replace the provider/name placeholder)", "docker on PATH and a prebuilt ktx-bench image with pinned runtime/collector capabilities", "OpenCode auth at $HOME/.local/share/opencode/auth.json; no image build or provider choice is automatic"}
+	r.LiveRequirements = []string{"explicit --live consent and an explicit --model provider/name (replace the provider/name placeholder)", "docker on PATH and a prebuilt ktx-bench image with pinned runtime/collector capabilities", "OpenCode auth at $HOME/.local/share/opencode/auth.json; no image build or provider choice is automatic"}
 	data, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return r, internalError("encode optimization result")

@@ -588,29 +588,6 @@ func TestRunnerPinnedPricingIsExactAndMismatchRunsNoCommands(t *testing.T) {
 	}
 }
 
-func TestRunnerRejectsCopilotModels(t *testing.T) {
-	root := t.TempDir()
-	taskPath := filepath.Join(root, "task.toml")
-	if err := os.WriteFile(taskPath, []byte("id = \"task\"\nprompt = \"do work\"\nminimum_tool_calls = 1\n[scoring]\nkind = \"exact_match\"\nexpected_output = \"done\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, model := range []string{"github-copilot/claude-sonnet-4.5", "github-copilot/gpt-4"} {
-		runner := &Runner{Executor: &fakeExecutor{sessions: map[string]string{}}, Now: func() time.Time { return time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC) }, PID: 9, ResolvePrice: testPriceResolver}
-		_, _, _, err := runner.Compare(context.Background(), CompareOptions{
-			Model: model, TaskFile: taskPath, TargetValid: 1, MaxAttempts: 2,
-			AttemptTimeout: time.Minute, TerminationGrace: time.Second, ExperimentID: "copilot-reject",
-			DataDir: filepath.Join(root, "data"), Image: "image", RepoRoot: root,
-			KTXBin: "ktx", DockerBin: "docker",
-		})
-		if err == nil {
-			t.Fatalf("expected error for model %q, got nil", model)
-		}
-		if !strings.Contains(err.Error(), "github-copilot") {
-			t.Fatalf("error for model %q should mention github-copilot, got: %v", model, err)
-		}
-	}
-}
-
 func TestRunnerAcceptsNonNeuralwattProviders(t *testing.T) {
 	root := t.TempDir()
 	writeFixture := func(relative, value string) string {

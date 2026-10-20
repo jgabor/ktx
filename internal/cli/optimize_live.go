@@ -157,8 +157,8 @@ func qualifyOptimize(ctx context.Context, development optimizeResult, args optim
 		r.Live.Freeze["qualification-inputs/"+path] = optimizeHash(data)
 	}
 	provider, model, ok := strings.Cut(args.model, "/")
-	if !ok || provider == "" || model == "" || provider == "github-copilot" {
-		return r, usageError("live qualification requires a permitted provider/name model")
+	if !ok || provider == "" || model == "" {
+		return r, usageError("live qualification requires a provider/name model")
 	}
 	// Freeze explicit price inputs, including explicit absence of usable rates.
 	// Do not turn pricing-service availability into a token-qualification gate.

@@ -78,8 +78,8 @@ proposal, but cannot make it apply-ready. This version changes only
 profile changes block before paid evaluation. Built-in proposals preserve the
 other configuration bytes and settings.
 
-If you explicitly authorize paid controlled qualification, choose a permitted
-model and have Docker, a compatible prebuilt `ktx-bench` image, and OpenCode auth:
+If you explicitly authorize paid controlled qualification, choose a model and
+have Docker, a compatible prebuilt `ktx-bench` image, and OpenCode auth:
 
 ```bash
 ktx optimize --live --model provider/name --format text  # replace provider/name
@@ -237,8 +237,7 @@ Preflight returns before task loading. It makes no model call, requires no
 authentication, opens no ktx database, and creates no experiment artifact.
 With `--build`, it can use the network and changes Docker image and build-cache
 state. Compare and rank create archives, use fresh isolated owner databases,
-make network and provider calls, and can incur charges. Live runs accept any
-provider except `github-copilot/*`.
+make network and provider calls, and can incur charges.
 
 Experiments retain manifests, attempts, pricing snapshots, and deterministic
 summaries under `.ktx/experiments/<id>`. Use only the experiment ID:

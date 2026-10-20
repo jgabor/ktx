@@ -86,7 +86,7 @@ database for normal commands.
 ```bash
 ktx optimize --format text
 ktx optimize show <result-id> --format text
-# Only with explicit paid consent and a chosen permitted model:
+# Only with explicit paid consent and a chosen model:
 ktx optimize --live --model provider/name --format text
 ktx optimize apply <ready-result-id> --dry-run
 ktx optimize apply <ready-result-id>

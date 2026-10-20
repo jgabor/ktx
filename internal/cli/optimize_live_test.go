@@ -414,7 +414,7 @@ func TestOptimizeLiveReportedCostAndBadPricing(t *testing.T) {
 }
 
 func TestOptimizeLiveConsentAndRoutingBlock(t *testing.T) {
-	for _, argv := range [][]string{{"--live"}, {"--model", "openai/test"}, {"--live", "--model", "github-copilot/test"}, {"--live", "--model", "openai/test", "--max-attempts", "13"}, {"--max-attempts", "24"}} {
+	for _, argv := range [][]string{{"--live"}, {"--model", "openai/test"}, {"--live", "--model", "openai/test", "--max-attempts", "13"}, {"--max-attempts", "24"}} {
 		optimizeTestRoot(t)
 		code, _, _ := optimizeInvoke(t, argv...)
 		if code != ExitUsage {

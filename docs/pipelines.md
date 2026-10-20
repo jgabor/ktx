@@ -79,10 +79,10 @@ ktx optimize --live --model provider/name --format text
 # Optional: --variant name --max-attempts 14..64 --pricing-snapshot prices.json
 ```
 
-Replace `provider/name` with an explicitly chosen permitted model.
-`github-copilot/*` is rejected. Prerequisites are Docker on PATH, a prebuilt
-`ktx-bench` image that passes immutable-image and pinned OpenCode 1.18.5/collector
-capability preflight, and OpenCode auth at `$HOME/.local/share/opencode/auth.json`.
+Replace `provider/name` with an explicitly chosen model. Prerequisites are
+Docker on PATH, a prebuilt `ktx-bench` image that passes immutable-image and
+pinned OpenCode 1.18.5/collector capability preflight, and OpenCode auth at
+`$HOME/.local/share/opencode/auth.json`.
 Optimize never builds an image or chooses a provider/model automatically. Missing
 or mismatched inputs block before model calls. The task, independent planted-fact
 corpus, and recovery-aware scoring spec are embedded; no source checkout is needed.

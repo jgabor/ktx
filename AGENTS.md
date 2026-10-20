@@ -160,8 +160,6 @@ that the current binary accepts those archives.
   --rounds 5
 ```
 
-**Model policy:** any provider is allowed except `github-copilot/*` models — they are on an enterprise plan and not permitted for this repo. The CLI rejects `github-copilot/*` at validation time.
-
 ### Evidence validation
 
 ```bash

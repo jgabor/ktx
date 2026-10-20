@@ -3,11 +3,11 @@
 ktx is a runtime-agnostic CLI for measuring and reducing coding-agent context
 cost. It is one Go binary: no daemon and no library integration requirement.
 
-- **Wrap any agent** â `ktx run` records any CLI process as a session, no
+- **Wrap any agent** — `ktx run` records any CLI process as a session, no
   agent changes needed.
-- **Compress in flight** â OpenCode and Codex adapters shrink tool output
+- **Compress in flight** — OpenCode and Codex adapters shrink tool output
   before it reaches the model; originals stay recoverable.
-- **Measure before trusting** â per-tool-call token statistics, offline
+- **Measure before trusting** — per-tool-call token statistics, offline
   replay, and cache-aware live comparisons show whether compression saves
   context.
 
@@ -23,7 +23,7 @@ native qualification. See the [native Linux qualification](docs/native-linux-qua
 for the tested host and evidence limits. The terminal-only capability requirement
 is described below.
 
-Building from source requires Go 1.26 or newer.
+Building from source requires Go 1.26.5 or newer.
 
 ```bash
 go install github.com/jgabor/ktx/cmd/ktx@latest
@@ -121,7 +121,7 @@ and the result plus footer remains smaller than the original, the agent
 receives a recovery cue such as:
 
 ```text
-[ktx] output compressed: 2815 bytes (56% reduction) â¢ get full output with `ktx read ugrpgrcvdrbhbaby`
+[ktx] output compressed: 2815 bytes (56% reduction) • get full output with `ktx read ugrpgrcvdrbhbaby`
 ```
 
 Originals and compressed artifacts remain stored separately; the footer is not
@@ -368,3 +368,8 @@ candidate qualification) live under
 [`docs/`](docs/). Architectural intent is documented in
 [`ARCHITECTURE.md`](ARCHITECTURE.md); repository working conventions are in
 [`AGENTS.md`](AGENTS.md).
+
+## License
+
+ktx is released under the [MIT License](LICENSE). Third-party material is
+listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

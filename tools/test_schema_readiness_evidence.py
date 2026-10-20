@@ -5,6 +5,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 import copy
 import hashlib
 import re
@@ -79,7 +80,12 @@ class MeasureTest(unittest.TestCase):
         )
 
     def test_large_child_stderr_does_not_block_completion(self):
-        with tempfile.TemporaryDirectory() as root:
+        # Release measurements pin CPU 2. This test only checks stderr
+        # draining, so it pins a CPU that exists on any host.
+        available = str(min(os.sched_getaffinity(0)))
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(
+            schema_readiness_evidence, "CPU", available
+        ):
             result = schema_readiness_evidence.measure(
                 [
                     sys.executable,

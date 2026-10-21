@@ -97,6 +97,7 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 
 	surfaces := []string{
 		"README.md",
+		filepath.Join("docs", "development.md"),
 		"AGENTS.md",
 		filepath.Join(".agents", "skills", "ktx", "SKILL.md"),
 		filepath.Join(".agents", "skills", "ktx", "references", "database-telemetry.md"),
@@ -210,7 +211,7 @@ func TestEngineeringVerificationDocumentationSurfacesAgree(t *testing.T) {
 		required []string
 	}{
 		{
-			path: "README.md",
+			path: filepath.Join("docs", "development.md"),
 			required: []string{
 				"mage engineeringVerify",
 				"correctness, exact reconciliation, and supported-lock",
@@ -247,7 +248,7 @@ func TestEngineeringVerificationDocumentationSurfacesAgree(t *testing.T) {
 func TestSchemaReleaseGateIsDiscoverable(t *testing.T) {
 	root := repositoryRoot(t)
 	for _, relative := range []string{
-		"README.md",
+		filepath.Join("docs", "development.md"),
 		"AGENTS.md",
 		filepath.Join("docs", "reference", "schema-readiness.md"),
 		filepath.Join(".agents", "skills", "ktx", "references", "benchmarks-development.md"),

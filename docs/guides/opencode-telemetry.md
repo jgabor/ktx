@@ -1,4 +1,8 @@
-# OpenCode telemetry contract
+# OpenCode integration
+
+This guide shows how to connect ktx to OpenCode: install the plugin, see what
+it records, and fix common problems. The plugin compresses tool output and
+can also record token usage for each model step.
 
 ktx supports the OpenCode **1.18.5** plugin event contract at commit
 [`e5cc278`](https://github.com/anomalyco/opencode/tree/e5cc278dec9294a627a7b05f47ce6a564408c1a2).

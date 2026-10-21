@@ -1,4 +1,10 @@
-# Pipeline evaluation matrix
+# Pipelines and benchmarks
+
+This guide explains how ktx compresses tool output and how to check that a
+change really helps. It covers stages and recipes, command-aware routing,
+config optimization, offline replay, and benchmark runs. To simply turn
+compression on, the [README quick start](../../README.md#2-compress-tool-output)
+is enough; come back here when you want to tune it.
 
 Named pipeline configs, tasks, and metrics for ranking compression configurations.
 This is the evaluation contract for live comparison (`ktx bench compare`) and

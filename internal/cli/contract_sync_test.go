@@ -30,7 +30,7 @@ func TestPipelineContractDocumentationMatchesBehavior(t *testing.T) {
 func TestVerificationDocumentationMatchesMageVerify(t *testing.T) {
 	root := repositoryRoot(t)
 	for _, relative := range []string{
-		"README.md",
+		filepath.Join("docs", "development.md"),
 		filepath.Join(".agents", "skills", "ktx", "references", "benchmarks-development.md"),
 	} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
@@ -163,7 +163,7 @@ func TestBenchPreflightContractSurfacesMatchBehavior(t *testing.T) {
 	printBenchHelp(&help)
 	for name, contents := range map[string]string{
 		"help":        help.String(),
-		"readme":      readDocumentationFile(t, filepath.Join(root, "README.md")),
+		"development": readDocumentationFile(t, filepath.Join(root, "docs", "development.md")),
 		"runbook":     readDocumentationFile(t, filepath.Join(root, "docs", "guides", "pipelines.md")),
 		"agent-guide": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
 	} {
@@ -182,7 +182,7 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 	printBenchHelp(&help)
 	for name, contents := range map[string]string{
 		"help":            help.String(),
-		"readme":          readDocumentationFile(t, filepath.Join(root, "README.md")),
+		"development":     readDocumentationFile(t, filepath.Join(root, "docs", "development.md")),
 		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "guides", "pipelines.md")),
 		"agent-guide":     readDocumentationFile(t, filepath.Join(root, "AGENTS.md")),
 		"skill-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
@@ -195,7 +195,7 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 	}
 	for name, contents := range map[string]string{
 		"help":            help.String(),
-		"readme":          readDocumentationFile(t, filepath.Join(root, "README.md")),
+		"development":     readDocumentationFile(t, filepath.Join(root, "docs", "development.md")),
 		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "guides", "pipelines.md")),
 		"agent-guide":     readDocumentationFile(t, filepath.Join(root, "AGENTS.md")),
 		"skill-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),

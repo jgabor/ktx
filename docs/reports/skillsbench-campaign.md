@@ -6,7 +6,7 @@ not permission to run an evaluator or provider. The repository used the
 BenchFlow/SkillsBench names for the campaign; those labels and the retained task
 digest do not establish official suite identity.
 
-For current benchmark work, use the native [`ktx bench compare`](../../README.md#benchmarking)
+For current benchmark work, use the native [`ktx bench compare`](../development.md#benchmarking)
 workflow. The tracked-only historical identity check is documented in
 [`external-validation.md`](external-validation.md).
 

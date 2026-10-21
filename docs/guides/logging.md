@@ -1,4 +1,7 @@
-# Structured diagnostic logging
+# Diagnostic logging
+
+When ktx can't open its database, it can write a short record to a log file so
+you can see what went wrong. File logging is off unless you turn it on.
 
 Ktx can append database-unavailable diagnostics to one typed JSONL file. No
 `[logs]` section means file logging is off. A section requires `level`; valid

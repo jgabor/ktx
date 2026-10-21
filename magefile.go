@@ -272,7 +272,7 @@ func Test() error {
 }
 
 func test() error {
-	return run("go", "test", "-race", "-tags=mage", "-timeout=45m", "./...")
+	return run("go", "test", "-race", "-tags=mage", "-timeout=20m", "./...")
 }
 
 // ComponentBench emits benchmark-only component measurements as JSON.

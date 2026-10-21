@@ -20,19 +20,25 @@ import (
 func optimizeTestRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
+	optimizeTestEnvironment(t, root)
+	return root
+}
+
+// optimizeTestEnvironment confines the test to root and makes any provider
+// subprocess or network request fail.
+func optimizeTestEnvironment(t *testing.T, root string) {
+	t.Helper()
 	t.Chdir(root)
 	t.Setenv("KTX_DB", "")
 	for _, name := range []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
 		t.Setenv(name, filepath.Join(root, name))
 	}
-	// Any accidental provider subprocess or network request must fail.
 	t.Setenv("PATH", "")
 	t.Setenv("HTTPS_PROXY", "http://127.0.0.1:1")
 	t.Setenv("HTTP_PROXY", "http://127.0.0.1:1")
 	previous := http.DefaultTransport
 	http.DefaultTransport = optimizeNoNetwork{t}
 	t.Cleanup(func() { http.DefaultTransport = previous })
-	return root
 }
 
 type optimizeNoNetwork struct{ t *testing.T }

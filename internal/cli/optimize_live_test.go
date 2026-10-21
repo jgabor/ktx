@@ -261,7 +261,12 @@ func (f *optimizeFakeExecutor) Run(ctx context.Context, command experiment.Comma
 
 func optimizeLiveFixture(t *testing.T) (optimizeResult, optimizeArgs, *experiment.Runner, *optimizeFakeExecutor) {
 	t.Helper()
-	root := optimizeTestRoot(t)
+	return optimizeLiveFixtureIn(t, t.TempDir())
+}
+
+func optimizeLiveFixtureIn(t *testing.T, root string) (optimizeResult, optimizeArgs, *experiment.Runner, *optimizeFakeExecutor) {
+	t.Helper()
+	optimizeTestEnvironment(t, root)
 	bin := filepath.Join(root, "bin")
 	if err := os.Mkdir(bin, 0o700); err != nil {
 		t.Fatal(err)

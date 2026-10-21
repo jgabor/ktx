@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,12 +20,85 @@ import (
 	"testing"
 )
 
+// optimizeQualified holds one simulated qualification per target state.
+// Qualification dominates these tests' runtime, so each state is qualified
+// once per test binary and every caller restores a pristine copy. Results
+// record absolute target paths, so copies are always restored to one fixed
+// work directory.
+var optimizeQualified struct {
+	base      string
+	templates map[bool]optimizeQualifiedTemplate
+}
+
+type optimizeQualifiedTemplate struct {
+	snapshot string
+	result   []byte
+	original []byte
+}
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if optimizeQualified.base != "" {
+		if err := optimizeRemoveTree(optimizeQualified.base); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}
+	os.Exit(code)
+}
+
 func optimizeApplyFixture(t *testing.T, present bool) (optimizeResult, []byte) {
 	t.Helper()
-	development, args, runner, _ := optimizeLiveFixture(t)
+	template, ok := optimizeQualified.templates[present]
+	if !ok {
+		template = optimizeQualifyTemplate(t, present)
+	}
+	work := filepath.Join(optimizeQualified.base, "work")
+	if err := optimizeRemoveTree(work); err != nil {
+		t.Fatal(err)
+	}
+	if err := optimizeCopyTree(template.snapshot, work); err != nil {
+		t.Fatal(err)
+	}
+	optimizeTestEnvironment(t, work)
+	t.Setenv("PATH", filepath.Join(work, "bin"))
+	var r optimizeResult
+	if err := json.Unmarshal(template.result, &r); err != nil {
+		t.Fatal(err)
+	}
+	if !present {
+		// Screening resolves the default target without creating its parent,
+		// so preview and apply exercise missing parents.
+		if _, err := os.Lstat(filepath.Dir(r.Target.Path)); !os.IsNotExist(err) {
+			t.Fatalf("screening created the absent target parent: %v", err)
+		}
+	}
+	return r, bytes.Clone(template.original)
+}
+
+func optimizeQualifyTemplate(t *testing.T, present bool) optimizeQualifiedTemplate {
+	t.Helper()
+	if optimizeQualified.base == "" {
+		base, err := os.MkdirTemp("", "ktx-optimize-qualified-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		optimizeQualified.base = base
+		optimizeQualified.templates = map[bool]optimizeQualifiedTemplate{}
+	}
+	work := filepath.Join(optimizeQualified.base, "work")
+	if err := optimizeRemoveTree(work); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(work, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	development, args, runner, _ := optimizeLiveFixtureIn(t, work)
 	var original []byte
 	if present {
-		parent := filepath.Join(t.TempDir(), "owned-config")
+		parent := filepath.Join(work, "owned-config")
 		if err := os.Mkdir(parent, 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -40,14 +114,78 @@ func optimizeApplyFixture(t *testing.T, present bool) (optimizeResult, []byte) {
 	if err != nil || r.Outcome != "ready" {
 		t.Fatalf("simulated qualification: %v %+v", err, r)
 	}
-	if !present {
-		// Screening resolves the default target without creating its parent,
-		// so preview and apply exercise missing parents.
-		if _, err := os.Lstat(filepath.Dir(r.Target.Path)); !os.IsNotExist(err) {
-			t.Fatalf("screening created the absent target parent: %v", err)
+	result, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := filepath.Join(optimizeQualified.base, fmt.Sprintf("qualified-%t", present))
+	if err := optimizeRemoveTree(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := optimizeCopyTree(work, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	template := optimizeQualifiedTemplate{snapshot: snapshot, result: result, original: original}
+	optimizeQualified.templates[present] = template
+	return template
+}
+
+// optimizeCopyTree copies directories and regular files with their exact
+// permission bits. Copies never share inodes with the source.
+func optimizeCopyTree(source, destination string) error {
+	modes := map[string]fs.FileMode{}
+	err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destination, relative)
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		switch {
+		case entry.IsDir():
+			modes[target] = info.Mode().Perm()
+			return os.Mkdir(target, 0o700)
+		case info.Mode().IsRegular():
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(target, data, 0o600); err != nil {
+				return err
+			}
+			return os.Chmod(target, info.Mode().Perm())
+		default:
+			return fmt.Errorf("unexpected file type in qualified fixture: %s", path)
+		}
+	})
+	if err != nil {
+		return err
+	}
+	// Restore directory modes after their contents exist.
+	for path, mode := range modes {
+		if err := os.Chmod(path, mode); err != nil {
+			return err
 		}
 	}
-	return r, original
+	return nil
+}
+
+// optimizeRemoveTree removes root even when a test left a directory without
+// write permission.
+func optimizeRemoveTree(root string) error {
+	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err == nil && entry.IsDir() {
+			_ = os.Chmod(path, 0o700)
+		}
+		return nil
+	})
+	return os.RemoveAll(root)
 }
 
 func optimizeMutationRun(t *testing.T, id, action string, dry bool) optimizeMutationReport {

@@ -115,7 +115,7 @@ absence only when later edits are absent. Rolled-back IDs are retired. Another
 cycle uses the current incumbent without rewriting old evidence. Private
 archives/recovery live under `.ktx/optimizations`. Checksums are drift checks, not
 same-owner authentication; directory leases require cooperating external editors
-for full lost-update protection. See the [canonical contract](../../../../docs/pipelines.md#configuration-optimization).
+for full lost-update protection. See the [canonical contract](../../../../docs/guides/pipelines.md#configuration-optimization).
 
 ## Adapter Workflows
 

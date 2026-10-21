@@ -31,7 +31,7 @@ func TestBenchExecutionControlCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("DOCKER_BIN", docker)
-	base := []string{"compare", "--preflight", "--repo-root", root, "--spec", "exact-match", "--task", "read-config-first", "--model", "openai/gpt-6-luna", "--variant", "high", "--baseline", "passthrough", "--candidate", "passthrough", "--read-description-treatment", benchcontract.ReadDescriptionTreatment, "--runtime-config", filepath.Join(root, "docs/normalization-model-registration.json"), "--pricing-snapshot", pricePath, "--pricing-sha256", fmt.Sprintf("%x", sha256.Sum256(pricing)), "--cache-control", "observed", "--target-valid", "1", "--max-attempts", "2"}
+	base := []string{"compare", "--preflight", "--repo-root", root, "--spec", "exact-match", "--task", "read-config-first", "--model", "openai/gpt-6-luna", "--variant", "high", "--baseline", "passthrough", "--candidate", "passthrough", "--read-description-treatment", benchcontract.ReadDescriptionTreatment, "--runtime-config", filepath.Join(root, "docs/reports/normalization/normalization-model-registration.json"), "--pricing-snapshot", pricePath, "--pricing-sha256", fmt.Sprintf("%x", sha256.Sum256(pricing)), "--cache-control", "observed", "--target-valid", "1", "--max-attempts", "2"}
 	for _, tc := range []struct {
 		name string
 		args []string

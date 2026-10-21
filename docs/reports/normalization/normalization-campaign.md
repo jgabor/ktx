@@ -226,7 +226,7 @@ as one.
 - Invoked that binary's `bench compare --help` in a separate disposable
   HOME/XDG root with `KTX_DB` unset; all six registered task IDs and
   `exact-match` were listed. Cross-checked actual option parsing and runner
-  schedule against `docs/pipelines.md` and the frozen protocol.
+  schedule against `docs/guides/pipelines.md` and the frozen protocol.
 - No `--preflight --build` was run, so a current benchmark image, collector,
   runtime, auth, pricing and model identity have **not** been reattested for
   measurement. No provider request or archive was created by this check.

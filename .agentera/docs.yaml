@@ -35,6 +35,6 @@ index:
     last_updated: 2026-07-16
     status: current
   - document: Pipeline runbook
-    path: docs/pipelines.md
+    path: docs/guides/pipelines.md
     last_updated: 2026-07-15
     status: current

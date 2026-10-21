@@ -68,7 +68,7 @@ func validateReadDescriptionOptions(o CompareOptions) error {
 		baseline = data
 	}
 	for _, input := range readDescriptionInputs() {
-		data, err := os.ReadFile(filepath.Join(o.RepoRoot, "docs", "normalization-read-"+input.ID+".txt"))
+		data, err := os.ReadFile(filepath.Join(o.RepoRoot, "docs", "reports", "normalization", "normalization-read-"+input.ID+".txt"))
 		if err != nil || sha256Bytes(data) != input.SHA256 {
 			return fmt.Errorf("read-description %s fixture missing or changed", input.ID)
 		}
@@ -100,7 +100,7 @@ func captureReadDescription(dir string, o CompareOptions) (*ReadDescriptionMetad
 	}
 	inputs := readDescriptionInputs()
 	for _, input := range inputs {
-		data, err := os.ReadFile(filepath.Join(o.RepoRoot, "docs", "normalization-read-"+input.ID+".txt"))
+		data, err := os.ReadFile(filepath.Join(o.RepoRoot, "docs", "reports", "normalization", "normalization-read-"+input.ID+".txt"))
 		if err != nil || sha256Bytes(data) != input.SHA256 {
 			return nil, errors.New("read-description fixture changed during capture")
 		}

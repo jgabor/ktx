@@ -86,7 +86,7 @@ const (
 	historicalContractPath   = "ktx.example.toml"
 	historicalContractClass  = "documented_contract"
 	historicalContractSHA256 = "6dbdb9ddf16e72f40837fa6a97056fe3d60026256a5841d295f05584a04b215c"
-	currentContractSHA256    = "cffae0d07ac473d4eab3255f4961e412ce77fbdd666bd53b46a9406eedf4367d"
+	currentContractSHA256    = "0127da4757058e9b20817c38280a1914b17a07e2ce8bb5884aa192cbc4d62c45"
 )
 
 type fixtureCharacterization struct {

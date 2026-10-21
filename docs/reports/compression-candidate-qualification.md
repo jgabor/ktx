@@ -45,12 +45,12 @@ treated as proof about the current tree.
 
 ## Retained evidence
 
-| Artifact                                                                                                       | SHA-256                                                            | Purpose                                                                                     |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| [`compression-candidate-qualification.json`](../tools/bench/evidence/compression-candidate-qualification.json) | `6e9830154d786bf552d04d111d383c3ae0567b36b1d8879d21b95f188b439d05` | Frozen population, coverage, outcomes, and initial candidate qualification                  |
-| [`duplicate-folding-comparison.json`](../tools/bench/evidence/duplicate-folding-comparison.json)               | `556bb70deb1d881ae6998a2b7ac1f34c834db45237503e8c6986ec5367ebdf22` | Opportunity, exact recovery, passthrough, encoder cost, and non-adoption result             |
-| [`common-path-prefix-comparison.json`](../tools/bench/evidence/common-path-prefix-comparison.json)             | `f1301fbcbd75f9447d25e7a8fd39ead8fa0fd1a6f04e7a31e86bcd36fa33ffce` | Strict path recognition, exact recovery, passthrough, encoder cost, and non-adoption result |
-| [`wrapper-projection-assessment.json`](../tools/bench/evidence/wrapper-projection-assessment.json)             | `3b3ffcc2ac35f0c5a40e1be3e1fdc84617ad6dfd9fb1992774b0875662c18bb1` | Bounded contract search and no-broadening result                                            |
+| Artifact                                                                                                          | SHA-256                                                            | Purpose                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| [`compression-candidate-qualification.json`](../../tools/bench/evidence/compression-candidate-qualification.json) | `6e9830154d786bf552d04d111d383c3ae0567b36b1d8879d21b95f188b439d05` | Frozen population, coverage, outcomes, and initial candidate qualification                  |
+| [`duplicate-folding-comparison.json`](../../tools/bench/evidence/duplicate-folding-comparison.json)               | `556bb70deb1d881ae6998a2b7ac1f34c834db45237503e8c6986ec5367ebdf22` | Opportunity, exact recovery, passthrough, encoder cost, and non-adoption result             |
+| [`common-path-prefix-comparison.json`](../../tools/bench/evidence/common-path-prefix-comparison.json)             | `f1301fbcbd75f9447d25e7a8fd39ead8fa0fd1a6f04e7a31e86bcd36fa33ffce` | Strict path recognition, exact recovery, passthrough, encoder cost, and non-adoption result |
+| [`wrapper-projection-assessment.json`](../../tools/bench/evidence/wrapper-projection-assessment.json)             | `3b3ffcc2ac35f0c5a40e1be3e1fdc84617ad6dfd9fb1992774b0875662c18bb1` | Bounded contract search and no-broadening result                                            |
 
 Each candidate receipt references the qualification aggregate SHA-256. The
 tracked receipts contain aggregate counts and provenance only.

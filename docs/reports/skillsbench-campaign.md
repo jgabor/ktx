@@ -6,13 +6,13 @@ not permission to run an evaluator or provider. The repository used the
 BenchFlow/SkillsBench names for the campaign; those labels and the retained task
 digest do not establish official suite identity.
 
-For current benchmark work, use the native [`ktx bench compare`](../README.md#benchmarking)
+For current benchmark work, use the native [`ktx bench compare`](../../README.md#benchmarking)
 workflow. The tracked-only historical identity check is documented in
 [`external-validation.md`](external-validation.md).
 
 ## Corrected result
 
-[`skillsbench-campaign-errata.json`](../tools/bench/evidence/skillsbench-campaign-errata.json)
+[`skillsbench-campaign-errata.json`](../../tools/bench/evidence/skillsbench-campaign-errata.json)
 is the current authority for completeness and metrics. It accepts only the Luna
 replication campaign with complete terminal evidence. Three earlier completeness
 claims are removed.
@@ -37,7 +37,7 @@ basis for further external execution.
 The complete campaign used one externally sourced task (`3d-scan-calc`),
 BenchFlow 0.6.5, OpenCode 1.18.5, and `openai/gpt-5.6-luna` with variant `high`.
 The exact evaluator, task, runtime, adapter, KTX, execution, and digest identities
-are in the [direct identity lock](../tools/bench/external-identity/lock.json).
+are in the [direct identity lock](../../tools/bench/external-identity/lock.json).
 
 ## Claim limits
 
@@ -70,16 +70,16 @@ inputs remain evidence for this campaign only.
 
 ## Evidence map
 
-| Evidence                                                                                                                                                                                                                                    | Authority                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [Correction](../tools/bench/evidence/skillsbench-campaign-errata.json)                                                                                                                                                                      | Current completeness, metrics, directional counts, and gate state                  |
-| [Authority inventory](../tools/bench/evidence/skillsbench-authority-inventory.json)                                                                                                                                                         | Ownership, retention classes, precedence, and maintained-check boundary            |
-| [Archive index](../tools/bench/evidence/skillsbench-oauth-campaign-archive.json)                                                                                                                                                            | Raw campaign identities, locations, topology, dependency facts, and limitations    |
-| [Raw digest manifest](../tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256)                                                                                                                                                  | SHA-256 binding for 927 ignored raw files; it cannot restore them                  |
-| [Final index](../tools/bench/evidence/skillsbench-final-index.json), [five-pair gate](../tools/bench/evidence/skillsbench-five-pair-gate.json), and [diversity disposition](../tools/bench/evidence/skillsbench-diversity-disposition.json) | Immutable historical publications superseded by the correction for current claims  |
-| [Direct identity lock](../tools/bench/external-identity/lock.json)                                                                                                                                                                          | Exact historical identities and bounded claim limits                               |
-| [Archive manifest](../tools/bench/archive/skillsbench-campaign/manifest.json)                                                                                                                                                               | Former paths, archived paths, and unchanged digests for inert historical machinery |
-| [Sanitized proof derivative](../tools/bench/evidence/skillsbench-proof-derivative.json)                                                                                                                                                     | Tracked projection of bounded proof facts; not raw or metric authority             |
+| Evidence                                                                                                                                                                                                                                             | Authority                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [Correction](../../tools/bench/evidence/skillsbench-campaign-errata.json)                                                                                                                                                                            | Current completeness, metrics, directional counts, and gate state                  |
+| [Authority inventory](../../tools/bench/evidence/skillsbench-authority-inventory.json)                                                                                                                                                               | Ownership, retention classes, precedence, and maintained-check boundary            |
+| [Archive index](../../tools/bench/evidence/skillsbench-oauth-campaign-archive.json)                                                                                                                                                                  | Raw campaign identities, locations, topology, dependency facts, and limitations    |
+| [Raw digest manifest](../../tools/bench/evidence/skillsbench-oauth-campaign-artifacts.sha256)                                                                                                                                                        | SHA-256 binding for 927 ignored raw files; it cannot restore them                  |
+| [Final index](../../tools/bench/evidence/skillsbench-final-index.json), [five-pair gate](../../tools/bench/evidence/skillsbench-five-pair-gate.json), and [diversity disposition](../../tools/bench/evidence/skillsbench-diversity-disposition.json) | Immutable historical publications superseded by the correction for current claims  |
+| [Direct identity lock](../../tools/bench/external-identity/lock.json)                                                                                                                                                                                | Exact historical identities and bounded claim limits                               |
+| [Archive manifest](../../tools/bench/archive/skillsbench-campaign/manifest.json)                                                                                                                                                                     | Former paths, archived paths, and unchanged digests for inert historical machinery |
+| [Sanitized proof derivative](../../tools/bench/evidence/skillsbench-proof-derivative.json)                                                                                                                                                           | Tracked projection of bounded proof facts; not raw or metric authority             |
 
 ## Archive boundary
 
@@ -97,6 +97,6 @@ Archived source and scripts use inert `.txt` suffixes. Manual recovery is an
 archival operation only: it requires a disposable checkout, restoration to the
 former paths in the archive manifest, and the exact ignored inputs required by
 the procedure, up to all 927 raw files. See the
-[archive README](../tools/bench/archive/skillsbench-campaign/README.md) for that
+[archive README](../../tools/bench/archive/skillsbench-campaign/README.md) for that
 boundary. Routine repository verification uses the direct tracked identity
 check instead.

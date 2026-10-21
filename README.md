@@ -19,7 +19,7 @@ when you explicitly run a live benchmark against a named provider.
 
 Linux is the supported operating system. Non-Linux execution is unsupported or
 unverified; retained platform-specific source and past cross-compilation are not
-native qualification. See the [native Linux qualification](docs/native-linux-qualification.md)
+native qualification. See the [native Linux qualification](docs/reports/native-linux-qualification.md)
 for the tested host and evidence limits. The terminal-only capability requirement
 is described below.
 
@@ -92,7 +92,7 @@ Live qualification uses embedded controlled assets, not representative user
 workload. Its default bound is 24 benchmark agent launches, including setup and
 retries, not provider requests or a bill cap. No configuration is auto-applied.
 `ktx optimize --help` explains prerequisites, optional price snapshots, refusal
-conditions, and exit codes. See [the optimization contract](docs/pipelines.md#configuration-optimization)
+conditions, and exit codes. See [the optimization contract](docs/guides/pipelines.md#configuration-optimization)
 for the evidence and recovery limits.
 
 ### Compress tool output in flight
@@ -135,7 +135,7 @@ The generated OpenCode plugin also records optional runtime model-step token
 evidence. ktx collects telemetry only from the agent runtime; provider and
 model identity come from runtime events or explicit runtime configuration,
 with provenance. See the [OpenCode integration and telemetry
-runbook](docs/opencode-telemetry.md) for plugin locations, both hooks,
+runbook](docs/guides/opencode-telemetry.md) for plugin locations, both hooks,
 wrapper coexistence, refresh, offline verification, claim boundaries, and
 troubleshooting.
 
@@ -175,17 +175,17 @@ profiles can be selected through first-match `[[route]]` rules using tool name,
 command prefix, subcommand, and exit status.
 
 See [`ktx.example.toml`](ktx.example.toml) for a working configuration and
-[`docs/pipelines.md`](docs/pipelines.md) for stage, routing, and benchmark
+[`docs/guides/pipelines.md`](docs/guides/pipelines.md) for stage, routing, and benchmark
 guidance. Originals remain addressable through `ktx read` and `ktx
 decompress`. For the optional structured diagnostic file sink, see
-[`docs/logging.md`](docs/logging.md).
+[`docs/guides/logging.md`](docs/guides/logging.md).
 
 Database access is forward-only. Every database-backed command automatically
 prepares a supported older schema before running. Query and inspection commands
 use enforced read-only SQLite access after readiness; an absent database keeps
 its logical-empty or missing-input behavior. A database newer than the binary
 fails before writes and recovers only by installing a compatible binary. The
-[database safety contract](docs/database-safety.md) defines command classes,
+[database safety contract](docs/reference/database-safety.md) defines command classes,
 hermetic development, seeded migration rehearsal, and the readiness boundary.
 
 ## Benchmarking
@@ -211,7 +211,7 @@ Repeat `--config` for each complete configuration. The JSON contains only
 aggregate measurements, hashes, and opaque configuration identities. External
 plugins are rejected so screening cannot send source content to another process.
 
-The [canonical benchmark workflow](docs/pipelines.md#canonical-benchmark-workflow)
+The [canonical benchmark workflow](docs/guides/pipelines.md#canonical-benchmark-workflow)
 covers semantic-ID discovery, offline preflight, compare or rank, and the full
 experiment lifecycle. Compare and rank require an explicit registered `--spec`;
 focused command help lists all current spec, task, baseline, and candidate IDs.
@@ -281,7 +281,7 @@ failure exits 4; a missing session exits 2. File replay uses only the fixture
 and a controlled built-in pipeline; any divergence is a strict failure.
 Fixture contents include raw recorded stream data, so review them for secrets
 and personal data before sharing. The fixture schema, refresh requirements,
-and threat boundary are in the [runbook](docs/pipelines.md).
+and threat boundary are in the [runbook](docs/guides/pipelines.md).
 
 ### Retained evidence
 
@@ -291,14 +291,14 @@ Historical results are evidence, not supported workflows:
   complete measured pairs; candidate cached-input share was higher than
   baseline under the retained protocol. This supports no significance, causal,
   or provider-native cache claim. Values, provenance, and failed archives:
-  [live validation report](docs/cache-reuse-live-validation.md).
+  [live validation report](docs/reports/cache-reuse-live-validation.md).
 - One historical ten-attempt runtime compression telemetry comparison:
-  [report](docs/runtime-compression-telemetry-evidence.md).
+  [report](docs/reports/runtime-compression-telemetry-evidence.md).
 - The completed external campaign (eight attempts, four pairs): historical
   evidence with limits and ownership map:
-  [campaign report](docs/skillsbench-campaign.md).
+  [campaign report](docs/reports/skillsbench-campaign.md).
 - The Layer 1 cache and cost benchmark, retained for provenance:
-  [benchmark](benchs/layer-1-cache-cost.md).
+  [benchmark](docs/reports/layer-1-cache-cost.md).
 
 A rolling 24-hour live snapshot (July 17, 2026, 8,321 tool calls) reduced
 delivered tool-output context from 47.8 million to 26.0 million characters,
@@ -314,7 +314,7 @@ Development and CI verification must not resolve an ambient live database.
 The standard Mage verification targets automatically allocate a per-invocation
 disposable `HOME` and XDG root, unset `KTX_DB`, audit database access attempts,
 and keep reusable language and tool caches separate. The
-[database safety contract](docs/database-safety.md) defines the boundary.
+[database safety contract](docs/reference/database-safety.md) defines the boundary.
 
 ```bash
 mage replayFixture # bounded offline gate for the retained portable fixture
@@ -330,7 +330,7 @@ supported-lock checks. It does not add a timing gate.
 
 Schema releases have a separate production-scale gate. First prepare the
 disposable 3.2 GB fixture as documented in
-[`docs/schema-readiness.md`](docs/schema-readiness.md#readiness-release-budget),
+[`docs/reference/schema-readiness.md`](docs/reference/schema-readiness.md#readiness-release-budget),
 then run:
 
 ```bash
@@ -352,15 +352,15 @@ and pull request. Verification requires both `golangci-lint` and
 
 ## Documentation
 
-| Document                                                                     | Covers                                                     |
-| ---------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [`docs/pipelines.md`](docs/pipelines.md)                                     | Stages, routing, benchmarks, replay fixture contract       |
-| [`docs/opencode-telemetry.md`](docs/opencode-telemetry.md)                   | Adapter install, hooks, telemetry runbook                  |
-| [`docs/database-safety.md`](docs/database-safety.md)                         | Command classes, hermetic development, migration rehearsal |
-| [`docs/logging.md`](docs/logging.md)                                         | Optional structured diagnostic file sink                   |
-| [`docs/component-benchmarks.md`](docs/component-benchmarks.md)               | Component-level measurements                               |
-| [`docs/critical-path-performance.md`](docs/critical-path-performance.md)     | Critical-path performance contract                         |
-| [`docs/cache-reuse-metric-contract.md`](docs/cache-reuse-metric-contract.md) | Cache reuse metric definition                              |
+| Document                                                                                         | Covers                                                     |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| [`docs/guides/pipelines.md`](docs/guides/pipelines.md)                                           | Stages, routing, benchmarks, replay fixture contract       |
+| [`docs/guides/opencode-telemetry.md`](docs/guides/opencode-telemetry.md)                         | Adapter install, hooks, telemetry runbook                  |
+| [`docs/reference/database-safety.md`](docs/reference/database-safety.md)                         | Command classes, hermetic development, migration rehearsal |
+| [`docs/guides/logging.md`](docs/guides/logging.md)                                               | Optional structured diagnostic file sink                   |
+| [`docs/reference/component-benchmarks.md`](docs/reference/component-benchmarks.md)               | Component-level measurements                               |
+| [`docs/reference/critical-path-performance.md`](docs/reference/critical-path-performance.md)     | Critical-path performance contract                         |
+| [`docs/reference/cache-reuse-metric-contract.md`](docs/reference/cache-reuse-metric-contract.md) | Cache reuse metric definition                              |
 
 Additional engineering reports (load measurements, external validation,
 candidate qualification) live under

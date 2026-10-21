@@ -33,5 +33,5 @@ jobs:
       - name: Verify repository
         # mage verify allocates and audits its own disposable application root;
         # includes Go race tests, Python verifier tests, and the Bun adapter gate.
-        # docs/database-safety.md is the canonical contract.
+        # docs/reference/database-safety.md is the canonical contract.
         run: mage verify

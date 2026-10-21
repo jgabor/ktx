@@ -64,7 +64,7 @@ func TestToolOutcomeContractSurfacesMatchBehavior(t *testing.T) {
 	for name, contents := range map[string]string{
 		"help":        hookHelp.String(),
 		"example":     readDocumentationFile(t, filepath.Join(root, "ktx.example.toml")),
-		"runbook":     readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"runbook":     readDocumentationFile(t, filepath.Join(root, "docs", "guides", "pipelines.md")),
 		"agent-guide": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "pipelines.md")),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestLoggingContractSurfacesMatchBehavior(t *testing.T) {
 	for name, contents := range map[string]string{
 		"help":    helpText,
 		"example": example,
-		"runbook": readDocumentationFile(t, filepath.Join(root, "docs", "logging.md")),
+		"runbook": readDocumentationFile(t, filepath.Join(root, "docs", "guides", "logging.md")),
 	} {
 		t.Run(name, func(t *testing.T) {
 			assertContractText(t, contents, []string{
@@ -100,7 +100,7 @@ func TestLoggingContractSurfacesMatchBehavior(t *testing.T) {
 	assertContractText(t, example,
 		[]string{"XDG_STATE_HOME", "timestamp", "elapsed_wait_nanoseconds", "no retry", "unsafe targets"}, nil)
 
-	runbook := readDocumentationFile(t, filepath.Join(root, "docs", "logging.md"))
+	runbook := readDocumentationFile(t, filepath.Join(root, "docs", "guides", "logging.md"))
 	for _, field := range []string{
 		"`timestamp`", "`level`", "`event`", "`ktx_command`", "`executable_path`", "`database_path`", "`failure_class`", "`operation_phase`",
 		"`elapsed_wait_nanoseconds`",
@@ -129,7 +129,7 @@ func TestOutcomeReportContractsPublishCurrentSchemasAndDenominators(t *testing.T
 		[]string{"report schema 3", "population is all tool calls", "error rate is error/known", "coverage is known/total", "round to 2 decimals"}, nil)
 
 	for _, relative := range []string{
-		filepath.Join("docs", "pipelines.md"),
+		filepath.Join("docs", "guides", "pipelines.md"),
 		filepath.Join(".agents", "skills", "ktx", "references", "database-telemetry.md"),
 	} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
@@ -164,7 +164,7 @@ func TestBenchPreflightContractSurfacesMatchBehavior(t *testing.T) {
 	for name, contents := range map[string]string{
 		"help":        help.String(),
 		"readme":      readDocumentationFile(t, filepath.Join(root, "README.md")),
-		"runbook":     readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"runbook":     readDocumentationFile(t, filepath.Join(root, "docs", "guides", "pipelines.md")),
 		"agent-guide": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -183,7 +183,7 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 	for name, contents := range map[string]string{
 		"help":            help.String(),
 		"readme":          readDocumentationFile(t, filepath.Join(root, "README.md")),
-		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "guides", "pipelines.md")),
 		"agent-guide":     readDocumentationFile(t, filepath.Join(root, "AGENTS.md")),
 		"skill-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
 	} {
@@ -196,7 +196,7 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 	for name, contents := range map[string]string{
 		"help":            help.String(),
 		"readme":          readDocumentationFile(t, filepath.Join(root, "README.md")),
-		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "pipelines.md")),
+		"runbook":         readDocumentationFile(t, filepath.Join(root, "docs", "guides", "pipelines.md")),
 		"agent-guide":     readDocumentationFile(t, filepath.Join(root, "AGENTS.md")),
 		"skill-reference": readDocumentationFile(t, filepath.Join(root, ".agents", "skills", "ktx", "references", "benchmarks-development.md")),
 	} {
@@ -208,7 +208,7 @@ func TestCurrentCacheAwareBenchmarkEntryPointsMatchHelp(t *testing.T) {
 	assertContractText(t, help.String(),
 		[]string{"--warmup N (default 1), --rounds N (default 5)"}, nil)
 
-	contract := readDocumentationFile(t, filepath.Join(root, "docs", "cache-reuse-metric-contract.md"))
+	contract := readDocumentationFile(t, filepath.Join(root, "docs", "reference", "cache-reuse-metric-contract.md"))
 	assertContractText(t, contract,
 		[]string{"current machine-readable authority", "contracts/cache-reuse.json", "summary schema 5", "provider-internal claims"},
 		[]string{"Future collection, derivation, and\nrendering work must implement that versioned contract"})

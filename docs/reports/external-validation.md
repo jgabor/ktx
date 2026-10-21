@@ -6,7 +6,7 @@ call a provider or model, access a database, or modify the repository.
 
 ## Maintained tracked check
 
-[`tools/bench/external-identity/lock.json`](../tools/bench/external-identity/lock.json)
+[`tools/bench/external-identity/lock.json`](../../tools/bench/external-identity/lock.json)
 records the exact historical campaign, evaluator, task, runtime, adapter, KTX,
 execution, and digest identities. Its claim block limits the evidence to one
 task, eight attempts, and four complete pairs. It establishes neither official
@@ -44,20 +44,20 @@ without printing the observed value.
 
 ## Archived evidence
 
-[`tools/bench/archive/skillsbench-campaign/`](../tools/bench/archive/skillsbench-campaign/)
+[`tools/bench/archive/skillsbench-campaign/`](../../tools/bench/archive/skillsbench-campaign/)
 contains exact historical source, scripts, locks, and proof snapshots with inert
 `.txt` suffixes. They are not packages, executable scripts, or routine checks.
-The archive [manifest](../tools/bench/archive/skillsbench-campaign/manifest.json)
+The archive [manifest](../../tools/bench/archive/skillsbench-campaign/manifest.json)
 maps former paths to archived bytes and unchanged SHA-256 digests.
 
 Manual recovery is archival only. It requires a disposable checkout, restored
 former paths, the exact ignored inputs required by that procedure, and any
 required historical machine-local roots. The
-[archive README](../tools/bench/archive/skillsbench-campaign/README.md) records
+[archive README](../../tools/bench/archive/skillsbench-campaign/README.md) records
 that boundary.
 
 Original checksum-bound proof snapshots remain immutable and retain a bounded
 set of machine-local values. The
-[sanitized derivative](../tools/bench/evidence/skillsbench-proof-derivative.json)
+[sanitized derivative](../../tools/bench/evidence/skillsbench-proof-derivative.json)
 links their source digests and exposes only bounded tracked facts. It does not
 replace raw evidence, corrected metrics, or the snapshots' byte identity.

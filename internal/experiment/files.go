@@ -167,7 +167,7 @@ func prepareWorkspace(repositoryRoot, workspace, mode string, corpusFiles []stri
 				return true
 			}
 			answerKeys := []string{
-				"docs/pipelines.md", "tools/bench/tasks", "tools/bench/corpus/MANIFEST.json",
+				"docs/guides/pipelines.md", "tools/bench/tasks", "tools/bench/corpus/MANIFEST.json",
 				"internal/experiment/corpus.go", "internal/experiment/experiment_test.go", "internal/experiment/testdata",
 			}
 			for _, key := range answerKeys {

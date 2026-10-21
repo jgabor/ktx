@@ -313,7 +313,7 @@ func validBlockedDecompressionReport() blockedDecompressionReport {
 }
 
 func TestLoadBenchmarkDocumentation(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "docs", "real-process-load-benchmarks.md"))
+	contents, err := os.ReadFile(filepath.Join("..", "..", "docs", "reference", "real-process-load-benchmarks.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

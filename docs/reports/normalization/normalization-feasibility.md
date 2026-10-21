@@ -265,7 +265,7 @@ substantive qualification failure, no further probe setup/testing was expanded.
 
 ### Instruction family: no worthwhile general candidate established
 
-The retained [synthetic configuration](../tools/bench/evidence/opencode-runtime-cache-controls/probe-config.json)
+The retained [synthetic configuration](../../../tools/bench/evidence/opencode-runtime-cache-controls/probe-config.json)
 contains:
 
 ```json
@@ -726,7 +726,7 @@ image from the earlier failure.
   passthrough, `--target-valid 1 --max-attempts 2`: **at most two new agent
   attempts**, no warmups and no benchmark retries or replacement attempts.
 - Exact `--model openai/gpt-6-luna --variant high`, with the unchanged verified
-  `docs/normalization-model-registration.json`; no model alias, runtime upgrade,
+  `docs/reports/normalization/normalization-model-registration.json`; no model alias, runtime upgrade,
   host generation, credential mutation, or collector bypass.
 - `--attempt-timeout 4m30s --termination-grace 30s` per attempt: at most ten
   minutes total agent execution/termination. Build and offline checks are

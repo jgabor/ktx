@@ -35,7 +35,7 @@ missing-database findings do not hide config findings, but classified
 security/readiness errors retain their single error envelope and precedence.
 Doctor is read-only for current schemas, prepares supported older schemas, and
 never creates a missing database. Use disposable app state for development;
-see [database safety](../../../../docs/database-safety.md).
+see [database safety](../../../../docs/reference/database-safety.md).
 
 ## Shipped Broad Opt-In Example
 

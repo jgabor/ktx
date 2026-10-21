@@ -184,7 +184,7 @@ func printBenchHelp(w io.Writer) {
 	fmt.Fprintln(w, "      read-only. Unsupported source evidence exits 1 with")
 	fmt.Fprintln(w, "      failure_class=invalid-replay-fixture-source; missing sessions exit 2.")
 	fmt.Fprintln(w, "      Export validates consistency, not privacy or redaction; review raw stream")
-	fmt.Fprintln(w, "      content before sharing. See docs/pipelines.md for the refresh procedure.")
+	fmt.Fprintln(w, "      content before sharing. See docs/guides/pipelines.md for the refresh procedure.")
 	fmt.Fprintln(w, "  compare --spec <id> --model <model> [--variant <name>] --task <id> [--baseline <id>] [--candidate <id>]")
 	fmt.Fprintln(w, "      Run a retained live baseline/candidate experiment.")
 	fmt.Fprintln(w, "      --preflight attests source/image collection capability without auth,")

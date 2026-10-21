@@ -106,7 +106,7 @@ peak remain supporting observations. For release migration, readiness starts at
 the deterministic overlap release, and completion spans the normal query and
 generated callback workload.
 
-[`evidence/schema-readiness/schema-readiness-baseline.json`](evidence/schema-readiness/schema-readiness-baseline.json)
+[`evidence/schema-readiness/schema-readiness-baseline.json`](../evidence/schema-readiness/schema-readiness-baseline.json)
 retains every warmup and measured sample, command stdout, fixture input and
 hash, boundary definition, observed worst value, fixed limit, and limit basis. Regenerate
 it from an isolated disposable root on the recorded host:

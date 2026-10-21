@@ -110,7 +110,7 @@ and every other spelling rejects the configuration before route evaluation.
 ## Verification
 
 Define `ktx_verify` exactly as shown in the canonical
-[database safety contract](database-safety.md#hermetic-development-and-ci-verification),
+[database safety contract](../reference/database-safety.md#hermetic-development-and-ci-verification),
 then run both the focused and full checks through it. Each call gets a new
 disposable application root and starts with `KTX_DB` unset.
 

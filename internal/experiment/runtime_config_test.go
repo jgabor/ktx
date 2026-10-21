@@ -80,7 +80,7 @@ func TestRuntimeConfigurationRawReferences(t *testing.T) {
 }
 
 func TestRuntimeConfigurationDocumentedRegistration(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "normalization-model-registration.json"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "reports", "normalization", "normalization-model-registration.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

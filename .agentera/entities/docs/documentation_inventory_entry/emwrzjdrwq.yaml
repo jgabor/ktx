@@ -2,6 +2,6 @@ id: emwrzjdrwq
 artifact: docs
 record:
   document: Pipeline runbook
-  path: docs/pipelines.md
+  path: docs/guides/pipelines.md
   last_updated: 2026-10-03
   status: current

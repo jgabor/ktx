@@ -51,7 +51,7 @@ func readDescriptionTestRunner(t *testing.T) (*Runner, CompareOptions, *fakeExec
 		}
 		return path
 	}
-	for _, name := range []string{"docs/normalization-read-original.txt", "docs/normalization-read-candidate.txt", "tools/bench/pipelines/passthrough.toml", "docs/normalization-model-registration.json"} {
+	for _, name := range []string{"docs/reports/normalization/normalization-read-original.txt", "docs/reports/normalization/normalization-read-candidate.txt", "tools/bench/pipelines/passthrough.toml", "docs/reports/normalization/normalization-model-registration.json"} {
 		data, err := os.ReadFile(filepath.Join(originalOptions.RepoRoot, name))
 		if err != nil {
 			t.Fatal(err)
@@ -141,7 +141,7 @@ func readDescriptionTestRunner(t *testing.T) (*Runner, CompareOptions, *fakeExec
 	o.RepoRoot = root
 	o.DataDir = filepath.Join(root, ".ktx/experiments")
 	o.ExperimentID = "synthetic-read-treatment"
-	o.RuntimeConfig = filepath.Join(root, "docs/normalization-model-registration.json")
+	o.RuntimeConfig = filepath.Join(root, "docs/reports/normalization/normalization-model-registration.json")
 	o.PricingSnapshot = filepath.Join(root, pricing.Path)
 	o.PricingSHA256 = pricing.SHA256
 	o.BaselineConfig = filepath.Join(root, "tools/bench/pipelines/passthrough.toml")
@@ -214,11 +214,11 @@ func TestReadDescriptionFrozenInputs(t *testing.T) {
 	if err := validateReadDescriptionOptions(o); err != nil {
 		t.Fatal(err)
 	}
-	original, err := os.ReadFile(filepath.Join(o.RepoRoot, "docs/normalization-read-original.txt"))
+	original, err := os.ReadFile(filepath.Join(o.RepoRoot, "docs/reports/normalization/normalization-read-original.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate, err := os.ReadFile(filepath.Join(o.RepoRoot, "docs/normalization-read-candidate.txt"))
+	candidate, err := os.ReadFile(filepath.Join(o.RepoRoot, "docs/reports/normalization/normalization-read-candidate.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}

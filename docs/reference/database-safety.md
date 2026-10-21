@@ -38,7 +38,7 @@ owned config targets as well as the fresh HOME/XDG roots below. An explicit
 `--config` does not prove disposability. Do not run live qualification, mutate an
 operator config, or access ambient data merely to verify this feature. Simulated
 retained qualification fixtures establish lifecycle behavior, not real provider
-performance. See [configuration optimization](pipelines.md#configuration-optimization)
+performance. See [configuration optimization](../guides/pipelines.md#configuration-optimization)
 for consent, launch bounds, evidence, and recovery limits.
 
 Path precedence remains explicit flag, then `KTX_DB`, then the default
@@ -203,7 +203,7 @@ findings even when the database is missing (which doctor does not create).
 Classified security/readiness failures keep their existing single error
 envelope and precedence. These diagnostics do not repair data, maintain
 evidence, or establish plugin viability or observed route usage. See
-[pipeline diagnostics](pipelines.md#read-only-pipeline-diagnostics).
+[pipeline diagnostics](../guides/pipelines.md#read-only-pipeline-diagnostics).
 
 ## Newer schemas
 

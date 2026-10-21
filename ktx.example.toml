@@ -162,7 +162,7 @@ stages = ["unwrap-result", "json-compact", "strip-ansi", "dedup-blank", "normali
 # ── Example pipelines ────────────────────────────────────────────────
 #
 # Named evaluation pipelines and the multi-fact task suite live under
-# tools/bench/; ranking contract and recipes are in docs/pipelines.md.
+# tools/bench/; ranking contract and recipes are in docs/guides/pipelines.md.
 # Guidance below tracks live ranking (expected cost per full pass), not
 # offline per-call compression ratio alone.
 #

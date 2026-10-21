@@ -18,7 +18,7 @@ func TestReadDescriptionGeneratedHook(t *testing.T) {
 	}
 	dir := t.TempDir()
 	for _, name := range []string{"original", "candidate"} {
-		data, err := os.ReadFile("../../docs/normalization-read-" + name + ".txt")
+		data, err := os.ReadFile("../../docs/reports/normalization/normalization-read-" + name + ".txt")
 		if err != nil {
 			t.Fatal(err)
 		}

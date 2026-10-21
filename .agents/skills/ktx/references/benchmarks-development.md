@@ -9,7 +9,7 @@ engineering work.
 ## Canonical Benchmark Workflow
 
 The public canonical workflow is
-[`docs/pipelines.md#canonical-benchmark-workflow`](../../../../docs/pipelines.md#canonical-benchmark-workflow).
+[`docs/guides/pipelines.md#canonical-benchmark-workflow`](../../../../docs/guides/pipelines.md#canonical-benchmark-workflow).
 Use versionless semantic IDs for `--spec`, `--task`, `--baseline`, and
 `--candidate`; focused compare and rank help list the current registry. Use an
 experiment ID, never an archive path, with list, show, summarize, and validate.
@@ -38,7 +38,7 @@ mean filesystem-safe, network-free, side-effect-free, or free of provider cost.
 
 ## Current cost inspection
 
-Follow [the canonical cohort cost contract](../../../../docs/pipelines.md#cohort-cost-selection),
+Follow [the canonical cohort cost contract](../../../../docs/guides/pipelines.md#cohort-cost-selection),
 including its population map and examples. Do not impose invoice, subscription,
 access-mode, or upstream billing-proof gates. Artifact validity, cost
 availability, target success, and recommendation eligibility are separate
@@ -232,7 +232,7 @@ timing descriptive; it does not replace `mage check`.
 
 Schema releases require a separate production-scale gate. Prepare the
 disposable 3.2 GB fixture with `tools/schema_readiness_evidence.py prepare` as
-documented in `docs/schema-readiness.md`, then run:
+documented in `docs/reference/schema-readiness.md`, then run:
 
 ```bash
 env -u KTX_DB \
@@ -270,9 +270,9 @@ When public behavior changes, check all affected surfaces:
 - Command help and exit codes.
 - `README.md` quick starts.
 - `ktx.example.toml` comments and examples.
-- `docs/pipelines.md` contracts.
-- `docs/database-safety.md` command classification.
-- `docs/opencode-telemetry.md` adapter/event semantics.
+- `docs/guides/pipelines.md` contracts.
+- `docs/reference/database-safety.md` command classification.
+- `docs/guides/opencode-telemetry.md` adapter/event semantics.
 - This skill and its references.
 
 Prefer generated or validated contracts over duplicated prose when the project

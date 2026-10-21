@@ -217,7 +217,7 @@ classes, schema, metric formulas, and claim limits.
 ## Core Evidence Rules
 
 - For benchmark cost selection, follow the
-  [canonical cohort cost contract](../../../docs/pipelines.md#cohort-cost-selection).
+  [canonical cohort cost contract](../../../docs/guides/pipelines.md#cohort-cost-selection).
   Prefer usable complete reported cost, otherwise a labeled reproducible
   whole-cohort API estimate. Never require invoice, subscription, access-mode,
   or upstream billing proof. Classify artifact validity, cost availability,
@@ -273,9 +273,9 @@ investigate and correct the summary rather than treating it as canonical.
   architecture documents.
 - `README.md`: product quick start and supported public workflows.
 - `ktx.example.toml`: complete commented pipeline and routing example.
-- `docs/pipelines.md`: pipeline, stats, replay, and benchmark contracts.
-- `docs/database-safety.md`: authoritative database command classes.
-- `docs/opencode-telemetry.md`: OpenCode plugin and model-step contract.
+- `docs/guides/pipelines.md`: pipeline, stats, replay, and benchmark contracts.
+- `docs/reference/database-safety.md`: authoritative database command classes.
+- `docs/guides/opencode-telemetry.md`: OpenCode plugin and model-step contract.
 
 ## Common Mistakes
 

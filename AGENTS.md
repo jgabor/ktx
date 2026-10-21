@@ -76,7 +76,7 @@ Always use `mage build` or `go build -o build/ktx ./cmd/ktx`. Never run bare `go
 
 ## Database safety
 
-Follow [`docs/database-safety.md`](docs/database-safety.md) for the canonical
+Follow [`docs/reference/database-safety.md`](docs/reference/database-safety.md) for the canonical
 DB-free, readiness, post-readiness read-only, isolated-owner, and forbidden
 ambient-live command classes. During development, tests, CI reproduction, and
 migration rehearsal:
@@ -97,7 +97,7 @@ runtime forward, never by lowering `user_version`.
 
 Schema releases also require the production-scale gate outside routine
 `mage check`. Prepare the disposable 3.2 GB fixture as documented in
-`docs/schema-readiness.md`, then run:
+`docs/reference/schema-readiness.md`, then run:
 
 ```bash
 env -u KTX_DB \
@@ -113,7 +113,7 @@ the `.attempt.failed.json` sibling is the latest failed attempt, not authority.
 
 ### Cost evidence
 
-Follow [the canonical cohort cost contract](docs/pipelines.md#cohort-cost-selection)
+Follow [the canonical cohort cost contract](docs/guides/pipelines.md#cohort-cost-selection)
 for reports, rankings, and cost-based acceptance. Use usable complete reported
 cost first, then a labeled reproducible whole-cohort API estimate. Do not add
 invoice, subscription, access-mode, or upstream billing-proof gates. Keep
@@ -123,7 +123,7 @@ frozen historical fields or campaign winners.
 
 ### Live comparison
 
-Follow the [canonical benchmark workflow](docs/pipelines.md#canonical-benchmark-workflow).
+Follow the [canonical benchmark workflow](docs/guides/pipelines.md#canonical-benchmark-workflow).
 Use focused compare or rank help to discover registered semantic IDs. Use only
 experiment IDs with list, show, summarize, and validate.
 
@@ -132,7 +132,7 @@ preflight. The retained OpenCode 1.18.5 Luna/high v3 experiment also passes
 retained-artifact validation with 14/14 valid attempt checks, five complete
 measured pairs, and 5/5 valid measured targets per side. Its scoped result and
 the two unchanged failed historical archives are recorded in
-`docs/cache-reuse-live-validation.md`. Duplicate handling is regression-tested;
+`docs/reports/cache-reuse-live-validation.md`. Duplicate handling is regression-tested;
 no duplicate callback occurred live in v3.
 
 Current prompt-cache comparisons use methodology v6 and emit summary schema 5

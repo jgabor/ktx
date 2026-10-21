@@ -273,7 +273,7 @@ security/readiness failures retain the existing single CLI error envelope and
 take precedence over the health report. Doctor does not create a missing
 database; current databases are inspected read-only, while supported older
 schemas are still prepared automatically. See the
-[database safety contract](database-safety.md) before development verification.
+[database safety contract](../reference/database-safety.md) before development verification.
 
 ### JSON blocks in mixed output
 
@@ -1004,7 +1004,7 @@ Corpus tasks set `workspace_mode = "corpus"`. Each comparison attempt mounts
 - `tools/bench/tasks/*` (fact lists in prompts/specs)
 - `internal/experiment/corpus.go`
 - `internal/experiment/testdata/`
-- `docs/pipelines.md`
+- `docs/guides/pipelines.md`
 
 Repo-inspection tasks may set `workspace_mode = "repo"` (full snapshot with the
 same answer-key exclusions).
@@ -1723,7 +1723,7 @@ project-level `opencode.json` or `opencode.jsonc` are rejected. Project
 host plugins cannot load. Keys must use the exact supported spelling without
 duplicates, and raw `{env:...}` and `{file:...}` references are rejected. For example,
 use `--model openai/gpt-6-luna --variant high` with
-`--runtime-config docs/normalization-model-registration.json` to register the
+`--runtime-config docs/reports/normalization/normalization-model-registration.json` to register the
 requested model API ID without changing the pinned OpenCode image. The exact
 JSON bytes and SHA-256 are retained under `inputs/runtime-config/opencode.json` and the manifest's
 optional `runtime_config` identity. Both arms mount that single retained file
@@ -1812,8 +1812,8 @@ instead of trusting the attempt ledger; the manifest records scorer identity.
 The long window inputs are generated from the frozen decimal-line rule with
 fixed byte hashes. Existing exact-match tasks and summaries retain their
 meaning. This is **not a cost-first campaign runner** or a savings claim. The
-preservation and campaign gates in the [frozen protocol](normalization-experiment-protocol.md)
-remain independent: the [paid campaign](normalization-campaign.md) completed
+preservation and campaign gates in the [frozen protocol](../reports/normalization/normalization-experiment-protocol.md)
+remain independent: the [paid campaign](../reports/normalization/normalization-campaign.md) completed
 24 attempts in 12 pairs and failed the quality and cost gates. Under the
 protocol's premeasurement revision 2, the offline gate executes the real pinned
 read tool using a test-only loopback synthetic Responses transport. Earlier
@@ -1822,9 +1822,9 @@ hook rejects that drift without valid treatment evidence. Mounted transform
 fixture mismatch and unchanged restart identities are checked separately.
 Upstream source-file reload remains **UNTESTED**; this is ingress-boundary
 coverage, not a runtime-upgrade or provider-final schema claim. See the
-[offline gate observations](normalization-offline-gates.md) for retained runtime
+[offline gate observations](../reports/normalization/normalization-offline-gates.md) for retained runtime
 results and limits. These receipts do not replace case-specific scorer checks
-or establish campaign readiness; the [approved conclusion](normalization-conclusion.md)
+or establish campaign readiness; the [approved conclusion](../reports/normalization/normalization-conclusion.md)
 is no normalizer now, with no adoption justified by the failed live gates.
 
 Generic preflight checks the generated hook's advertised capability, not live
@@ -1867,7 +1867,7 @@ OpenCode-reported cached-input share was higher than baseline under the retained
 protocol. That is the supported claim; the result supports no significance,
 causal, or provider-native cache wording. Exact values, secondary estimates,
 provenance, validation, hashes, and failed archives are in the
-[live validation report](cache-reuse-live-validation.md).
+[live validation report](../reports/cache-reuse-live-validation.md).
 
 Each strategy runs one `cold_observation`, the requested number of `warmup`
 attempts, and then `--rounds` `measured_warm` attempts. Setup attempts remain in

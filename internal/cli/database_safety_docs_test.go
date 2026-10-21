@@ -11,7 +11,7 @@ import (
 
 func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 	root := repositoryRoot(t)
-	canonical := readDocumentationFile(t, filepath.Join(root, "docs", "database-safety.md"))
+	canonical := readDocumentationFile(t, filepath.Join(root, "docs", "reference", "database-safety.md"))
 	lower := strings.ToLower(canonical)
 	for _, required := range []string{
 		"genuinely read-only",
@@ -45,12 +45,12 @@ func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 
 	for _, relative := range []string{"README.md", "AGENTS.md", filepath.Join(".github", "workflows", "ci.yml")} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))
-		if !strings.Contains(contents, "docs/database-safety.md") {
+		if !strings.Contains(contents, "docs/reference/database-safety.md") {
 			t.Errorf("%s does not link to the canonical database safety contract", relative)
 		}
 	}
 
-	routing := readDocumentationFile(t, filepath.Join(root, "docs", "routing-candidate-characterization.md"))
+	routing := readDocumentationFile(t, filepath.Join(root, "docs", "reports", "routing-candidate-characterization.md"))
 	for _, forbidden := range []string{"build/ktx db path", `sqlite3 -readonly "$("`} {
 		if strings.Contains(routing, forbidden) {
 			t.Errorf("routing characterization retains unsafe active procedure %q", forbidden)
@@ -65,7 +65,7 @@ func TestDatabaseSafetyDocumentationMatchesCommandContract(t *testing.T) {
 
 func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 	root := repositoryRoot(t)
-	canonical := strings.ToLower(readDocumentationFile(t, filepath.Join(root, "docs", "schema-readiness.md")))
+	canonical := strings.ToLower(readDocumentationFile(t, filepath.Join(root, "docs", "reference", "schema-readiness.md")))
 	for _, required := range []string{
 		"preparation is automatic for every supported older schema",
 		"former rule",
@@ -81,7 +81,7 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 		}
 	}
 	for _, relative := range []string{
-		filepath.Join("docs", "database-safety.md"),
+		filepath.Join("docs", "reference", "database-safety.md"),
 		"CHANGELOG.md",
 	} {
 		contents := strings.ToLower(readDocumentationFile(t, filepath.Join(root, relative)))
@@ -101,9 +101,9 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 		filepath.Join(".agents", "skills", "ktx", "SKILL.md"),
 		filepath.Join(".agents", "skills", "ktx", "references", "database-telemetry.md"),
 		filepath.Join(".agents", "skills", "ktx", "references", "cli.md"),
-		filepath.Join("docs", "opencode-telemetry.md"),
-		filepath.Join("docs", "critical-path-performance.md"),
-		filepath.Join("docs", "pipelines.md"),
+		filepath.Join("docs", "guides", "opencode-telemetry.md"),
+		filepath.Join("docs", "reference", "critical-path-performance.md"),
+		filepath.Join("docs", "guides", "pipelines.md"),
 	}
 	for _, relative := range surfaces {
 		contents := strings.ToLower(readDocumentationFile(t, filepath.Join(root, relative)))
@@ -156,7 +156,7 @@ func TestSchemaReadinessContractSurfacesStayConsistent(t *testing.T) {
 }
 
 func TestCriticalPathPerformanceContractDefinesDistinctBoundaries(t *testing.T) {
-	contents := strings.ToLower(strings.ReplaceAll(readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "critical-path-performance.md")), "\n", " "))
+	contents := strings.ToLower(strings.ReplaceAll(readDocumentationFile(t, filepath.Join(repositoryRoot(t), "docs", "reference", "critical-path-performance.md")), "\n", " "))
 	for _, required := range []string{
 		"component ceilings",
 		"real-process latency",
@@ -249,7 +249,7 @@ func TestSchemaReleaseGateIsDiscoverable(t *testing.T) {
 	for _, relative := range []string{
 		"README.md",
 		"AGENTS.md",
-		filepath.Join("docs", "schema-readiness.md"),
+		filepath.Join("docs", "reference", "schema-readiness.md"),
 		filepath.Join(".agents", "skills", "ktx", "references", "benchmarks-development.md"),
 	} {
 		contents := readDocumentationFile(t, filepath.Join(root, relative))

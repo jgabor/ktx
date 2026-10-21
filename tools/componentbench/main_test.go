@@ -263,7 +263,7 @@ func TestComponentReportTimingRejectsInvalidOrder(t *testing.T) {
 }
 
 func TestComponentBenchmarkDocumentation(t *testing.T) {
-	contents, err := os.ReadFile(filepath.Join("..", "..", "docs", "component-benchmarks.md"))
+	contents, err := os.ReadFile(filepath.Join("..", "..", "docs", "reference", "component-benchmarks.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

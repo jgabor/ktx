@@ -6,9 +6,9 @@ The following files reproduce or derive from the OpenCode `read` tool
 description and parameter schema at
 [`anomalyco/opencode@e5cc278`](https://github.com/anomalyco/opencode/tree/e5cc278dec9294a627a7b05f47ce6a564408c1a2):
 
-- [`docs/normalization-read-original.txt`](docs/normalization-read-original.txt)
+- [`docs/reports/normalization/normalization-read-original.txt`](docs/reports/normalization/normalization-read-original.txt)
   is a byte-exact copy of `packages/opencode/src/tool/read.txt`.
-- [`docs/normalization-read-candidate.txt`](docs/normalization-read-candidate.txt)
+- [`docs/reports/normalization/normalization-read-candidate.txt`](docs/reports/normalization/normalization-read-candidate.txt)
   is an edited version of that description.
 - [`internal/experiment/testdata/read-parameters-ast.json`](internal/experiment/testdata/read-parameters-ast.json)
   is a captured serialization of the tool's parameter schema.

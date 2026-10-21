@@ -37,6 +37,7 @@
 ### Changed
 
 - Schema-readiness release evidence now lives in tracked `docs/evidence/schema-readiness/`; the release gate reads the historical failed report from there.
+- Documentation is grouped into `docs/guides/`, `docs/reference/`, and `docs/reports/`; the former `benchs/` report moved to `docs/reports/`. `ktx init opencode` now points troubleshooting at `docs/guides/opencode-telemetry.md#troubleshooting`, `ktx bench export` help points at `docs/guides/pipelines.md`, and the read-description experiment reads its inputs from `docs/reports/normalization/`.
 
 ### Removed
 

@@ -77,7 +77,7 @@ const (
 	opencodeTelemetryEvidence      = "OpenCode-normalized optional model-step token evidence"
 	opencodeTelemetryClaimBoundary = "not raw provider responses; no cache hit, cache miss, native request, or cache isolation claims"
 	opencodeRefreshCommand         = "ktx init opencode"
-	opencodeTroubleshooting        = "docs/opencode-telemetry.md#troubleshooting"
+	opencodeTroubleshooting        = "docs/guides/opencode-telemetry.md#troubleshooting"
 )
 
 // initParsedArgs carries command-specific arguments to initCommandFunc.

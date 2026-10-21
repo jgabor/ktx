@@ -414,7 +414,7 @@ non-ranking. Source identity was `configured_only` because source events omitted
 runtime-emitted model and provider fields; configured identity did not backfill
 those events. Exact provenance, estimates, hashes, and the two unchanged failed
 historical archives are recorded in
-[the live validation report](cache-reuse-live-validation.md).
+[the live validation report](../reports/cache-reuse-live-validation.md).
 
 ## Historical boundary
 

@@ -60,7 +60,7 @@ generalized claims of harm.
 
 ## Benchmark machinery, not product adoption
 
-[Benchmark documentation](pipelines.md#canonical-benchmark-workflow) describes
+[Benchmark documentation](../../guides/pipelines.md#canonical-benchmark-workflow) describes
 retained model registration, opt-in pinned read-hook treatment/provenance,
 same-session follow-ups, whole-attempt preservation scoring, actual first-arm
 ordering, and complete-coverage estimated-spend stops with retained partial

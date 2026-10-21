@@ -3,13 +3,9 @@
 New to ktx? Start with the [project README](../README.md). It covers
 installing ktx, recording your first session, and turning on compression.
 
-The docs are grouped by what you want to do:
-
-- **Guides** show how to use a feature.
-- **Reference** pages are the exact rules ktx follows. Tests check that they
-  stay true.
-- **Reports** are dated results from past experiments. They are kept as
-  evidence and are not updated.
+Guides show how to use a feature. Reference pages define the exact rules ktx
+follows, and tests check that they stay accurate. Reports record dated results
+from past experiments and are kept unchanged as evidence.
 
 ## Guides
 

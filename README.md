@@ -1,48 +1,45 @@
 # ktx
 
-**Make your coding agent measurable and cheaper.**
+Make your coding agent measurable and cheaper.
 
-ktx sits next to your coding agent. It records every session, trims bulky tool
-output before the model sees it, and keeps the original so you can always get
-it back. It is one Go binary: no daemon, no SDK, and no code changes to your
-agent.
+ktx is a command-line tool that records what your coding agent does and
+shrinks the tool output it sends to the model. Every original is stored, so a
+compressed result can always be restored byte for byte. ktx ships as one Go
+binary and works without a daemon, an SDK, or code changes to your agent.
 
-## Why ktx
+## What it does
 
-- **See where your tokens go.** Every session and tool call is recorded, with
-  tokens and cost whenever the agent runtime reports them. `ktx stats` ranks
-  the tool calls that cost you the most.
-- **Send less to the model.** Adapters for OpenCode and Codex shrink tool
-  output in flight with simple, predictable stages: strip color codes, trim
-  long logs, compact JSON, and more.
-- **Never lose the original.** Every original output is stored. `ktx read` and
-  `ktx decompress` return the exact bytes, and an optional one-line hint tells
-  the agent how.
-- **Prove it before you trust it.** Replay recorded sessions offline, run
-  controlled live comparisons, and let `ktx optimize` test a config before you
-  apply it. Applied changes can be rolled back.
-- **Your data stays local.** Recordings never leave your machine. ktx only goes
-  online to fetch the [models.dev](https://models.dev) price list when its
-  cache is empty, or when you start a live benchmark yourself.
+- Records each session and tool call, with tokens and cost whenever the agent
+  runtime reports them. `ktx stats` ranks the tool calls that use the most
+  tokens.
+- Compresses tool output in flight through adapters for OpenCode and Codex.
+  The stages are small and predictable, such as stripping color codes, keeping
+  the ends of long logs, and compacting JSON.
+- Stores every original output. `ktx read` and `ktx decompress` return the
+  exact bytes, and an optional one-line hint tells the agent how to fetch them.
+- Lets you check a change before you adopt it. You can replay recorded sessions
+  offline, run controlled live comparisons, and use `ktx optimize` to qualify,
+  apply, and roll back a config.
+- Keeps recordings on your machine. ktx goes online only to fetch the
+  [models.dev](https://models.dev) price list when its cache is empty, or when
+  you start a live benchmark.
 
 ## Results
 
-- **About 46% less tool-output context in a day of real use.** On July 17,
-  2026, ktx compression cut the delivered output of 8,321 tool calls from 47.8
-  million to 26.0 million characters. That is roughly 5.47 million tokens
-  (estimated at four characters per token), or about $27.33 at the
-  `openai/gpt-5.6-sol` uncached-input price. This is a price estimate, not a
-  bill.
-- **Higher cached-input share in a controlled test.** In a validated
-  five-pair OpenCode 1.18.5 comparison, the OpenCode-reported cached-input
-  share rose from about 53% for the baseline to about 72% for the candidate
-  configuration under the retained protocol. The
-  [full report](docs/reports/cache-reuse-live-validation.md) gives the exact
-  scope.
+On July 17, 2026, ktx cut the delivered output of 8,321 tool calls from 47.8
+million to 26.0 million characters, about 46% less. At four characters per
+token that is roughly 5.47 million tokens, worth about $27.33 at the
+`openai/gpt-5.6-sol` uncached-input list price. The dollar figure is an
+estimate from list prices.
 
-Runtime counts like these cannot show what happens inside a provider's cache,
-so ktx makes no claims about that. More results are in the
-[reports](docs/README.md#reports).
+In a validated five-pair OpenCode 1.18.5 comparison, the OpenCode-reported
+cached-input share was about 72% for the candidate configuration and about 53%
+for the baseline, under the retained protocol. The
+[full report](docs/reports/cache-reuse-live-validation.md) gives the exact
+scope. Runtime counts like these can't show what happens inside a provider's
+cache, so ktx makes no claims about that.
+
+More results are in the [reports](docs/README.md#reports).
 
 ## Install
 
@@ -135,11 +132,10 @@ ktx optimize show <result-id> --format text
 ```
 
 The report lists what was tested, the limits, whether the result can be
-applied, and the next commands to run. Offline results can screen an idea but
-can't make it ready to apply. Today `ktx optimize` changes only
+applied, and the next commands to run. Today `ktx optimize` changes only
 `pipeline.default.stages` and keeps the rest of your config byte for byte.
 
-To qualify a result for real, run a paid live check. It needs a model,
+To make a result ready to apply, run a paid live check. It needs a model,
 Docker, a prebuilt `ktx-bench` image, and OpenCode login:
 
 ```bash
@@ -149,9 +145,10 @@ ktx optimize apply <ready-result-id>
 ktx optimize rollback <ready-result-id>
 ```
 
-The live check uses built-in test tasks, not your own workload. It is capped at
-24 benchmark agent launches (this caps launches, not your bill). Nothing is
-applied until you run `apply`, and `rollback` restores your original file.
+The live check runs built-in test tasks instead of your own workload. It
+stops after 24 benchmark agent launches, counting setup and retries; the cap
+does not limit what your provider charges. Nothing changes until you run
+`apply`, and `rollback` restores your original file.
 `ktx optimize --help` covers prerequisites and exit codes, and the
 [optimization guide](docs/guides/pipelines.md#configuration-optimization) covers
 the evidence rules.
@@ -181,22 +178,22 @@ Run `ktx <command> --help` for details.
 
 ## Configuration and data
 
-- **Pipelines** live in `$XDG_CONFIG_HOME/ktx/ktx.toml`. A pipeline is an
-  ordered list of stages, such as `unwrap-result`, `strip-ansi`, `normalize`,
-  `keep-ends`, `token-budget`, and `replace`. `[[route]]` rules pick a profile
-  by tool name, command, subcommand, or exit status. See
-  [`ktx.example.toml`](ktx.example.toml) and the
-  [pipelines guide](docs/guides/pipelines.md).
-- **Recordings** live in `$XDG_DATA_HOME/ktx/ktx.db`. Set `KTX_DB` to use a
-  different file. In `ktx db` commands, `--path <file>` overrides both.
-- **Upgrades are automatic.** ktx prepares a supported older database the
-  first time a command needs it, and query commands are read-only after that.
-  If the database is newer than your ktx, install a newer ktx; ktx never
-  downgrades a database. The
-  [database safety contract](docs/reference/database-safety.md) has the
-  details.
-- **Logging** to a file is optional and off by default. See the
-  [logging guide](docs/guides/logging.md).
+Pipelines live in `$XDG_CONFIG_HOME/ktx/ktx.toml`. A pipeline is an ordered
+list of stages such as `unwrap-result`, `strip-ansi`, `normalize`, `keep-ends`,
+`token-budget`, and `replace`. `[[route]]` rules pick a profile by tool name,
+command, subcommand, or exit status. Start from
+[`ktx.example.toml`](ktx.example.toml) and see the
+[pipelines guide](docs/guides/pipelines.md) for recipes.
+
+Recordings live in `$XDG_DATA_HOME/ktx/ktx.db`. Set `KTX_DB` to use a different
+file; in `ktx db` commands, `--path <file>` overrides both. ktx prepares a
+supported older database automatically the first time a command needs it, and
+query commands are read-only after that. If the database is newer than your
+ktx, install a newer ktx. The
+[database safety contract](docs/reference/database-safety.md) has the details.
+
+File logging is optional and off by default. See the
+[logging guide](docs/guides/logging.md).
 
 ## Documentation
 

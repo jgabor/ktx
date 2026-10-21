@@ -21,7 +21,7 @@ Without Mage, use `go build -o build/ktx ./cmd/ktx`. Avoid a bare
 and the portable replay gate. CI runs this same command on every push and pull
 request. You need both `golangci-lint` and `govulncheck` installed.
 
-### Your real database stays out of it
+### Database isolation
 
 Development and CI checks never touch your everyday ktx database. The standard
 Mage targets give each run its own throwaway `HOME` and XDG folders, unset

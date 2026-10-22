@@ -1,0 +1,10 @@
+{
+  "name": "ktx",
+  "version": "1.0.0",
+  "description": "Compresses Bash tool output through ktx before Claude reads it.",
+  "author": {
+    "name": "Jonathan Gabor"
+  },
+  "homepage": "https://github.com/jgabor/ktx",
+  "license": "MIT"
+}

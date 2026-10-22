@@ -19,7 +19,7 @@ direction: In a year, ktx is the standard benchmark for agent cost. `ktx bench` 
 
 identity:
   personality: precise · empirical · invisible-until-needed
-  voice: Terse, factual, no marketing speak. Numbers not adjectives. Exit codes as truth.
+  voice: Plain, friendly, and factual. Short sentences and familiar words, no marketing speak. Numbers not adjectives. Exit codes as truth.
   emotional_register: Trust. Not delight. "I forgot it was there until I saw the run summary."
   naming: Short name, infrastructure-shaped, no story needed.
 

@@ -1,0 +1,31 @@
+id: guiiezgezj
+artifact: todo
+record:
+  kind: discussion
+  target_version: null
+  title: Claude Code model telemetry — Run a structured discussion and record whether and how ktx collects per-model-step token and cost telemetry from Claude Code, and how it relates to the pinned-runtime telemetry and cache-share contracts. → [Question](ARCHITECTURE.md#claude-code-model-telemetry)
+  requirements:
+    - Decide whether ktx collects per-model-step token and cost telemetry from Claude Code and, if so, which runtime-originated source is authoritative.
+    - Define how its fields normalize into the existing telemetry identity and token buckets, which Claude Code version is pinned, and how it relates to the summary and cache-share contracts that today admit only the pinned OpenCode runtime.
+  acceptance:
+    - The user concludes the discussion; the choice is recorded as a decision, the architectural question is removed, and only the selected follow-up work is added.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: discuss
+    reason: The Claude Code adapter decision deferred model telemetry to a structured discussion.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 27
+    order_reason: TODO.md architectural-discussion order after immediate work.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[discussion] Claude Code model telemetry — Run a structured discussion and record whether and how ktx collects per-model-step token and cost telemetry from Claude Code, and how it relates to the pinned-runtime telemetry and cache-share contracts. → [Question](ARCHITECTURE.md#claude-code-model-telemetry)"
+      severity: normal
+      status: open
+      order: 19

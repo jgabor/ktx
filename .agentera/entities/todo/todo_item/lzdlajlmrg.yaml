@@ -1,0 +1,35 @@
+id: lzdlajlmrg
+artifact: todo
+record:
+  kind: discussion
+  target_version: null
+  title: Claude Code plugin distribution — Publish ktx@ktx from the ktx repository as the only install path. The plugin finds ktx on PATH and the mod stops below a minimum ktx release read from Go build info; publishing waits for tagged releases. `ktx init claude` installs through the claude CLI. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/rjnmbxjobr.yaml) · [Build-info version](.agentera/entities/todo/todo_item/inkpfruyrp.yaml) · [Published plugin](.agentera/entities/todo/todo_item/pxoqusovzl.yaml) · [Mage install modes](.agentera/entities/todo/todo_item/qzvakrldhk.yaml)
+  requirements:
+    - "Record how the plugin is published, finds ktx, stays compatible, and what becomes of `ktx init claude`. Outcome: [firm distribution decision](.agentera/entities/decisions/decision/rjnmbxjobr.yaml), approved for recording and backlog connection on 2026-10-22."
+    - "Follow-up implementation remains open: [build-info version](.agentera/entities/todo/todo_item/inkpfruyrp.yaml), [published plugin](.agentera/entities/todo/todo_item/pxoqusovzl.yaml), and [mage install modes](.agentera/entities/todo/todo_item/qzvakrldhk.yaml). The generated-marketplace work ikmkvqtvjf is superseded."
+  acceptance:
+    - The user concluded the discussion and approved the firm decision, removal of the architectural question, the three follow-up tasks, and superseding the generated-marketplace task. This completes deliberation, not implementation or decision-satisfaction confirmation.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: discuss
+    reason: The plugin is not meant to be local-only, and the adapter decision covered only the generated local marketplace.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 28
+    order_reason: TODO.md architectural-discussion order after immediate work.
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[discussion] Claude Code plugin distribution — Publish ktx@ktx from the ktx repository as the only install path. The plugin finds ktx on PATH and the mod stops below a minimum ktx release read from Go build info; publishing waits for tagged releases. `ktx init claude` installs through the claude CLI. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/rjnmbxjobr.yaml) · [Build-info version](.agentera/entities/todo/todo_item/inkpfruyrp.yaml) · [Published plugin](.agentera/entities/todo/todo_item/pxoqusovzl.yaml) · [Mage install modes](.agentera/entities/todo/todo_item/qzvakrldhk.yaml)"
+      status: resolved
+      order: 48
+      severity: normal
+  lifecycle:
+    operation: resolve
+    reason: User approved firm distribution decision rjnmbxjobr and backlog connection. Deliberation complete; implementation remains open in inkpfruyrp, pxoqusovzl, and qzvakrldhk. No implementation satisfaction was confirmed.
+    date: 2026-10-22

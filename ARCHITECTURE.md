@@ -337,7 +337,7 @@ May configuration optimization use retained aggregate tool-call evidence, such a
 
 Should ktx collect per-model-step token and cost telemetry from Claude Code? If so, which runtime-originated source is authoritative, how are its fields normalized into the existing telemetry identity and token buckets, which version is pinned, and how does it relate to the summary and cache-share contracts that today admit only the pinned OpenCode runtime?
 
-→ TODO discussion task **Claude Code model telemetry** (`qgxsypeqfm`).
+→ TODO discussion task **Claude Code model telemetry** (`guiiezgezj`).
 
 ---
 

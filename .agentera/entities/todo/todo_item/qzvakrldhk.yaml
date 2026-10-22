@@ -1,0 +1,33 @@
+id: qzvakrldhk
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Switch a machine between development and released Claude Code installs with mage
+  requirements:
+    - "`mage install` builds and installs the local ktx and registers the local checkout as the ktx marketplace with ktx@ktx installed."
+    - "`mage installRelease` runs `go install github.com/jgabor/ktx/cmd/ktx@latest` and points the ktx marketplace at jgabor/ktx on GitHub with ktx@ktx installed."
+    - Each target replaces the other's marketplace source, so plugin and binary always come from the same source.
+  acceptance:
+    - Tests cover switching in both directions with a fake claude CLI, including a machine with no ktx marketplace yet.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Implements the development loop chosen in the Claude Code plugin distribution decision.
+    dependencies:
+      - artifact: todo
+        id: pxoqusovzl
+    blocked: null
+    gate: null
+    queue_rank: 34
+    order_reason: Follows the published plugin.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Switch a machine between development and released Claude Code installs with mage"
+      severity: normal
+      status: open
+      order: 22

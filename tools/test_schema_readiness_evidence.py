@@ -17,7 +17,9 @@ class MeasureTest(unittest.TestCase):
     def test_current_guidance_matches_passing_report(self):
         repository = Path.cwd()
         guidance = (repository / "docs/reference/schema-readiness.md").read_text()
-        report_path = repository / "docs/evidence/schema-readiness/schema-readiness-release.json"
+        report_path = (
+            repository / "docs/evidence/schema-readiness/schema-readiness-release.json"
+        )
         report = json.loads(report_path.read_text())
 
         match = re.search(
@@ -26,8 +28,12 @@ class MeasureTest(unittest.TestCase):
             guidance,
             re.DOTALL,
         )
-        self.assertIsNotNone(match, "current guidance lacks a full measured binary identity")
-        self.assertEqual(match.groups(), (report["binary"]["sha256"], report["report_role"]))
+        self.assertIsNotNone(
+            match, "current guidance lacks a full measured binary identity"
+        )
+        self.assertEqual(
+            match.groups(), (report["binary"]["sha256"], report["report_role"])
+        )
         schema_readiness_evidence.validate_release_report(report)
 
         historical = repository / report["historical_failure_evidence"]["path"]
@@ -38,7 +44,10 @@ class MeasureTest(unittest.TestCase):
         self.assertRegex(report["raw_measurements_sha256"], r"^[0-9a-f]{64}$")
 
     def test_current_guidance_identity_rejects_stale_malformed_and_missing_values(self):
-        report = {"binary": {"sha256": "a" * 64}, "report_role": "current_passing_authority"}
+        report = {
+            "binary": {"sha256": "a" * 64},
+            "report_role": "current_passing_authority",
+        }
 
         def verify(guidance):
             match = re.search(
@@ -47,7 +56,10 @@ class MeasureTest(unittest.TestCase):
                 guidance,
                 re.DOTALL,
             )
-            if match is None or match.groups() != (report["binary"]["sha256"], report["report_role"]):
+            if match is None or match.groups() != (
+                report["binary"]["sha256"],
+                report["report_role"],
+            ):
                 raise ValueError("guidance and passing report binary identity differ")
 
         for guidance in (
@@ -69,8 +81,12 @@ class MeasureTest(unittest.TestCase):
                 "total_completion_ns": 893_936_754,
             },
         )
-        self.assertIn("combined-workload revision", schema_readiness_evidence.LIMIT_BASIS)
-        self.assertIn("aggregate concurrent KTX RSS", schema_readiness_evidence.LIMIT_BASIS)
+        self.assertIn(
+            "combined-workload revision", schema_readiness_evidence.LIMIT_BASIS
+        )
+        self.assertIn(
+            "aggregate concurrent KTX RSS", schema_readiness_evidence.LIMIT_BASIS
+        )
 
     def test_historical_failed_report_remains_exact(self):
         record = schema_readiness_evidence.historical_failure_evidence(Path.cwd())
@@ -83,8 +99,9 @@ class MeasureTest(unittest.TestCase):
         # Release measurements pin CPU 2. This test only checks stderr
         # draining, so it pins a CPU that exists on any host.
         available = str(min(os.sched_getaffinity(0)))
-        with tempfile.TemporaryDirectory() as root, mock.patch.object(
-            schema_readiness_evidence, "CPU", available
+        with (
+            tempfile.TemporaryDirectory() as root,
+            mock.patch.object(schema_readiness_evidence, "CPU", available),
         ):
             result = schema_readiness_evidence.measure(
                 [
@@ -108,15 +125,23 @@ class MeasureTest(unittest.TestCase):
             "source_payload_bytes": 3200000000,
             "physical_schema_sha256": "b" * 64,
         }
-        schema_readiness_evidence.compare_consumed_fixture(actual, copy.deepcopy(actual))
+        schema_readiness_evidence.compare_consumed_fixture(
+            actual, copy.deepcopy(actual)
+        )
         prepared = copy.deepcopy(actual)
         prepared["sha256"] = "c" * 64
         with self.assertRaisesRegex(ValueError, "sha256"):
             schema_readiness_evidence.compare_consumed_fixture(actual, prepared)
 
-    def test_release_publication_identifies_correctness_failure_without_replacing_authority(self):
+    def test_release_publication_identifies_correctness_failure_without_replacing_authority(
+        self,
+    ):
         report = self.release_report()
-        item = next(item for item in report["criteria"] if item["criterion"] == "interruption_restart")
+        item = next(
+            item
+            for item in report["criteria"]
+            if item["criterion"] == "interruption_restart"
+        )
         item["status"] = "FAIL"
         report["release_gate"] = "FAIL"
         report["report_role"] = "failed_release_attempt"
@@ -130,14 +155,22 @@ class MeasureTest(unittest.TestCase):
             self.assertIn("interruption_restart", result.stderr)
             self.assertEqual(output.read_bytes(), authority)
             self.assertEqual(
-                [item["criterion"] for item in failed["criteria"] if item["status"] == "FAIL"],
+                [
+                    item["criterion"]
+                    for item in failed["criteria"]
+                    if item["status"] == "FAIL"
+                ],
                 ["interruption_restart"],
             )
             self.assertFalse(Path(str(output) + ".attempt.failed.json.tmp").exists())
 
-    def test_release_publication_identifies_budget_failure_without_replacing_authority(self):
+    def test_release_publication_identifies_budget_failure_without_replacing_authority(
+        self,
+    ):
         report = self.release_report()
-        item = next(item for item in report["criteria"] if item["criterion"] == "peak_rss_bytes")
+        item = next(
+            item for item in report["criteria"] if item["criterion"] == "peak_rss_bytes"
+        )
         item["status"] = "FAIL"
         item["evidence"] = {
             "observed": schema_readiness_evidence.APPROVED_LIMITS["peak_rss_bytes"] + 1,
@@ -156,9 +189,13 @@ class MeasureTest(unittest.TestCase):
             self.assertIn("peak_rss_bytes", result.stderr)
             self.assertEqual(output.read_bytes(), authority)
             failed_item = next(
-                item for item in failed["criteria"] if item["criterion"] == "peak_rss_bytes"
+                item
+                for item in failed["criteria"]
+                if item["criterion"] == "peak_rss_bytes"
             )
-            self.assertEqual(failed_item["evidence"]["observed"], item["evidence"]["observed"])
+            self.assertEqual(
+                failed_item["evidence"]["observed"], item["evidence"]["observed"]
+            )
             self.assertEqual(failed["report_role"], "failed_release_attempt")
 
     def test_passing_publication_retains_raw_combined_samples(self):
@@ -169,13 +206,19 @@ class MeasureTest(unittest.TestCase):
             retained = json.loads(output.read_text())
         samples = retained["raw_samples"]["schema15_to_16_production"]
         self.assertEqual(len(samples), schema_readiness_evidence.SAMPLES + 1)
-        self.assertTrue(all("exclusive_lock_intervals_ns" in sample for sample in samples))
-        self.assertTrue(all(sample["combined_workload"]["attributed"] for sample in samples))
+        self.assertTrue(
+            all("exclusive_lock_intervals_ns" in sample for sample in samples)
+        )
+        self.assertTrue(
+            all(sample["combined_workload"]["attributed"] for sample in samples)
+        )
 
     def test_rehearsal_exception_is_published_as_exact_criterion(self):
         report = self.release_report()
         item = next(
-            item for item in report["criteria"] if item["criterion"] == "concurrent_generated_traffic"
+            item
+            for item in report["criteria"]
+            if item["criterion"] == "concurrent_generated_traffic"
         )
         item["status"] = "FAIL"
         item["evidence"] = schema_readiness_evidence.stage_failure(
@@ -238,7 +281,9 @@ class MeasureTest(unittest.TestCase):
         }
         self.assertTrue(schema_readiness_evidence.automatic_interruption_passed(result))
         result["post_recovery_migrate_invoked"] = True
-        self.assertFalse(schema_readiness_evidence.automatic_interruption_passed(result))
+        self.assertFalse(
+            schema_readiness_evidence.automatic_interruption_passed(result)
+        )
 
     @staticmethod
     def publish_in_child(report, output):
@@ -251,14 +296,19 @@ class MeasureTest(unittest.TestCase):
                 "publish_release_report(json.load(sys.stdin), Path(sys.argv[1]))",
                 str(output),
             ],
-            input=json.dumps(report), text=True, capture_output=True,
+            input=json.dumps(report),
+            text=True,
+            capture_output=True,
         )
 
     @staticmethod
     def release_report():
         names = [
-            "prior_schema_identity", "representative_scale", "concurrent_generated_traffic",
-            "interruption_restart", *schema_readiness_evidence.APPROVED_LIMITS,
+            "prior_schema_identity",
+            "representative_scale",
+            "concurrent_generated_traffic",
+            "interruption_restart",
+            *schema_readiness_evidence.APPROVED_LIMITS,
         ]
         sample = {
             "kind": "measured",
@@ -275,7 +325,9 @@ class MeasureTest(unittest.TestCase):
             "combined_workload": {
                 "attributed": True,
                 "participants": [
-                    {"role": "query"}, {"role": "hook"}, {"role": "telemetry"},
+                    {"role": "query"},
+                    {"role": "hook"},
+                    {"role": "telemetry"},
                 ],
                 "rss_criterion": "aggregate concurrent KTX RSS",
                 "aggregate_peak_rss_bytes": 7,
@@ -287,7 +339,9 @@ class MeasureTest(unittest.TestCase):
             },
             "combined_evidence": {"passed": True},
         }
-        samples = [dict(sample, kind="warmup")] + [copy.deepcopy(sample) for _ in range(schema_readiness_evidence.SAMPLES)]
+        samples = [dict(sample, kind="warmup")] + [
+            copy.deepcopy(sample) for _ in range(schema_readiness_evidence.SAMPLES)
+        ]
         digest = "a" * 64
         criteria = []
         for name in names:
@@ -304,7 +358,10 @@ class MeasureTest(unittest.TestCase):
             "report_role": "current_passing_authority",
             "release_gate": "PASS",
             "binary": {"sha256": digest},
-            "supported_database_schema": {"maximum": 16, "evidence": "measured workload final_schema"},
+            "supported_database_schema": {
+                "maximum": 16,
+                "evidence": "measured workload final_schema",
+            },
             "repository": {"commit": "b" * 40, "worktree_dirty": True},
             "historical_failure_evidence": {
                 "report_role": "historical_failure_evidence",

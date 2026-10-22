@@ -339,12 +339,6 @@ Should ktx collect per-model-step token and cost telemetry from Claude Code? If 
 
 → TODO discussion task **Claude Code model telemetry** (`guiiezgezj`).
 
-### Native distribution for OpenCode and Codex
-
-OpenCode loads npm plugins listed in `opencode.json` and `tui.json`, and Codex installs plugins from repository marketplaces with `codex plugin add`. ktx installs into both by generating adapter files instead: a TypeScript plugin for OpenCode and a hooks entry for Codex. Should ktx be installed through each runtime's own plugin system, as the Claude Code plugin is? If so, which channel serves each runtime; how does each plugin find the ktx executable and stay compatible with it; what do `ktx init opencode` and `ktx init codex` do afterwards; how do benchmarks that require the generated OpenCode plugin to match the binary keep an exact plugin identity; does the opencode-ktx statistics sidebar move into this repository; how does Codex show ktx statistics without a panel API; and how is Codex kept from loading the repository's Claude Code marketplace files?
-
-→ TODO discussion task **Native distribution for OpenCode and Codex** (`wljbjnqufk`).
-
 ---
 
 ## Document maintenance

@@ -1,0 +1,33 @@
+id: jsrqxnttgj
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Publish the ktx Codex plugin from this repository's marketplace
+  requirements:
+    - Serve a Codex marketplace from `.agents/plugins/marketplace.json` with one ktx plugin whose `.codex-plugin/plugin.json` names its own hooks file; its PostToolUse hook runs `ktx hook` through PATH.
+    - Bundle a skill or command that shows `ktx stats summary` on request.
+    - "`ktx init codex` runs `codex plugin marketplace add jgabor/ktx` and `codex plugin add`, succeeds when already installed, prints the commands when `codex` is missing, and tells the user to trust the hook in /hooks; it no longer merges a hook into Codex hooks.json."
+  acceptance:
+    - A live Codex session shows that the plugin's hook loads after trust in /hooks and records Bash calls, and that Codex uses the Codex manifest rather than this repository's Claude Code plugin.
+    - Tests cover `ktx init codex` with and without `codex` and a re-run when the plugin is already installed.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: plan
+    reason: Implements the native OpenCode and Codex distribution decision for Codex.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 37
+    order_reason: Follows the native distribution discussion.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Publish the ktx Codex plugin from this repository's marketplace"
+      severity: normal
+      status: open
+      order: 24

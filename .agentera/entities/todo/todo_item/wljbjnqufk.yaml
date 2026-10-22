@@ -3,15 +3,12 @@ artifact: todo
 record:
   kind: discussion
   target_version: null
-  title: "Native distribution for OpenCode and Codex — Run a structured discussion and record how ktx is installed through each runtime's own plugin system: the channel per runtime, how the plugin finds the ktx executable, what `ktx init opencode` and `ktx init codex` become, how benchmarks keep an exact plugin identity, and whether the opencode-ktx sidebar moves into this repository. → [Question](ARCHITECTURE.md#native-distribution-for-opencode-and-codex)"
+  title: "Native distribution for OpenCode and Codex — Each runtime gets one plugin artifact in this repository, installed through its own plugin system with commit identity and a minimum ktx version check: an npm package for OpenCode (compression plus the sidebar from opencode-ktx) and a repository-marketplace plugin for Codex with a stats skill or command. `ktx init` runs each runtime's CLI. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/tbllywdtbf.yaml) · [OpenCode package](.agentera/entities/todo/todo_item/swjbuwcyqq.yaml) · [Codex plugin](.agentera/entities/todo/todo_item/jsrqxnttgj.yaml) · [Benchmark identity](.agentera/entities/todo/todo_item/gxfsjdbabd.yaml) · [Mage modes](.agentera/entities/todo/todo_item/bihmdsdknn.yaml)"
   requirements:
-    - Decide the distribution channel for OpenCode (npm packages loaded from `opencode.json` and `tui.json`) and for Codex (a repository marketplace for `codex plugin add`), or record why a runtime keeps generated adapters.
-    - Decide how each plugin finds ktx, given that the Codex hook pins a canonical path today and the OpenCode plugin pins the ktx it finds on PATH at startup, and how plugin and binary versions stay compatible.
-    - Decide what `ktx init opencode` and `ktx init codex` do afterwards, and how benchmarks that require the generated OpenCode plugin to match the binary keep that identity.
-    - Decide whether the opencode-ktx TUI sidebar moves into this repository, and how Codex shows ktx statistics without a panel API.
-    - Account for Codex reading the repository's Claude Code marketplace files.
+    - "Record the channel per runtime, how plugins find and stay compatible with ktx, what `ktx init opencode` and `ktx init codex` do, benchmark plugin identity, the sidebar, and Codex statistics. Outcome: [firm native distribution decision](.agentera/entities/decisions/decision/tbllywdtbf.yaml), approved for recording and backlog connection on 2026-10-22."
+    - "Follow-up implementation remains open: [OpenCode package](.agentera/entities/todo/todo_item/swjbuwcyqq.yaml), [Codex plugin](.agentera/entities/todo/todo_item/jsrqxnttgj.yaml), [benchmark plugin identity](.agentera/entities/todo/todo_item/gxfsjdbabd.yaml), and [mage install targets for OpenCode and Codex](.agentera/entities/todo/todo_item/bihmdsdknn.yaml)."
   acceptance:
-    - The user concludes the discussion; the choice is recorded as a decision, the architectural question is removed, and only the selected follow-up work is added.
+    - The user concluded the discussion and approved the firm decision, removal of the architectural question, and the four follow-up tasks. This completes deliberation, not implementation or decision-satisfaction confirmation.
   release_blocker: false
   severity: normal
   readiness:
@@ -23,17 +20,16 @@ record:
     gate: null
     queue_rank: 35
     order_reason: TODO.md architectural-discussion order after immediate work.
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
-      description: "[discussion] Native distribution for OpenCode and Codex — Run a structured discussion and record how ktx is installed through each runtime's own plugin system: the channel per runtime, how the plugin finds the ktx executable, what `ktx init opencode` and `ktx init codex` become, how benchmarks keep an exact plugin identity, and whether the opencode-ktx sidebar moves into this repository. → [Question](ARCHITECTURE.md#native-distribution-for-opencode-and-codex)"
+      description: "[discussion] Native distribution for OpenCode and Codex — Each runtime gets one plugin artifact in this repository, installed through its own plugin system with commit identity and a minimum ktx version check: an npm package for OpenCode (compression plus the sidebar from opencode-ktx) and a repository-marketplace plugin for Codex with a stats skill or command. `ktx init` runs each runtime's CLI. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/tbllywdtbf.yaml) · [OpenCode package](.agentera/entities/todo/todo_item/swjbuwcyqq.yaml) · [Codex plugin](.agentera/entities/todo/todo_item/jsrqxnttgj.yaml) · [Benchmark identity](.agentera/entities/todo/todo_item/gxfsjdbabd.yaml) · [Mage modes](.agentera/entities/todo/todo_item/bihmdsdknn.yaml)"
+      status: resolved
+      order: 53
       severity: normal
-      status: open
-      order: 22
-    create_batch:
-      effect_sha256: 669ee080e0724495105fc814283bc396ba4e025bd4c5e1eee4b7d4375e47220b
-      input_sha256: 4cc36b3fe085ee6250a36f9cc85ea149f3aa284bbd0676ab4e643bf1018ed12e
-      local_refs:
-        native-distribution: wljbjnqufk
+  lifecycle:
+    operation: resolve
+    reason: User approved firm native distribution decision tbllywdtbf and backlog connection. Deliberation complete; implementation remains open in swjbuwcyqq, jsrqxnttgj, gxfsjdbabd, and bihmdsdknn. No implementation satisfaction was confirmed.
+    date: 2026-10-22

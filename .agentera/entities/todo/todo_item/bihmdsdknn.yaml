@@ -1,0 +1,34 @@
+id: bihmdsdknn
+artifact: todo
+record:
+  kind: task
+  target_version: null
+  title: Switch OpenCode and Codex between the checkout and the release with mage
+  requirements:
+    - "`mage install` points runtimes that are already set up at the checkout: the Codex ktx marketplace at the checkout and the OpenCode plugin entries at the checkout folder."
+    - "`mage installRelease` points them at jgabor/ktx on GitHub and the npm release, so plugin and binary always come from the same source."
+  acceptance:
+    - Tests cover switching in both directions for each runtime with fake runtime CLIs, and runtimes that are not set up are left alone.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Extends the development loop to OpenCode and Codex.
+    dependencies:
+      - artifact: todo
+        id: swjbuwcyqq
+      - artifact: todo
+        id: jsrqxnttgj
+    blocked: null
+    gate: null
+    queue_rank: 39
+    order_reason: Follows both runtime plugins.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[task] Switch OpenCode and Codex between the checkout and the release with mage"
+      severity: normal
+      status: open
+      order: 22

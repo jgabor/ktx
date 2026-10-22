@@ -1,0 +1,34 @@
+id: swjbuwcyqq
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Publish the ktx OpenCode plugin as an npm package
+  requirements:
+    - Keep one OpenCode package in this repository, published under the maintainer's npm account on each ktx release, exporting `./server` (compression and model-step telemetry, replacing the generated plugin) and `./tui` (the statistics sidebar moved in from opencode-ktx).
+    - The plugin finds ktx on PATH and turns its statistics display off with one line when ktx is a release below the plugin's minimum; versions without a release number pass.
+    - "`ktx init opencode` installs the package through `opencode plugin`, succeeds when it is already installed, and prints the commands when `opencode` is missing; it no longer writes a generated plugin file."
+    - Retire opencode-ktx once the sidebar ships from this repository.
+  acceptance:
+    - A live OpenCode session shows that one `opencode plugin` install adds both the server and the TUI entry, that compression and telemetry are recorded, and that the sidebar renders; how an installed version is refreshed is documented.
+    - Tests cover the version check, `ktx init opencode` with and without `opencode`, and a re-run when the package is already installed.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: plan
+    reason: Implements the native OpenCode and Codex distribution decision for OpenCode.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 36
+    order_reason: Follows the native distribution discussion.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Publish the ktx OpenCode plugin as an npm package"
+      severity: normal
+      status: open
+      order: 25

@@ -2,7 +2,7 @@
 //
 // On session start it registers /ktx and polls `ktx stats summary` every
 // 10 seconds through the ktx executable pinned when the plugin was generated.
-// The status line under the prompt shows the current window; /ktx opens a
+// A band above the prompt shows the current window; /ktx opens a
 // pane with the same figures and buttons for the 15, 30, and 60 minute
 // windows. The figures cover every runtime ktx records, not only this session.
 
@@ -16,7 +16,7 @@ import {
   ktxStatsWindows,
   paneLines,
   parseKtxSummaryRun,
-  statusLine,
+  bandLine,
 } from "./stats.ts";
 
 const KTX_EXECUTABLE: string = "__KTX_EXECUTABLE__";
@@ -68,7 +68,6 @@ async function refreshOnce($: EngineInterface): Promise<void> {
   }
   if ((await read($, selectedWindow)) !== window) return;
   await update($, lastSnapshot, () => next);
-  $.ui.status(statusLine(next, window));
 }
 
 // Starts a refresh unless one is running; polls never overlap.
@@ -86,8 +85,6 @@ async function selectWindow(
   window: KtxStatsWindow,
 ): Promise<void> {
   await update($, selectedWindow, () => window);
-  const snapshot = await read($, lastSnapshot);
-  $.ui.status(statusLine(snapshot, window));
   await inFlight;
   await refresh($);
 }
@@ -100,7 +97,7 @@ export const register: Register = (on) => {
       });
       void refresh($);
     }
-    // Another plugin or skill may already own /ktx; the status line still runs.
+    // Another plugin or skill may already own /ktx; the band still runs.
     await $.command
       .register({
         name: "ktx",
@@ -114,6 +111,15 @@ export const register: Register = (on) => {
     await $.ui.open({ id: PANE, title: "ktx" });
     void refresh($);
     return { text: "ktx stats pane opened." };
+  });
+
+  // The band yields to a survey and draws nothing until the first poll.
+  on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
+    const snapshot = await read($, lastSnapshot);
+    if (e.props.hasSurvey || snapshot === null) return next(e);
+    const { Text } = $.ui.resolve(e);
+    const window = await read($, selectedWindow);
+    return <Text dimColor>{bandLine(snapshot, window)}</Text>;
   });
 
   on("ui.render", { component: "Pane", requestId: PANE }, async ($, e) => {

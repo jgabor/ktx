@@ -2632,8 +2632,8 @@ decisions:
       PostToolUseFailure is not recorded yet. The hook sets no timeout and
       the Claude Code branch never exits with status 2. `ktx init
       claude-code` generates a local marketplace with the ktx hook plugin and
-      a ktx-stats mod that polls `ktx stats summary` and shows a status line
-      and a /ktx pane; a status-line snippet is documented only as a
+      a ktx-stats mod that polls `ktx stats summary` and shows a band above
+      the prompt and a /ktx pane; a status-line snippet is documented only as a
       fallback. Claude Code model telemetry is deferred to a structured
       discussion. The generated OpenCode plugin uses runtime-neutral
       node: APIs; adapter tests run under Node, and the generated-adapter

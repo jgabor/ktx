@@ -100,7 +100,7 @@ ktx init claude-code
 
 For Claude Code, the install output also prints the `claude plugin` commands
 that register the generated plugins. See the
-[Claude Code guide](docs/guides/claude-code.md) for the status line, the
+[Claude Code guide](docs/guides/claude-code.md) for the stats band, the
 `/ktx` pane, and updates.
 
 Copy [`ktx.example.toml`](ktx.example.toml) to

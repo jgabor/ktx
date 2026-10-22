@@ -9,8 +9,8 @@
 // The ktx plugin declares one PostToolUse command hook for the Bash tool. The
 // hook runs the installing executable's canonical path in exec form, with the
 // arguments `hook --runtime claude-code`, and sets no timeout. The ktx-stats
-// mod polls `ktx stats summary` through the same pinned path and shows a status
-// line and a /ktx pane.
+// mod polls `ktx stats summary` through the same pinned path and shows a band
+// above the prompt and a /ktx pane.
 //
 // A marker file, .ktx-generated.json, records the template revision, the
 // pinned executable, and every generated file. --show reads only the marker
@@ -78,8 +78,8 @@ var claudeCodePlugins = []claudeCodePlugin{
 	},
 	{
 		name:        "ktx-stats",
-		description: "Shows ktx compression stats in a status line and a /ktx pane.",
-		role:        "KPI status line and /ktx pane",
+		description: "Shows ktx compression stats in a band above the prompt and a /ktx pane.",
+		role:        "KPI band and /ktx pane",
 		templates: []string{
 			".claude-plugin/plugin.json",
 			"hooks/hooks.json",

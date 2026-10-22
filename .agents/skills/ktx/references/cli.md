@@ -199,7 +199,7 @@ Install generates a local plugin marketplace named `ktx-local` with two
 plugins and never edits Claude Code settings. `ktx` holds one `PostToolUse`
 hook (matcher `Bash`) that runs the pinned canonical binary in exec form as
 `<ktx> hook --runtime claude-code` with no timeout. `ktx-stats` is a mod that
-polls `ktx stats summary` every 10 seconds and shows a status line and a `/ktx`
+polls `ktx stats summary` every 10 seconds and shows a band above the prompt and a `/ktx`
 pane; its figures cover every runtime. Register once with
 `claude plugin marketplace add <folder>`, `claude plugin install ktx@ktx-local`,
 and `claude plugin install ktx-stats@ktx-local`; the install output prints the

@@ -1,5 +1,6 @@
 import type { On } from "claude-code";
 import { expect, mock, test } from "claude-code/testing";
+import type { TestBody } from "claude-code/testing";
 
 const PANE = {
   plugin: "ktx-stats",
@@ -11,6 +12,19 @@ const PANE = {
     bodyColumns: 40,
     placement: "dock",
     scroll: { offset: 0, bodyRows: 20 },
+    view: {},
+  },
+} as const;
+
+const BAND = {
+  plugin: "ktx-stats",
+  component: "AbovePrompt",
+  props: {
+    hasSurvey: false,
+    isWorking: false,
+    maxRows: 10,
+    bodyColumns: 80,
+    scroll: { offset: 0, bodyRows: 10 },
     view: {},
   },
 } as const;
@@ -39,23 +53,18 @@ function summary(minutes: number): string {
 
 type Engine = {
   argv: (readonly string[])[];
-  statuses: (string | undefined)[];
   failing: boolean;
 };
 
 // Hooks beneath the plugin stand for the engine: they answer the calls the
 // mod makes on `$` and record what it ran and showed.
 function engine(on: On, refuseCommand = false): Engine {
-  const state: Engine = { argv: [], statuses: [], failing: false };
+  const state: Engine = { argv: [], failing: false };
   on("command.register", () =>
     refuseCommand ? { deny: "taken" } : { value: { command: "ktx" } },
   );
   on("ui.open", () => ({ value: { isPlaced: true } }));
   on("session.start", (_, e) => ({ cwd: e.cwd }));
-  on("ui.status", (_, e) => {
-    state.statuses.push(e.text);
-    return { value: undefined };
-  });
   on("process.run", (_, e) => {
     state.argv.push(e.argv);
     const window = Number(String(e.argv[4]).replace("m", ""));
@@ -80,7 +89,15 @@ function engine(on: On, refuseCommand = false): Engine {
   return state;
 }
 
-test("the poll shows the status line and the pane", async ($, on) => {
+// The text the band above the prompt draws, or undefined when it passes.
+async function band($: Parameters<TestBody>[0]): Promise<string | undefined> {
+  const ui = await $.ui.mount({ ...BAND, surface: "terminal" });
+  const text = (await ui.find({ type: "Text", text: /^ktx/ }))?.text;
+  await ui.unmount();
+  return text;
+}
+
+test("the poll shows the band and the pane", async ($, on) => {
   const clock = mock.clock(on);
   const host = engine(on);
 
@@ -95,7 +112,7 @@ test("the poll shows the status line and the pane", async ($, on) => {
     "--format",
     "json",
   ]);
-  expect(host.statuses.at(-1)).toBe(
+  expect(await band($)).toBe(
     "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
   );
 
@@ -121,7 +138,7 @@ test("a failed poll keeps the last good data as stale", async ($, on) => {
   await clock.advance(10_000);
 
   expect(host.argv.length).toBe(2);
-  expect(host.statuses.at(-1)).toBe(
+  expect(await band($)).toBe(
     "ktx 15m (stale): 46% saved · 1.2M→650k tok · 120/300 calls",
   );
   const ui = await $.ui.mount({ ...PANE, surface: "terminal" });
@@ -133,7 +150,7 @@ test("a failed poll keeps the last good data as stale", async ($, on) => {
   host.failing = false;
   await clock.advance(10_000);
   expect(host.argv.length).toBe(3);
-  expect(host.statuses.at(-1)).toBe(
+  expect(await band($)).toBe(
     "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
   );
 });
@@ -150,7 +167,7 @@ test("a window button switches the window", async ($, on) => {
   await clock.settle();
 
   expect(host.argv.at(-1)?.[4]).toBe("30m");
-  expect(host.statuses.at(-1)).toBe(
+  expect(await band($)).toBe(
     "ktx 30m: 46% saved · 1.2M→650k tok · 120/300 calls",
   );
   expect((await ui.find({ type: "Text", text: /all runtimes/ }))?.text).toBe(
@@ -159,7 +176,7 @@ test("a window button switches the window", async ($, on) => {
   await ui.unmount();
 });
 
-test("a refused /ktx registration keeps the status line", async ($, on) => {
+test("a refused /ktx registration keeps the band", async ($, on) => {
   const clock = mock.clock(on);
   const host = engine(on, true);
 
@@ -167,7 +184,7 @@ test("a refused /ktx registration keeps the status line", async ($, on) => {
   await clock.settle();
 
   expect(host.argv.length).toBe(1);
-  expect(host.statuses.at(-1)).toBe(
+  expect(await band($)).toBe(
     "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
   );
 });

@@ -1,6 +1,6 @@
 // Pure helpers for the ktx-stats mod: strict validation of
-// `ktx stats summary --format json` output and the text the status line and
-// the /ktx pane draw. Nothing here uses the engine, so it also runs under Node.
+// `ktx stats summary --format json` output and the text the band above the
+// prompt and the /ktx pane draw. Nothing here uses the engine, so it also runs under Node.
 
 import type {
   KtxStatsSnapshot,
@@ -241,7 +241,7 @@ export type KtxSummaryView = {
   totalCalls: string;
 };
 
-/** The figures the status line and pane draw; null when no call had output. */
+/** The figures the band and pane draw; null when no call had output. */
 export function summaryView(summary: KtxSummary): KtxSummaryView | null {
   if (summary.totalCalls === 0) return null;
   const { rawTokens: raw, deliveredTokens: delivered } = summary;
@@ -262,8 +262,8 @@ export function shortError(error: string, maxLength: number): string {
     : error;
 }
 
-/** The one-line status shown under the prompt. */
-export function statusLine(
+/** The one line drawn in the band above the prompt. */
+export function bandLine(
   snapshot: KtxStatsSnapshot | null,
   window: KtxStatsWindow,
 ): string {

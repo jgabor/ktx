@@ -3,7 +3,7 @@
 This guide shows how to connect ktx to Claude Code: install the plugins, see
 what they compress and show, and fix common problems. One plugin compresses
 Bash output before Claude reads it. A second plugin, a mod, shows ktx's
-savings in a status line and a `/ktx` pane.
+savings in a band above the prompt and in a `/ktx` pane.
 
 ktx targets the Claude Code 2.1.304 hook and plugin contract, and both
 generated plugins pass `claude plugin validate --strict` on that version. The
@@ -31,10 +31,10 @@ one.
 
 The marketplace holds two plugins:
 
-| Plugin      | What it does                                                          |
-| ----------- | --------------------------------------------------------------------- |
-| `ktx`       | A `PostToolUse` hook for the Bash tool that compresses its output     |
-| `ktx-stats` | A mod that polls `ktx stats summary` and shows a status line and pane |
+| Plugin      | What it does                                                      |
+| ----------- | ----------------------------------------------------------------- |
+| `ktx`       | A `PostToolUse` hook for the Bash tool that compresses its output |
+| `ktx-stats` | A mod that polls `ktx stats summary` and shows a band and a pane  |
 
 Both plugins pin the canonical path of the ktx binary that generated them. The
 hook runs that path in exec form, with no shell, as
@@ -69,11 +69,11 @@ the original output.
 When a lossy profile sets `recover_footer = true`, Claude sees the usual
 one-line hint with the `ktx read <id>` command that returns the original.
 
-## Status line and /ktx pane
+## Band and /ktx pane
 
 The `ktx-stats` mod runs `ktx stats summary --window 15m --format json` every
 10 seconds through the pinned binary, with a 5 second timeout. It shows one
-line under the prompt:
+dim line in a band above the prompt:
 
 ```text
 ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls
@@ -81,7 +81,9 @@ ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls
 
 That reads as: 46% of the raw output tokens were saved, 1.2 million raw tokens
 became 650 thousand, and 120 of 300 calls with output had a compressed copy.
-With no calls in the window it shows `ktx: no calls in 15m`. If a refresh
+With no calls in the window it shows `ktx: no calls in 15m`. The band
+appears after the first refresh and steps aside while Claude Code shows a
+survey. If a refresh
 fails, the mod keeps the last good figures and marks them `(stale)` until a
 later refresh works.
 
@@ -128,12 +130,14 @@ and ktx prints a warning for each file it leaves.
 - Run `claude plugin list` to check that `ktx@ktx-local` and
   `ktx-stats@ktx-local` are installed and enabled.
 - Start Claude Code with `claude --debug` to see hook runs and mod load errors.
-- The status line and pane figures cover every runtime ktx records (OpenCode,
+- The band and pane figures cover every runtime ktx records (OpenCode,
   Codex, Claude Code, and `ktx run`), not only the current Claude Code session.
 - ktx doesn't collect model token or cost telemetry from Claude Code yet. Bash
   calls and their compression are recorded, but per-step model usage is not.
-- If the status line says `unavailable`, run the same
+- If the band says `unavailable`, run the same
   `ktx stats summary --window 15m --format json` command yourself to see the
   error.
-- If the hook seems to do nothing, check that your pipeline config has a route
-  for `tool = "Bash"`. Without a config file, output passes through unchanged.
+- If the hook seems to do nothing, check that your pipeline config compresses
+  Bash output, through `[pipeline.default]` or a `tool = "Bash"` route. Without
+  a config file, output passes through unchanged. Output where every line is
+  JSON, such as `seq`, stays whole unless a stage keeps it valid JSON.

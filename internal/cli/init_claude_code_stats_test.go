@@ -97,13 +97,13 @@ const out = {
     attempt(() => s.parseKtxSummaryRun({ exitCode: 0, stdout: JSON.stringify(valid(30)), stderr: "" }, 15)).error,
     attempt(() => s.parseKtxSummaryRun({ exitCode: 0, stdout: JSON.stringify(valid(15)), stderr: "" }, 15)).ok?.totalCalls,
   ],
-  status: [
-    s.statusLine(null, 15),
-    s.statusLine({ window: 15, data: null, error: "ktx stats summary failed (exit 1)" }, 15),
-    s.statusLine({ window: 15, data: s.validateKtxSummary(idle, 15), error: null }, 15),
-    s.statusLine({ window: 15, data, error: null }, 15),
-    s.statusLine({ window: 15, data, error: "timed out" }, 15),
-    s.statusLine({ window: 15, data, error: null }, 30),
+  band: [
+    s.bandLine(null, 15),
+    s.bandLine({ window: 15, data: null, error: "ktx stats summary failed (exit 1)" }, 15),
+    s.bandLine({ window: 15, data: s.validateKtxSummary(idle, 15), error: null }, 15),
+    s.bandLine({ window: 15, data, error: null }, 15),
+    s.bandLine({ window: 15, data, error: "timed out" }, 15),
+    s.bandLine({ window: 15, data, error: null }, 30),
   ],
   pane: [
     s.paneLines({ window: 15, data, error: "timed out" }, 15, 10),
@@ -190,7 +190,7 @@ func TestClaudeCodeStatsHelpersUnderNode(t *testing.T) {
 		"ktx returned invalid stats data: window.seconds must be equal to the requested 15m window",
 		300.0,
 	})
-	expect("status", []any{
+	expect("band", []any{
 		"ktx 15m: loading stats…",
 		"ktx 15m: unavailable (ktx stats summary failed (exit 1))",
 		"ktx: no calls in 15m",

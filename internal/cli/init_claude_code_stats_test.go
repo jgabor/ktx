@@ -1,4 +1,4 @@
-// Runs the ktx-stats mod's pure helpers (hooks/stats.ts) under Node with type
+// Runs the ktx mod's pure helpers (hooks/stats.ts) under Node with type
 // stripping, against the embedded source that `ktx init claude` ships.
 package cli
 
@@ -117,7 +117,7 @@ func TestClaudeCodeStatsHelpersUnderNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"hooks/stats.ts", "types/index.d.ts"} {
-		data, err := claudecode.Files.ReadFile("plugins/ktx-stats/" + name)
+		data, err := claudecode.Files.ReadFile("plugins/ktx/" + name)
 		if err != nil {
 			t.Fatal(err)
 		}

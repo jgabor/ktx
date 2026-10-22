@@ -1,12 +1,13 @@
-// ktx-stats: shows ktx compression figures in Claude Code.
+// ktx: shows ktx compression figures in Claude Code.
 //
 // On session start it registers /ktx and polls `ktx stats summary` every
 // 10 seconds through the ktx executable pinned when the plugin was generated.
 // A band above the prompt shows one summary line for the current window.
 // `/ktx` toggles a one-line pane with the same summary and buttons for the 15,
 // 30, and 60 minute windows; `/ktx 30` picks a window and opens the pane. The
-// band steps aside while the pane is open. The figures cover every runtime
-// ktx records, not only this session.
+// band steps aside while the pane is drawn. Whether the pane is open is kept
+// across sessions, and an interactive session opens it again on start. The
+// figures cover every runtime ktx records, not only this session.
 
 import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register, Timer } from "claude-code";
@@ -22,19 +23,18 @@ import {
 } from "./stats.ts";
 
 const KTX_EXECUTABLE: string = "__KTX_EXECUTABLE__";
-const PANE = "ktx-stats";
+const PANE = "ktx";
+// The $.store key that keeps whether the person left the pane open.
+const PANE_OPEN_KEY = "paneOpen";
 const POLL_MS = 10_000;
 const TIMEOUT_MS = 5_000;
 
 const selectedWindow = atom(
-  { plugin: "ktx-stats", key: "window" } as const,
+  { plugin: "ktx", key: "window" } as const,
   defaultKtxStatsWindow,
 );
-const lastSnapshot = atom(
-  { plugin: "ktx-stats", key: "snapshot" } as const,
-  null,
-);
-const paneOpen = atom({ plugin: "ktx-stats", key: "paneOpen" } as const, false);
+const lastSnapshot = atom({ plugin: "ktx", key: "snapshot" } as const, null);
+const paneOpen = atom({ plugin: "ktx", key: "paneOpen" } as const, false);
 
 // Module variables reset when the module reloads; the drawn state lives in
 // $.state and survives.
@@ -92,13 +92,25 @@ async function selectWindow(
   await refresh($);
 }
 
+// Opens the pane and notes whether a surface draws it. An open the person did
+// not ask for waits undrawn on a narrow terminal; the band stays until then.
+async function openPane($: EngineInterface): Promise<void> {
+  const opened = await $.ui.open({ id: PANE, title: "ktx", rows: 1 });
+  await update($, paneOpen, () => opened.isPlaced);
+}
+
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
-    if (e.isInteractive && poll === undefined) {
-      poll = $.clock.every(POLL_MS, () => {
+    if (e.isInteractive) {
+      if (poll === undefined) {
+        poll = $.clock.every(POLL_MS, () => {
+          void refresh($);
+        });
         void refresh($);
-      });
-      void refresh($);
+      }
+      // A failed restore leaves the pane closed; the band still runs.
+      const wasOpen = await $.store.get(PANE_OPEN_KEY).catch(() => false);
+      if (wasOpen === true) await openPane($).catch(() => undefined);
     }
     // Another plugin or skill may already own /ktx; the band still runs.
     await $.command
@@ -113,27 +125,35 @@ export const register: Register = (on) => {
   on("command.run", { command: "ktx" }, async ($, e) => {
     const window = parseWindowArgument(e.args);
     if (window === null) return { text: "Usage: /ktx [15|30|60]" };
-    const isOpen = (await $.ui.panes()).some((pane) => pane.id === PANE);
-    if (window === undefined && isOpen) {
+    // A pane that waits undrawn counts as closed, so /ktx shows it.
+    const isShown = (await $.ui.panes()).some(
+      (pane) => pane.id === PANE && pane.isPlaced,
+    );
+    if (window === undefined && isShown) {
       await $.ui.close({ id: PANE });
       return { text: "ktx stats pane closed." };
     }
     if (window !== undefined) await selectWindow($, window);
-    await $.ui.open({ id: PANE, title: "ktx", rows: 1 });
-    await update($, paneOpen, () => true);
+    await openPane($);
+    await $.store.set(PANE_OPEN_KEY, true);
     if (window === undefined) void refresh($);
     return {
       text: `ktx stats pane opened (${await read($, selectedWindow)}m).`,
     };
   });
 
+  // A close by the person or by /ktx is remembered; an unload is not theirs.
   on("ui.close", async ($, e, next) => {
     const closed = await next(e);
-    if (e.id === PANE) await update($, paneOpen, () => false);
+    if (e.id === PANE) {
+      await update($, paneOpen, () => false);
+      if (e.origin.kind !== "unload")
+        await $.store.set(PANE_OPEN_KEY, false).catch(() => undefined);
+    }
     return closed;
   });
 
-  // The band yields to a survey and to the open pane, and draws nothing until
+  // The band yields to a survey and to the drawn pane, and draws nothing until
   // the first poll.
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const snapshot = await read($, lastSnapshot);

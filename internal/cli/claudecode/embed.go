@@ -9,9 +9,7 @@ import "embed"
 // Test files beside them are not embedded and are never generated.
 //
 //go:embed plugins/ktx/.claude-plugin/plugin.json
-//go:embed plugins/ktx-stats/.claude-plugin/plugin.json
-//go:embed plugins/ktx-stats/hooks/hooks.json
-//go:embed plugins/ktx-stats/hooks/register.tsx
-//go:embed plugins/ktx-stats/hooks/stats.ts
-//go:embed plugins/ktx-stats/types/index.d.ts
+//go:embed plugins/ktx/hooks/register.tsx
+//go:embed plugins/ktx/hooks/stats.ts
+//go:embed plugins/ktx/types/index.d.ts
 var Files embed.FS

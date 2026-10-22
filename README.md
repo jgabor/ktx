@@ -99,7 +99,7 @@ ktx init claude
 ```
 
 For Claude Code, the install output also prints the `claude plugin` commands
-that register the generated plugins. See the
+that register the generated plugin. See the
 [Claude Code guide](docs/guides/claude-code.md) for the stats band, the
 `/ktx` pane, and updates.
 

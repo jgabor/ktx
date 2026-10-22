@@ -1140,7 +1140,7 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "  codex      merge a PostToolUse hook into ~/.codex/hooks.json or ./.codex/hooks.json")
 	fmt.Fprintln(w, "             (shared hooks file; other Codex hooks are preserved on install/uninstall)")
 	fmt.Fprintln(w, "  claude     generate a Claude Code plugin marketplace at $XDG_DATA_HOME/ktx/claude-code/marketplace")
-	fmt.Fprintln(w, "             (a ktx PostToolUse hook plugin and a ktx-stats mod; no --project)")
+	fmt.Fprintln(w, "             (one ktx plugin: a PostToolUse hook and a stats mod; no --project)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --project      install to project scope")

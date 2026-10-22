@@ -8,9 +8,9 @@
 //
 // The ktx plugin declares one PostToolUse command hook for the Bash tool. The
 // hook runs the installing executable's canonical path in exec form, with the
-// arguments `hook --runtime claude-code`, and sets no timeout. The ktx-stats
-// mod polls `ktx stats summary` through the same pinned path and shows a band
-// above the prompt and a /ktx pane.
+// arguments `hook --runtime claude-code`, and sets no timeout. The same plugin
+// carries a hooks module that polls `ktx stats summary` through the same pinned
+// path and shows a band above the prompt and a /ktx pane.
 //
 // A marker file, .ktx-generated.json, records the template revision, the
 // pinned executable, and every generated file. --show reads only the marker
@@ -59,6 +59,9 @@ const claudeCodeExecutablePlaceholder = `"__KTX_EXECUTABLE__"`
 // claudeCodeHookArgs is the argument vector the generated hook passes to ktx.
 var claudeCodeHookArgs = []string{"hook", "--runtime", "claude-code"}
 
+// claudeCodeHookModules are the hooks modules hooks.json names, relative to it.
+var claudeCodeHookModules = []string{"./register.tsx"}
+
 // claudeCodePlugin describes one plugin in the generated marketplace.
 // templates are paths relative to the plugin folder, read from
 // claudecode.Files under plugins/<name>/.
@@ -72,17 +75,10 @@ type claudeCodePlugin struct {
 var claudeCodePlugins = []claudeCodePlugin{
 	{
 		name:        "ktx",
-		description: "Compresses Bash tool output through ktx before Claude reads it.",
-		role:        "Bash output compression",
-		templates:   []string{".claude-plugin/plugin.json"},
-	},
-	{
-		name:        "ktx-stats",
-		description: "Shows ktx compression stats in a band above the prompt and a /ktx pane.",
-		role:        "KPI band and /ktx pane",
+		description: "Compresses Bash tool output through ktx and shows ktx stats in a band above the prompt and a /ktx pane.",
+		role:        "Bash output compression, KPI band and /ktx pane",
 		templates: []string{
 			".claude-plugin/plugin.json",
-			"hooks/hooks.json",
 			"hooks/register.tsx",
 			"hooks/stats.ts",
 			"types/index.d.ts",
@@ -153,6 +149,7 @@ type claudeCodeHookMatcher struct {
 type claudeCodeHooksDoc struct {
 	Description string                             `json:"description"`
 	Hooks       map[string][]claudeCodeHookMatcher `json:"hooks"`
+	Modules     []string                           `json:"modules"`
 }
 
 // initClaudeCodeLogic routes to the install, uninstall, or show handler.
@@ -219,7 +216,7 @@ func renderClaudeCodeFiles(executable string) ([]claudeCodeFile, error) {
 		}
 	}
 	hooks, err := marshalClaudeCodeJSON(claudeCodeHooksDoc{
-		Description: "ktx compresses Bash tool output before Claude reads it.",
+		Description: "ktx compresses Bash tool output before Claude reads it and shows its stats.",
 		Hooks: map[string][]claudeCodeHookMatcher{
 			"PostToolUse": {{
 				Matcher: "Bash",
@@ -231,6 +228,7 @@ func renderClaudeCodeFiles(executable string) ([]claudeCodeFile, error) {
 				}},
 			}},
 		},
+		Modules: claudeCodeHookModules,
 	}, "  ")
 	if err != nil {
 		return nil, err
@@ -372,9 +370,22 @@ func initClaudeCodeInstall(root, format string, stdout io.Writer) error {
 		changed = changed || wrote
 	}
 	if hadMarker {
+		generated := map[string]bool{}
+		for _, name := range claudeCodePluginNames() {
+			generated[name] = true
+		}
 		for _, old := range previous.Files {
 			if current[old] {
 				continue
+			}
+			// A plugin no longer generated also loses the type folder Claude
+			// Code wrote into it, so its folder can be pruned.
+			if parts := strings.Split(old, "/"); len(parts) > 2 && parts[0] == "plugins" && !generated[parts[1]] {
+				types := filepath.Join(root, "plugins", parts[1], filepath.FromSlash(claudeCodeTypesFolder))
+				if err := os.RemoveAll(types); err != nil {
+					return internalError("ktx init claude: remove outdated %q: %v", parts[1], err)
+				}
+				pruneClaudeCodeDirs(root, filepath.Dir(types))
 			}
 			target := filepath.Join(root, filepath.FromSlash(old))
 			if err := os.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {

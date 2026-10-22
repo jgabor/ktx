@@ -2608,8 +2608,8 @@ decisions:
           the KPI display must be a plugin anyway.
       - name: Generated local plugin marketplace with a hook plugin and a KPI mod
         status: chosen
-        description: ktx writes a local marketplace folder with a ktx plugin
-          (PostToolUse command hook) and a ktx-stats mod; the user registers it
+        description: ktx writes a local marketplace folder with one ktx plugin
+          (PostToolUse command hook and a KPI mod); the user registers it
           once with claude plugin commands and ktx never edits Claude Code
           settings.
       - name: Collect Claude Code model telemetry from the transcript now
@@ -2631,8 +2631,8 @@ decisions:
       non-string results as passthrough without running the pipeline.
       PostToolUseFailure is not recorded yet. The hook sets no timeout and
       the Claude Code branch never exits with status 2. `ktx init
-      claude` generates a local marketplace with the ktx hook plugin and
-      a ktx-stats mod that polls `ktx stats summary` and shows a band above
+      claude` generates a local marketplace with one ktx plugin that holds
+      the hook and a mod that polls `ktx stats summary` and shows a band above
       the prompt and a /ktx pane; a status-line snippet is documented only as a
       fallback. Claude Code model telemetry is deferred to a structured
       discussion. The generated OpenCode plugin uses runtime-neutral

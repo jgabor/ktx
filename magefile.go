@@ -561,8 +561,8 @@ func opencodeTelemetryFixture() error {
 
 // ClaudePluginCheck generates the Claude Code plugins with build/ktx into a
 // disposable data folder, runs `claude plugin validate --strict` on the
-// marketplace and each plugin, and runs `claude plugin test` on the ktx-stats
-// mod with its tests copied in. It is opt-in, never part of check or test, and
+// marketplace and its plugin, and runs `claude plugin test` on the ktx plugin
+// with its mod tests copied in. It is opt-in, never part of check or test, and
 // skips when claude is not on PATH. It never adds or installs a marketplace.
 func ClaudePluginCheck() error {
 	claude, err := exec.LookPath("claude")
@@ -602,11 +602,11 @@ func ClaudePluginCheck() error {
 		return fmt.Errorf("generate Claude Code plugins: %w", err)
 	}
 	marketplace := filepath.Join(values["XDG_DATA_HOME"], "ktx", "claude-code", "marketplace")
-	mod := filepath.Join(marketplace, "plugins", "ktx-stats")
-	if err := copyDirectory(filepath.Join("internal", "cli", "claudecode", "plugins", "ktx-stats", "tests"), filepath.Join(mod, "tests")); err != nil {
-		return fmt.Errorf("copy ktx-stats tests: %w", err)
+	mod := filepath.Join(marketplace, "plugins", "ktx")
+	if err := copyDirectory(filepath.Join("internal", "cli", "claudecode", "plugins", "ktx", "tests"), filepath.Join(mod, "tests")); err != nil {
+		return fmt.Errorf("copy ktx mod tests: %w", err)
 	}
-	for _, folder := range []string{marketplace, filepath.Join(marketplace, "plugins", "ktx"), mod} {
+	for _, folder := range []string{marketplace, mod} {
 		if err := isolated(claude, "plugin", "validate", "--strict", folder); err != nil {
 			return fmt.Errorf("claude plugin validate %s: %w", folder, err)
 		}

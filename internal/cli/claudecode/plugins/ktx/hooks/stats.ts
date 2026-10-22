@@ -1,4 +1,4 @@
-// Pure helpers for the ktx-stats mod: strict validation of
+// Pure helpers for the ktx mod: strict validation of
 // `ktx stats summary --format json` output, the summary line the band above
 // the prompt and the /ktx pane draw, and the /ktx argument. Nothing here uses the engine, so it also runs under Node.
 

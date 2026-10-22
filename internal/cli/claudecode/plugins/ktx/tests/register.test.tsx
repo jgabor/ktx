@@ -3,9 +3,9 @@ import { expect, mock, test } from "claude-code/testing";
 import type { TestBody } from "claude-code/testing";
 
 const PANE = {
-  plugin: "ktx-stats",
+  plugin: "ktx",
   component: "Pane",
-  requestId: "ktx-stats",
+  requestId: "ktx",
   props: {
     title: "ktx",
     isFocused: false,
@@ -17,7 +17,7 @@ const PANE = {
 } as const;
 
 const BAND = {
-  plugin: "ktx-stats",
+  plugin: "ktx",
   component: "AbovePrompt",
   props: {
     hasSurvey: false,
@@ -53,37 +53,64 @@ function summary(minutes: number): string {
 
 type Engine = {
   argv: (readonly string[])[];
-  panes: Set<string>;
+  // Each open pane and whether a surface draws it.
+  panes: Map<string, boolean>;
+  store: Map<string, unknown>;
   failing: boolean;
+  // A terminal too narrow to draw a pane the person did not ask for.
+  narrow: boolean;
+};
+
+type EngineOptions = {
+  refuseCommand?: boolean;
+  store?: Record<string, unknown>;
+  narrow?: boolean;
 };
 
 // Hooks beneath the plugin stand for the engine: they answer the calls the
-// mod makes on `$` and record what it ran and showed.
-function engine(on: On, refuseCommand = false): Engine {
-  const state: Engine = { argv: [], panes: new Set(), failing: false };
+// mod makes on `$` and record what it ran, showed, and kept.
+function engine(on: On, options: EngineOptions = {}): Engine {
+  const state: Engine = {
+    argv: [],
+    panes: new Map(),
+    store: new Map(Object.entries(options.store ?? {})),
+    failing: false,
+    narrow: options.narrow ?? false,
+  };
   on("command.register", () =>
-    refuseCommand ? { deny: "taken" } : { value: { command: "ktx" } },
+    options.refuseCommand
+      ? { deny: "taken" }
+      : { value: { command: "ktx" } },
   );
+  on("store.get", (_, e) => ({ value: state.store.get(e.key) }));
+  on("store.set", (_, e) => {
+    state.store.set(e.key, e.value);
+    return { value: undefined };
+  });
   // The engine's own band, drawn when the mod's band passes.
   on("ui.render", { component: "AbovePrompt" }, ($, e) => {
     const { Text } = $.ui.resolve(e);
     return <Text>engine band</Text>;
   });
   on("ui.open", (_, e) => {
-    state.panes.add(e.id);
-    return { value: { isPlaced: true } };
+    state.panes.set(e.id, !state.narrow);
+    return {
+      value: state.narrow
+        ? { isPlaced: false, reason: "terminal under 110 columns" }
+        : { isPlaced: true },
+    };
   });
   on("ui.close", (_, e) => {
     state.panes.delete(e.id);
     return { value: undefined };
   });
   on("ui.panes", () => ({
-    value: [...state.panes].map((id) => ({
+    value: [...state.panes].map(([id, isPlaced]) => ({
       id,
       title: "ktx",
-      isShown: true,
+      isShown: isPlaced,
       isFocused: false,
-      isPlaced: true,
+      isPlaced,
     })),
   }));
   on("session.start", (_, e) => ({ cwd: e.cwd }));
@@ -207,7 +234,7 @@ test("a window button switches the window", async ($, on) => {
 
 test("a refused /ktx registration keeps the band", async ($, on) => {
   const clock = mock.clock(on);
-  const host = engine(on, true);
+  const host = engine(on, { refuseCommand: true });
 
   await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
   await clock.settle();
@@ -237,11 +264,14 @@ test("/ktx toggles the pane and the band steps aside", async ($, on) => {
   await clock.settle();
 
   expect((await ktx($, "")).text).toBe("ktx stats pane opened (15m).");
-  expect(host.panes.has("ktx-stats")).toBe(true);
+  expect(host.panes.has("ktx")).toBe(true);
   expect(await band($)).toBeUndefined();
 
+  expect(host.store.get("paneOpen")).toBe(true);
+
   expect((await ktx($, "")).text).toBe("ktx stats pane closed.");
-  expect(host.panes.has("ktx-stats")).toBe(false);
+  expect(host.panes.has("ktx")).toBe(false);
+  expect(host.store.get("paneOpen")).toBe(false);
   expect(await band($)).toBe(
     "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
   );
@@ -256,7 +286,65 @@ test("/ktx with a window picks it and keeps the pane open", async ($, on) => {
 
   expect((await ktx($, "30")).text).toBe("ktx stats pane opened (30m).");
   expect((await ktx($, "60m")).text).toBe("ktx stats pane opened (60m).");
-  expect(host.panes.has("ktx-stats")).toBe(true);
+  expect(host.panes.has("ktx")).toBe(true);
   expect(host.argv.at(-1)?.[4]).toBe("60m");
   expect((await ktx($, "45")).text).toBe("Usage: /ktx [15|30|60]");
+});
+
+test("a pane left open opens again on start", async ($, on) => {
+  const clock = mock.clock(on);
+  const host = engine(on, { store: { paneOpen: true } });
+
+  await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
+  await clock.settle();
+
+  expect(host.panes.get("ktx")).toBe(true);
+  expect(await band($)).toBeUndefined();
+  const ui = await $.ui.mount({ ...PANE, surface: "terminal" });
+  expect((await ui.find({ type: "Text", text: /^ktx/ }))?.text).toBe(
+    "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
+  );
+  await ui.unmount();
+});
+
+test("a closed pane stays closed on start", async ($, on) => {
+  const clock = mock.clock(on);
+  const host = engine(on, { store: { paneOpen: false } });
+
+  await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
+  await clock.settle();
+
+  expect(host.panes.has("ktx")).toBe(false);
+  expect(await band($)).toBe(
+    "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
+  );
+});
+
+test("a session without a person does not reopen the pane", async ($, on) => {
+  const clock = mock.clock(on);
+  const host = engine(on, { store: { paneOpen: true } });
+
+  await $.session.start({ cwd: "/", surface: null, isInteractive: false });
+  await clock.advance(30_000);
+
+  expect(host.panes.has("ktx")).toBe(false);
+});
+
+test("a restored pane waiting on a narrow terminal keeps the band", async ($, on) => {
+  const clock = mock.clock(on);
+  const host = engine(on, { store: { paneOpen: true }, narrow: true });
+
+  await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
+  await clock.settle();
+
+  expect(host.panes.get("ktx")).toBe(false);
+  expect(await band($)).toBe(
+    "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
+  );
+
+  // The person's /ktx is an asked open, which any width draws.
+  host.narrow = false;
+  expect((await ktx($, "")).text).toBe("ktx stats pane opened (15m).");
+  expect(host.panes.get("ktx")).toBe(true);
+  expect(await band($)).toBeUndefined();
 });

@@ -195,15 +195,16 @@ ktx init claude --show
 ktx init claude --uninstall
 ```
 
-Install generates a local plugin marketplace named `ktx-local` with two
-plugins and never edits Claude Code settings. `ktx` holds one `PostToolUse`
-hook (matcher `Bash`) that runs the pinned canonical binary in exec form as
-`<ktx> hook --runtime claude-code` with no timeout. `ktx-stats` is a mod that
-polls `ktx stats summary` every 10 seconds and shows a band above the prompt and a `/ktx`
-pane; its figures cover every runtime. Register once with
-`claude plugin marketplace add <folder>`, `claude plugin install ktx@ktx-local`,
-and `claude plugin install ktx-stats@ktx-local`; the install output prints the
-exact commands. After regenerating, run `/reload-plugins` in Claude Code.
+Install generates a local plugin marketplace named `ktx-local` with one `ktx`
+plugin and never edits Claude Code settings. It holds one `PostToolUse` hook
+(matcher `Bash`) that runs the pinned canonical binary in exec form as
+`<ktx> hook --runtime claude-code` with no timeout, and a mod that polls
+`ktx stats summary` every 10 seconds and shows a band above the prompt and a
+`/ktx` pane; its figures cover every runtime, and an interactive session
+reopens the pane when it was left open. Register once with
+`claude plugin marketplace add <folder>` and
+`claude plugin install ktx@ktx-local`; the install output prints the exact
+commands. After regenerating, run `/reload-plugins` in Claude Code.
 
 `--project` is a usage error. A `.ktx-generated.json` marker records the
 revision, pinned path, and generated files. Show reads only the marker and

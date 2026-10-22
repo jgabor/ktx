@@ -111,6 +111,9 @@ func TestInitClaudeCodeInstallGeneratesMarketplace(t *testing.T) {
 	if !reflect.DeepEqual(hooks["hooks"], wantHooks) {
 		t.Fatalf("hooks = %#v, want %#v", hooks["hooks"], wantHooks)
 	}
+	if !reflect.DeepEqual(hooks["modules"], []any{"./register.tsx"}) {
+		t.Fatalf("modules = %#v", hooks["modules"])
+	}
 
 	marketplace := readJSONFile(t, filepath.Join(root, ".claude-plugin", "marketplace.json"))
 	if marketplace["name"] != "ktx-local" {
@@ -219,7 +222,7 @@ func TestInitClaudeCodeUnusualPaths(t *testing.T) {
 		t.Fatalf("command = %q, want %q", inner["command"], exe)
 	}
 	if got := pinnedStatsExecutable(t, root); got != exe {
-		t.Fatalf("ktx-stats pins %q, want %q", got, exe)
+		t.Fatalf("ktx mod pins %q, want %q", got, exe)
 	}
 	if code, stdout, _ := runClaudeCodeInit(t, FormatJSON, "--show"); code != ExitOK || decodeJSONObject(t, stdout)["stale"] != false {
 		t.Fatalf("show = %d %s", code, stdout)
@@ -227,10 +230,10 @@ func TestInitClaudeCodeUnusualPaths(t *testing.T) {
 }
 
 // pinnedStatsExecutable reads back the executable literal generated into the
-// ktx-stats hooks module.
+// ktx hooks module.
 func pinnedStatsExecutable(t *testing.T, root string) string {
 	t.Helper()
-	source, err := os.ReadFile(filepath.Join(root, "plugins", "ktx-stats", "hooks", "register.tsx"))
+	source, err := os.ReadFile(filepath.Join(root, "plugins", "ktx", "hooks", "register.tsx"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,21 +264,18 @@ func TestInitClaudeCodeGeneratesStatsMod(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("install: %s", stderr)
 	}
-	if !strings.Contains(stdout, "claude plugin install ktx-stats@ktx-local") {
-		t.Fatalf("install output lacks the ktx-stats step:\n%s", stdout)
+	if strings.Contains(stdout, "ktx-stats") {
+		t.Fatalf("install output names the retired ktx-stats plugin:\n%s", stdout)
 	}
 	if got := pinnedStatsExecutable(t, root); got != exe {
-		t.Fatalf("ktx-stats pins %q, want %q", got, exe)
+		t.Fatalf("ktx mod pins %q, want %q", got, exe)
 	}
-	mod := filepath.Join(root, "plugins", "ktx-stats")
-	if hooks := readJSONFile(t, filepath.Join(mod, "hooks", "hooks.json")); !reflect.DeepEqual(hooks, map[string]any{"modules": []any{"./register.tsx"}}) {
-		t.Fatalf("ktx-stats hooks.json = %v", hooks)
-	}
+	mod := filepath.Join(root, "plugins", "ktx")
 	if manifest := readJSONFile(t, filepath.Join(mod, ".claude-plugin", "plugin.json")); manifest["types"] != "./types/index.d.ts" {
-		t.Fatalf("ktx-stats manifest = %v", manifest)
+		t.Fatalf("ktx manifest = %v", manifest)
 	}
 	for _, name := range []string{"hooks/stats.ts", "types/index.d.ts"} {
-		want, err := claudecode.Files.ReadFile("plugins/ktx-stats/" + name)
+		want, err := claudecode.Files.ReadFile("plugins/ktx/" + name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -488,11 +488,14 @@ func TestInitClaudeCodeRemovesOutdatedFiles(t *testing.T) {
 		t.Fatalf("install: %s", stderr)
 	}
 	outdated := filepath.Join(root, "plugins", "retired", "hooks", "old.json")
-	if err := os.MkdirAll(filepath.Dir(outdated), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(outdated, []byte("{}"), 0o644); err != nil {
-		t.Fatal(err)
+	types := filepath.Join(root, "plugins", "retired", ".claude-plugin", "types", "claude-code", "index.d.ts")
+	for _, file := range []string{outdated, types} {
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	markerPath := filepath.Join(root, ".ktx-generated.json")
 	marker := readJSONFile(t, markerPath)

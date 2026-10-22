@@ -1,4 +1,4 @@
-// Types of the ktx-stats mod: the summary it reads from
+// Types of the ktx mod: the summary it reads from
 // `ktx stats summary --format json` and the state it keeps for the session.
 
 export type KtxStatsWindow = 15 | 30 | 60;
@@ -23,7 +23,7 @@ export type KtxStatsSnapshot = {
 
 declare module "claude-code" {
   interface PluginState {
-    "ktx-stats": {
+    ktx: {
       window: KtxStatsWindow;
       snapshot: KtxStatsSnapshot | null;
       paneOpen: boolean;

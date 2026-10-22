@@ -1,10 +1,11 @@
 {
   "name": "ktx",
   "version": "1.0.0",
-  "description": "Compresses Bash tool output through ktx before Claude reads it.",
+  "description": "Compresses Bash tool output through ktx and shows ktx stats in a band above the prompt and a /ktx pane.",
   "author": {
     "name": "Jonathan Gabor"
   },
   "homepage": "https://github.com/jgabor/ktx",
-  "license": "MIT"
+  "license": "MIT",
+  "types": "./types/index.d.ts"
 }

@@ -47,8 +47,8 @@ Frozen before any paid call in this correction:
   agent execution plus termination across two attempts. Offline preparation is
   separate. No additional attempt after a known runtime, model, authentication,
   collector, or compatible-estimate failure.
-- **USD 1 pinned-price estimated-spend target/stop threshold, NOT a guaranteed
-  hard bill cap.** Provider-internal requests/retries and actual billing are not
+- USD 1 pinned-price estimated-spend target/stop threshold, NOT a guaranteed
+  hard bill cap. Provider-internal requests/retries and actual billing are not
   bounded by this estimate. A runtime-reported zero does not mean free usage.
   No new spend-enforcement mechanism is introduced.
 - Pin the saved third-party catalog record before calling; retain all observed
@@ -230,7 +230,7 @@ are not provider request bytes.
 - The OpenAI OAuth path uses `system.join("\n")` as instructions; other paths
   supply system messages. Assembly and downstream mapping therefore matter;
   editing a source instruction file is not proof of the submitted representation.
-- **Application/update outcome: unsupported by executable evidence here.** No
+- Application/update outcome: unsupported by executable evidence here. No
   changed instruction content was observed through this hook or a downstream
   request boundary. No source/config update was demonstrated to invalidate a
   previously normalized representation. This does not prove the hook is absent.
@@ -247,7 +247,7 @@ are not provider request bytes.
 - [`session/llm/request.ts`, lines 148–184](https://github.com/anomalyco/opencode/blob/e5cc278dec9294a627a7b05f47ce6a564408c1a2/packages/opencode/src/session/llm/request.ts#L148-L184)
   filters and sorts tool names. Runtime-owned ordering and schema transformation
   make a generic JSON-order candidate unjustified.
-- **Application/update outcome: unsupported by executable evidence here.**
+- Application/update outcome: unsupported by executable evidence here.
   Description mutation is source-supported, but final post-transform schema,
   surviving parameter descriptions, application, and changed-content visibility
   were not observed in the pinned image.
@@ -682,11 +682,11 @@ passed and no collector was bypassed to claim a pass.
 
 ### Outcome and remaining gates
 
-- **Exact local cause identified; disposable registry fix applied and observed.**
-- **New generating/paid attempts: 0.** The two historical failed attempts and
+- Exact local cause identified; disposable registry fix applied and observed.
+- New generating/paid attempts: 0. The two historical failed attempts and
   their unavailable reported/estimated costs remain separate. Cumulative model
   spend is still **unknown**, not zero or proven below USD 1.
-- **Qualification remains FAIL** for the original archive; no new archive or
+- Qualification remains FAIL for the original archive; no new archive or
   passing pair exists. No old database was opened or revalidated in this
   continuation, and the original archive/private diagnostic logs were untouched.
 - After the bounded runtime-config input change, the authorized pair still
@@ -732,8 +732,8 @@ image from the earlier failure.
   minutes total agent execution/termination. Build and offline checks are
   separate. Stop on incompatible runtime/model/auth/collector or unusable usage
   and pricing evidence; preserve failures.
-- **USD 1 new-batch price-derived estimated-spend target/stop threshold, not a
-  guaranteed hard provider bill cap.** The two historical failed attempts and
+- USD 1 new-batch price-derived estimated-spend target/stop threshold, not a
+  guaranteed hard provider bill cap. The two historical failed attempts and
   unknown prior charges remain separate; cumulative charges are not reset.
 - Unique new archive ID: `gpt-6-luna-qualification-runtime-config-20260928`, under
   `~/git/ktx/.ktx/experiments`. Existing failed archives are not opened

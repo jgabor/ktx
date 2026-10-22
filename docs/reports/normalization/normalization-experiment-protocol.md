@@ -11,8 +11,8 @@ its failed and successful archives unchanged.
 ## Premeasurement clarification — 2026-09-29, revision 2
 
 The original 2026-09-28 update-gate wording below is retained as history. Its
-stronger reading—reloading edited upstream description/schema source files
-inside an immutable pinned executable—has **not been satisfied**. Before any
+stronger reading (reloading edited upstream description/schema source files
+inside an immutable pinned executable) has **not been satisfied**. Before any
 normalization measurements, the authorized clarification narrows that gate to
 pinned-source identity, actual-runtime rejection of changed **read
 `tool.definition` ingress**, and stale fixture/transform rejection. Upstream
@@ -112,14 +112,14 @@ and observed semantic outcomes, not final-schema/prefix equivalence. If the
 hook cannot actually apply or identify the intended change on each arm, stop
 before paid measurement.
 
-**Instruction family: no-go.** The synthetic disabled-tools/“Do not use tools”
+**Instruction family: no-go.** The synthetic disabled-tools/"Do not use tools"
 example is a control of different semantics, not a worthwhile general
 instruction rewrite. No instruction treatment, instruction paid arm, or
 general normalizer is authorized by this protocol. Reconsider only on a
 separately evidenced, named recurring overhead with a safe transformation,
 source/precedence and update boundary, and independent semantic preservation
 cases; revise the protocol before running it. This leaves the architecture
-question open rather than quietly declaring that family tested.
+question open rather than implicitly declaring that family tested.
 
 ## Frozen task cases and scoring
 
@@ -129,8 +129,8 @@ All paths below are inside the isolated `/work/tools/bench/corpus/` mount.
 Generate bytes deterministically as specified, retain exact resulting bytes
 and hashes, and reject drift before measured runs. For each case run the
 first-use task and a repeated-use task with the same first request plus a
-second read of a distinct file **in the same agent session**. “First” means
-first observed read invocation of that session; “repeated” means a later read
+second read of a distinct file **in the same agent session**. "First" means
+first observed read invocation of that session; "repeated" means a later read
 invocation in that session, not a provider-cold/warm state. Score each whole
 attempt, not just the last answer. Prompts must request the listed answer
 format exactly, require use of `read`, forbid file edits and any non-read tool,
@@ -143,7 +143,7 @@ through tool or system material. `read` output is not compressed by either arm.
 | B: paged log               | `log-a.txt`: `start\nnoise-a\nnoise-b\nFACT=quartz\nend-a\nend-b\n`; `log-b.txt`: `start\nnoise-c\nnoise-d\nFACT=amber\nend-c\nend-d\n`. Request `offset=4, limit=2` on each named absolute path, return only the FACT line.                                                                                             | Exact `FACT=quartz`, then `FACT=amber`, with successful `read` calls using the specified numeric offset and limit on the respective files; no decoy answer.                                                                                                                             |
 | C: default-window boundary | `window-a.txt`, `window-b.txt`: 2001 LF-terminated lines per file; line _n_ is respectively `a-NNNN\n` or `b-NNNN\n` with decimal _n_ padded to four digits (0001–2001). Ask for the **last numbered line returned by a single default read** of the named absolute path; explicitly omit limit and do not page further. | Exact `a-2000`, then `b-2000`; one successful `read` per file with no `limit` or `offset`, and no second page. If pinned runtime truncation yields a different observable last line, fail offline fixture preflight and revise before paying, rather than silently changing the oracle. |
 
-“Repeated phase” is a separately prompted follow-up in the _same_ session
+"Repeated phase" is a separately prompted follow-up in the _same_ session
 after the first response, not a freshly launched attempt. It reuses the same
 schema but reads a new file; score both phase responses, tool calls, errors,
 order and forbidden behavior. The six contracts (A/B/C × first/repeated) have
@@ -167,7 +167,7 @@ description line), schema update (alter a parameter-description fixture), and
 transform update (change removal set/version): refreshed hook ingress/egress
 must change or the comparison must reject stale identities. A source or schema
 change for which there is no supported runtime input/update path is **unsupported**,
-not “passed” by changing a mock alone; block any claim about that update path
+not "passed" by changing a mock alone; block any claim about that update path
 and revise before a preservation/savings recommendation. Demonstrate an
 unchanged restart has stable identities. These are offline and do not authorize
 paid hook probes. Live scoring is still required for model semantics.

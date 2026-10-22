@@ -6,12 +6,13 @@ config optimization, offline replay, and benchmark runs. To simply turn
 compression on, the [README quick start](../../README.md#2-compress-tool-output)
 is enough; come back here when you want to tune it.
 
-Named pipeline configs, tasks, and metrics for ranking compression configurations.
-This is the evaluation contract for live comparison (`ktx bench compare`) and
-ranking (`ktx bench rank`). Product defaults remain opt-in via
-`$XDG_CONFIG_HOME/ktx/ktx.toml`; nothing here changes shipped behavior.
+The guide also defines the named pipeline configs, tasks, and metrics used to
+rank compression configurations. It is the evaluation contract for live
+comparison (`ktx bench compare`) and ranking (`ktx bench rank`). Nothing here
+changes shipped behavior: compression stays opt-in through
+`$XDG_CONFIG_HOME/ktx/ktx.toml`.
 
-Methodology source notes (adapted, not copied):
+The benchmark method adapts ideas from these projects:
 
 | Source                     | What we took                                                                              |
 | -------------------------- | ----------------------------------------------------------------------------------------- |
@@ -27,32 +28,36 @@ ktx optimize --format text
 ktx optimize show <result-id> --format text
 ```
 
-JSON is the default. Reports give target/baseline identities and original absence,
-tested scope, bounds, quality/integrity, runtime-token/cost availability,
-eligibility, reasons, missing inputs, and next commands. Ordinary reports omit
-full configuration and tool content. `--config path` selects an existing explicit
-target; otherwise the effective user config, including absence, is the incumbent.
-No ambient database is opened to discover opportunities.
+JSON is the default output. Each report lists the target and baseline
+identities, whether the original was absent, the tested scope, bounds, quality
+and integrity results, runtime-token and cost availability, eligibility,
+reasons, missing inputs, and next commands. Ordinary reports leave out the full
+configuration and tool content. `--config path` selects an existing explicit
+target. Without it, the effective user config is the incumbent, even when no
+config file exists. No ambient database is opened to discover opportunities.
 
 ### Supported changes and offline screening
 
-Only `pipeline.default.stages` may change. Routes/order, other profiles,
-timeout/recovery, logging, and other settings must remain unchanged. There is no
-merge, force, routing optimizer, or plugin execution. `--candidate proposal.toml`
-accepts one full proposed config, not a fragment. Unsupported changes block
-during screening, before live preflight or paid launches, without apply eligibility.
-Targets that apply could not replace and restore exactly also block during
-screening with `target_not_safely_applicable`: a symlinked target or parent path
+Only `pipeline.default.stages` may change. Routes and their order, other
+profiles, timeout and recovery settings, logging, and all other settings must
+stay the same. There is no merge, force, routing optimizer, or plugin execution.
+`--candidate proposal.toml` accepts one full proposed config, not a fragment.
+Unsupported changes block during screening, before live preflight or any paid
+launch, and the result is not eligible to apply. Screening also blocks with
+`target_not_safely_applicable` when apply could not replace and restore the
+target exactly. That covers a symlinked target or parent path
 (as dotfile managers often create), extra hard links, a file owned by another
 user, or setuid/setgid/sticky bits. Screening resolves the default target
 without creating its directory.
 
-Two built-in proposals append JSON compaction or sanitization to the incumbent,
-not generic benchmark replacements. A narrow textual edit preserves bytes outside
-the default-stage array. It accepts a plain `[pipeline.default]` table and ordinary
-single/multiline `stages` array, or adds an absent table. Ambiguous/unsupported
-syntax blocks rather than re-encoding unrelated content. Supplied full configs
-are captured exactly and checked for unrelated setting changes.
+Two built-in proposals append JSON compaction or sanitization to the
+incumbent. They extend it instead of replacing it with a generic benchmark
+pipeline. The edit is narrow and textual, so bytes outside the default-stage
+array stay the same. It works on a plain `[pipeline.default]` table with an
+ordinary single-line or multiline `stages` array, and it adds the table when it
+is absent. Ambiguous or unsupported syntax blocks instead of re-encoding
+unrelated content. Supplied full configs are captured exactly and checked for
+unrelated setting changes.
 
 Development uses seven controlled generated cases per config, at most three
 proposals, 8 KiB per case, 64 KiB per config, 16 profiles/routes, 32 stages/profile,
@@ -68,6 +73,7 @@ end, and blocks with `qualification_reached_unqualified_route` if one selected
 such a route. Their profiles stay byte-identical, so traffic they select is
 unchanged and outside the claimed scope. Outcome routes block, including
 success-only read routes without OpenCode pre-delivery outcome authority.
+
 Plugins and unknown stages block without execution. In the default profile and
 profiles of exercised tool-only routes, regex filters/replacements, other
 unlisted built-ins, and unsupported arguments also block. Profiles reached only
@@ -94,20 +100,23 @@ or mismatched inputs block before model calls. The task, independent planted-fac
 corpus, and recovery-aware scoring spec are embedded; no source checkout is needed.
 
 At most one mechanically screened candidate enters the existing benchmark
-producer with exact complete configs. Development/qualification content and
-identities differ. Configs, scoring, runtime/image, binary, corpus, and pricing
-stay frozen. The displayed default cycle-wide allowance is 24 model-bearing
-container/agent launches: two cold observations, one warmup per arm, and retries
-are included. A clean qualification needs 14 launches. Capability inspection has
-no agent/model call and is excluded. The allowance bounds **launches, not provider
-requests or dollars**. Each attempt has a 10-minute timeout and 30-second grace.
+producer, with exact complete configs. Development and qualification use
+different content and identities. Configs, scoring, runtime and image, binary,
+corpus, and pricing stay frozen. The displayed default allowance for a whole
+cycle is 24 model-bearing container/agent launches. It includes two cold
+observations, one warmup per arm, and retries. A clean qualification needs 14
+launches. Capability inspection makes no agent/model call and does not count.
+The allowance limits launches only. It does not limit provider requests or
+dollars. Each attempt has a 10-minute timeout and a 30-second grace period.
 
-`ready` requires production archive validation, both arm quality gates, no lower
-candidate measured full-pass rate, at least five complete qualified same-cycle
-pairs, and lower complete runtime input + output + reasoning tokens per correct
-controlled task. Cache logicals are not added. This is descriptive controlled
-behavioral qualification, not representative user-workload improvement, causal or
-significant evidence, or a provider-internal claim.
+`ready` requires all of the following: production archive validation, passing
+quality gates on both arms, a candidate measured full-pass rate that is not
+lower than the baseline's, at least five complete qualified same-cycle pairs,
+and lower complete runtime input + output + reasoning tokens per correct
+controlled task. Cache logicals are not added. The result describes behavior in
+a controlled qualification. It does not show improvement on representative user
+workloads, and it is not causal or significant evidence or a provider-internal
+claim.
 
 Cost follows the reported-first whole-cohort contract below. An optional snapshot
 freezes price inputs. Without usable rates, API estimates are unavailable, not
@@ -125,19 +134,22 @@ ktx optimize rollback <ready-result-id>
 ktx optimize --format text                  # next cycle uses the current incumbent
 ```
 
-Preview reports the captured target and scoped diff without writes. Apply
-revalidates retained qualification, exact baseline/selected config, and current
-captured target. It never substitutes today's default target or accepts `--config`
-to retarget. Changed bytes, an appeared file when originally absent,
-ineligible/missing/tampered evidence, unsafe paths, and unsupported changes refuse
-without overwrite. Existing mode/group are captured at first apply and preserved;
-new files are private. Private originals and recovery records precede atomic
-publication. Interruption leaves a complete old/new active file, not partial
-content; retries reconcile the recovery record.
+Preview reports the captured target and the scoped diff without writing
+anything. Apply revalidates the retained qualification, the exact baseline and
+selected configs, and the current captured target. It never substitutes today's
+default target, and it does not accept `--config` to retarget. Apply refuses
+without overwriting when the bytes changed, when a file appeared where none
+existed originally, when evidence is ineligible, missing, or tampered with, when
+a path is unsafe, or when a change is unsupported. The existing file mode and
+group are captured at first apply and preserved; new files are private. Private
+originals and recovery records are written before the atomic publish. An
+interruption leaves either the complete old file or the complete new file
+active, not partial content. Retries reconcile the recovery record.
 
-Apply retries are no-ops. Rollback refuses later byte/mode/group edits; otherwise
-it restores exact original bytes/mode/group or absence. Rollback retries are
-no-ops. Rolled-back results are retired: start a new cycle. Each cycle has a new
+Retrying apply is a no-op. Rollback refuses if the bytes, mode, or group changed
+after apply. Otherwise it restores the exact original bytes, mode, and group, or
+the original absence of the file. Retrying rollback is also a no-op. A
+rolled-back result is retired, so start a new cycle. Each cycle has a new
 immutable identity and does not rewrite old qualification. `show` reports mutable
 application state separately and removes eligibility from retired results.
 
@@ -159,12 +171,12 @@ establish real provider performance or physical power-loss behavior.
 | `blocked`    | Unsupported changes, absent prerequisites/authority, or invalid evidence; fix the reason before a new cycle.               |
 | `incomplete` | Interrupted, exhausted, or unavailable qualification; inspect retained partial evidence, never apply it.                   |
 
-Exit 0 means a report was produced, including blocked/incomplete, not that
-optimization succeeded. Inspect `outcome` and `apply_eligible`. Error envelopes
+Exit 0 means a report was produced, even a blocked or incomplete one. It does
+not mean optimization succeeded. Inspect `outcome` and `apply_eligible`. Error envelopes
 go to stderr: 1 usage, 2 missing result, 3 mutation conflict, 4 I/O/integrity.
 Mutation success reports use `preview`, `applied`, `rolled_back`, or `noop`.
-JSON/text share facts, commands never prompt, and help/reports expose inputs and
-next commands without requiring this document.
+JSON and text output carry the same facts. Commands never prompt, and help and
+reports show inputs and next commands without needing this document.
 
 ## Named pipelines
 
@@ -394,7 +406,7 @@ back to the `default` profile when none match.
 ### Signals
 
 Each route rule can match on up to four signals, combined with AND
-semantics — every non-empty condition must hold:
+semantics. Every non-empty condition must hold:
 
 | Signal         | Field            | Meaning                                                                                                                                                                                                                                                                             |
 | -------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -464,19 +476,19 @@ with a non-empty `subcommand` never matches that call. The two can
 also appear on the same rule and combine with AND semantics, like the
 other signals.
 
-Use `subcommand` when you want to key on the verb the user ran —
-route `git status`, `git diff`, and `git log` to different profiles
-even when flags move around (`git --no-pager log` still routes as
-`log`). Use `command_prefix` when the routing signal is the binary
-itself — `ls`, `find`, `make` — or commands whose first post-binary
-token is usually a flag or path rather than a stable verb.
+Use `subcommand` when you want to key on the verb the user ran. For
+example, route `git status`, `git diff`, and `git log` to different
+profiles even when flags move around (`git --no-pager log` still routes
+as `log`). Use `command_prefix` when the routing signal is the binary
+itself (`ls`, `find`, `make`), or for commands whose first token after
+the binary is usually a flag or path rather than a stable verb.
 
 ### First-match-wins
 
 Rules are evaluated in file order. The first rule whose conditions all
 hold selects the profile, and evaluation stops. Put specific rules
 before broad ones. A rule with every match field empty matches every
-tool call, so it acts as a catch-all — place it last to override the
+tool call, so it acts as a catch-all. Place it last to override the
 default fallback for unmatched calls.
 
 ### Default fallback
@@ -484,7 +496,7 @@ default fallback for unmatched calls.
 When no rule matches (or there are no `[[route]]` blocks at all), ktx
 uses the `default` profile. The `default` profile is always present;
 when `[pipeline.default]` is absent from the config its stages are
-empty, which is passthrough — the output is returned unchanged. So
+empty, which is passthrough: the output is returned unchanged. So
 behavior without a config is unchanged: no routing, no compression.
 
 Persisted compressed artifacts record the selected profile, route provenance
@@ -494,14 +506,15 @@ route explicitly targeting `default` is therefore distinguishable from using
 
 ### When to use routing
 
-- **Different tools, different needs** — command stdout (`bash`) often
+- Use different profiles for different tools. Command stdout (`bash`) often
   tolerates aggressive `head`/`keep-ends`; file reads (`read`) may need
   wider `keep-ends` to preserve mid-file facts needed for navigation.
-- **Failure versus success** — explicit failures already bypass every pipeline
+- Split by outcome with care. Explicit failures already bypass every pipeline
   unchanged. Use success-only routes only for explicit success; use `any` or the
   default fallback when ordinary handling should also include unknown calls.
-- **Command-specific recipes** — route `git log` output to a head-based
-  profile while leaving other `bash` output on the default profile.
+- Give specific commands their own recipe. For example, route `git log` output
+  to a head-based profile while leaving other `bash` output on the default
+  profile.
 
 Routing selects among the recipes above per call; it does not replace
 them. See `ktx.example.toml` for commented `[[route]]` examples.
@@ -511,7 +524,7 @@ them. See `ktx.example.toml` for commented `[[route]]` examples.
 A filter pack is the combination of a route rule, a profile, and the
 stages that make that profile effective for a specific command. The
 `replace` stage is the tool that makes filter packs practical for
-patterns that `grep`/`grep-v` alone cannot handle — shortening
+patterns that `grep`/`grep-v` alone cannot handle, such as shortening
 repeated path prefixes, stripping timestamp prefixes, or redacting
 secrets before further compression runs.
 
@@ -521,8 +534,8 @@ replacement string. An empty replacement removes matches entirely.
 The anti-worsening gate discards the pipeline result when the
 replacement does not shrink the output (same length or no match).
 
-Worked example — a filter pack for `find` output that shortens
-absolute paths and keeps only the first 50 lines:
+Here is a filter pack for `find` output that shortens absolute paths
+and keeps only the first 50 lines:
 
 ```toml
 [pipeline.find]
@@ -544,10 +557,9 @@ pipeline result and the original passes through unchanged.
 
 `ktx stats` ranks tool/command groups by delivered token
 volume so you know which commands to target with filter packs or
-tighter compression. It surfaces both compressed and uncompressed
-calls — uncompressed calls appear with delivered tokens equal to
-raw tokens, so the command is useful before any profiles are
-configured.
+tighter compression. It shows both compressed and uncompressed calls.
+Uncompressed calls appear with delivered tokens equal to raw tokens,
+so the command is useful before any profiles are configured.
 
 ```bash
 ktx stats
@@ -593,10 +605,10 @@ double-counted.
 
 For hook-processed calls, `ktx stats breakdown` reports the retained compression
 disposition separately from artifact coverage. The source-keyed disposition is a
-monotonic convergence projection, not a retry-occurrence ledger: the first
-non-artifact observation remains authoritative until a first compressed artifact
-exists, which promotes the projection to `artifact_persisted`; it never
-downgrades afterward. Exact retry races may transiently return raw output before
+projection that only moves forward. It is not a ledger of retry occurrences.
+The first non-artifact observation stays authoritative until a first compressed
+artifact exists. That artifact promotes the projection to `artifact_persisted`,
+and the projection never downgrades afterward. Exact retry races may transiently return raw output before
 that artifact exists, and this report does not reconstruct those deliveries.
 Historical calls, collection-only ingress, explicit compression without a hook
 observation, and other calls without retained disposition evidence report
@@ -1046,7 +1058,7 @@ remain only in their task contract and are not mounted into the task workspace.
 ## Metrics contract
 
 All metrics are derived from retained experiment evidence
-(`manifest.json` + `attempts.jsonl`). No LLM-as-judge.
+(`manifest.json` + `attempts.jsonl`). No metric uses LLM-as-judge scoring.
 
 ### Per-attempt
 
@@ -1069,12 +1081,12 @@ All metrics are derived from retained experiment evidence
 `ktx bench compare` uses registered baseline and candidate pipeline IDs as the
 comparison boundary. Recovery-aware evaluation uses two gates:
 
-1. **Offline screening** runs each configuration over one frozen retained-output
+1. Offline screening runs each configuration over one frozen retained-output
    population through the production pipeline runner. It reports paired
    delivery, anti-worsening, recovery-cue exposure, and footer-cost results
    without model calls. This mechanical evidence cannot establish agent
    recovery decisions or task quality.
-2. **Behavioral comparison** runs only shortlisted configurations through the
+2. Behavioral comparison runs only shortlisted configurations through the
    existing paired task protocol. Correctness is a gate. Among configurations
    that meet it, the primary outcome is complete runtime-emitted total tokens
    per correct task.
@@ -1174,7 +1186,7 @@ identity, regeneration still materializes stream-owned fields and assigns no
 tool-call evidence; the copied call count is ignored. A completed attempt must
 have a retained session and readable database authority.
 
-Partial fact scores are kept; they are not discarded.
+Partial fact scores are kept.
 
 For current summaries, every applicable metric is a deterministic
 distribution with `count`, sorted `values`, `min`, `p25`, `median`, `mean`,
@@ -1308,7 +1320,7 @@ artifact-integrity-only flag. Inspect `attempt_checks`, `summary_structural_vali
 `summary_byte_match`, and `methodology_reasons` separately from target and
 acceptance results.
 Missing unclaimed pricing is ordinary cost unavailability; missing claimed
-pricing or altered snapshot evidence is a genuine integrity failure. Explicit step identity
+pricing or altered snapshot evidence is an integrity failure. Explicit step identity
 conflict makes an estimate ineligible, not proof of any billing arrangement.
 
 For identical populations, report, ranking, and acceptance select the same basis
@@ -1320,7 +1332,7 @@ Each population is declared before selection, as mapped below.
 #### Bounded consumer and compatibility map
 
 This map records the existing populations independently of source availability.
-“Evaluated” means `AttemptIsEvaluated`: completed, linked, stream complete,
+"Evaluated" means `AttemptIsEvaluated`: completed, linked, stream complete,
 minimum tool calls met, and no validation reasons. Current archive methodologies
 are `v8-exact-match`, prompt-cache v6, and recovery-aware v7. Older methodology
 and schema results are historical, not newly qualified by this policy.
@@ -1413,7 +1425,7 @@ Quality classes and recovery's token-first primary remain unchanged. The current
 view exposes `cost_selection`, both `source_costs`, and `cost_order_available`.
 Unavailable cost gives NULL selected scores and no cost rank or `cost_winner`;
 quality-only stable ordering is not a cost result. Tied best costs, including
-genuine zero estimates, give no unique `cost_winner`.
+valid zero estimates, give no unique `cost_winner`.
 Complete source coverage alone does not establish comparable row results: a
 declared row without a selected cost-per-correct result has NULL cost rank.
 If any declared row lacks a comparable result, `cost_order_available` is false
@@ -1796,7 +1808,7 @@ For a multi-invocation campaign, pass its **remaining** cumulative budget to eac
 pair, for example `--first-arm candidate --estimated-cost-limit "$remaining_usd"`
 for candidate-first pairs. The operator must check campaign-wide cost coverage,
 attempt count, identity and wall time between calls. This is an estimated-spend
-operational stop, **not a hard provider-bill cap**: the last attempt can overshoot
+operational stop. It is **not a hard provider-bill cap**: the last attempt can overshoot
 and unobserved provider work can add cost. Use existing attempt timeouts bounded
 by remaining campaign time; these flags do not implement a campaign runner or
 change cost methodology or summary metrics.
@@ -1930,8 +1942,8 @@ counts. Supported isolated evidence must use one stable namespace hash per side
 and different hashes across sides. Observed evidence must not retain a namespace
 hash. Isolated manifest and attempt hashes must be exactly 64
 lowercase hexadecimal characters, agree for every attempt within a side, and
-differ across sides. This format check ensures only the SHA-256 digest—not the
-raw namespace—can occupy retained namespace metadata. Retired methodologies and
+differ across sides. This format check ensures that only the SHA-256 digest (not the
+raw namespace) can occupy retained namespace metadata. Retired methodologies and
 summary formats remain static historical evidence without validation guarantees.
 
 All cache-reuse views are derived from runtime-reported model-step fields.
@@ -1987,5 +1999,5 @@ golden test and must remain consistent with every task TOML file.
 - LLM-as-judge scoring
 - P-values, significance claims, causal claims, or other inferential claims
 - Automatic exclusion of outliers
-- Content-type taxonomy routing (separate follow-up; command-aware routing by tool name, command prefix, subcommand, and exit status is available — see [Command-aware routing](#command-aware-routing))
+- Content-type taxonomy routing (a separate follow-up). Command-aware routing by tool name, command prefix, subcommand, and exit status is available; see [Command-aware routing](#command-aware-routing).
 - Changing the product default pipeline (still opt-in empty/passthrough)

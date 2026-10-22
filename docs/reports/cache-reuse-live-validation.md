@@ -78,8 +78,8 @@ Only the five `measured_warm` attempts per side enter the paired result.
 Candidate-minus-baseline cached-input share had mean
 0.19121576876489477. Its two-sided 95% Student-t interval was
 [0.19057450330802284, 0.1918570342217667]. Quality was preserved on the same
-five complete pairs. These facts authorize only the scoped “higher
-OpenCode-reported cached-input share under the retained protocol” wording above.
+five complete pairs. These facts authorize only the scoped "higher
+OpenCode-reported cached-input share under the retained protocol" wording above.
 
 ## Secondary estimate and cost views
 

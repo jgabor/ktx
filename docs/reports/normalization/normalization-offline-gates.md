@@ -59,7 +59,7 @@ keys and quality/cost thresholds are unchanged.
 
 Each positive/restart run observed five read-definition applications: one
 definition inspection, then two model steps in each standalone CLI turn. Every
-read observation was ordered **before hook → KTX record → after hook**. The
+read observation was ordered **before hook, then KTX record, then after hook**. The
 observed KTX ordinals were `4, 4, 15, 4, 15`, resetting with each new plugin
 epoch. Drift cases observed only the before hook and the KTX diagnostic. The
 fixture mismatch observed before/after hooks but **no KTX ordinal**, so it

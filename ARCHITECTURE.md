@@ -158,9 +158,10 @@ Agents differ in how they can host external tooling. ktx accommodates multiple a
 Tool-call records use KTX-owned persisted identifiers. Runtime identifiers are
 correlation inputs, not database identities. Deterministic identity is eligible
 only when a recognized, trusted native ingress verifies a complete usable
-runtime/session/call tuple. The OpenCode hook and wrapper and the Codex
-PostToolUse hook meet that provenance boundary; caller-supplied runtime text in
-generic sidecar or flat input does not. Eligible tuples derive the same source
+runtime/session/call tuple. The OpenCode hook and wrapper, the Codex
+PostToolUse hook, and the Claude Code PostToolUse hook
+(`ktx hook --runtime claude-code`) meet that provenance boundary;
+caller-supplied runtime text in generic sidecar or flat input does not. Eligible tuples derive the same source
 ID across process, machine, hook, and wrapper boundaries. Missing, malformed,
 or unverified tuples receive a fresh NanoID with no deduplication guarantee.
 That fallback applies when a payload selects a recognized adapter path, such as

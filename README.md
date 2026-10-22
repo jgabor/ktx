@@ -12,7 +12,8 @@ binary and works without a daemon, an SDK, or code changes to your agent.
 - Records each session and tool call, with tokens and cost whenever the agent
   runtime reports them. `ktx stats` ranks the tool calls that use the most
   tokens.
-- Compresses tool output in flight through adapters for OpenCode and Codex.
+- Compresses tool output in flight through adapters for OpenCode, Codex, and
+  Claude Code.
   The stages are small and predictable, such as stripping color codes, keeping
   the ends of long logs, and compacting JSON.
 - Stores every original output. `ktx read` and `ktx decompress` return the
@@ -93,7 +94,14 @@ Install the adapter for your agent:
 ktx init opencode
 # or
 ktx init codex
+# or
+ktx init claude-code
 ```
+
+For Claude Code, the install output also prints the `claude plugin` commands
+that register the generated plugins. See the
+[Claude Code guide](docs/guides/claude-code.md) for the status line, the
+`/ktx` pane, and updates.
 
 Copy [`ktx.example.toml`](ktx.example.toml) to
 `$XDG_CONFIG_HOME/ktx/ktx.toml`, then check what is active:
@@ -164,7 +172,7 @@ the evidence rules.
 | `read`                    | Fetch a stored record by ID as raw JSON               |
 | `compress` / `decompress` | Compress a record's output, or restore it exactly     |
 | `optimize`                | Screen, qualify, apply, or roll back pipeline configs |
-| `init`                    | Install the OpenCode or Codex adapter                 |
+| `init`                    | Install the OpenCode, Codex, or Claude Code adapter   |
 | `config`                  | Show the active pipeline configuration                |
 | `plugin`                  | Manage compression plugins                            |
 | `telemetry`               | Record and inspect optional model-step token usage    |

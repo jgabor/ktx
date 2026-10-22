@@ -106,13 +106,14 @@ func Install() error {
 type adapterScopes struct {
 	opencodeGlobal, opencodeProject bool
 	codexGlobal, codexProject       bool
+	claudeCode                      bool
 }
 
 type installRunner func(string, ...string) (string, string, error)
 
 func discoverInstalledAdapters(binary string, runner installRunner) (adapterScopes, error) {
 	var scopes adapterScopes
-	for _, runtimeName := range []string{"opencode", "codex"} {
+	for _, runtimeName := range []string{"opencode", "codex", "claude-code"} {
 		stdout, stderr, err := runner(binary, "--format", "json", "init", runtimeName, "--show")
 		if err != nil {
 			var exitErr interface{ ExitCode() int }
@@ -122,6 +123,7 @@ func discoverInstalledAdapters(binary string, runner installRunner) (adapterScop
 			return scopes, fmt.Errorf("inspect existing %s adapters before install: %w: %s", runtimeName, err, strings.TrimSpace(stderr))
 		}
 		var report struct {
+			Installed          bool              `json:"installed"`
 			Path               string            `json:"path"`
 			Also               []string          `json:"also"`
 			CandidateLocations map[string]string `json:"candidate_locations"`
@@ -130,13 +132,16 @@ func discoverInstalledAdapters(binary string, runner installRunner) (adapterScop
 		if err := json.Unmarshal([]byte(stdout), &report); err != nil {
 			return scopes, fmt.Errorf("inspect existing %s adapters before install: decode status: %w", runtimeName, err)
 		}
-		if runtimeName == "opencode" {
+		switch runtimeName {
+		case "opencode":
 			paths := append([]string{report.Path}, report.Also...)
 			for _, path := range paths {
 				scopes.opencodeGlobal = scopes.opencodeGlobal || path == report.CandidateLocations["global"]
 				scopes.opencodeProject = scopes.opencodeProject || path == report.CandidateLocations["project"]
 			}
-		} else {
+		case "claude-code":
+			scopes.claudeCode = report.Installed
+		default:
 			for _, scope := range report.Scopes {
 				scopes.codexGlobal = scopes.codexGlobal || scope == "global"
 				scopes.codexProject = scopes.codexProject || scope == "project"
@@ -179,6 +184,7 @@ func refreshInstalledAdapters(binary string, scopes adapterScopes, runner instal
 	}{
 		{scopes.opencodeGlobal, refresh{"opencode", false}}, {scopes.opencodeProject, refresh{"opencode", true}},
 		{scopes.codexGlobal, refresh{"codex", false}}, {scopes.codexProject, refresh{"codex", true}},
+		{scopes.claudeCode, refresh{"claude-code", false}},
 	} {
 		if item.enabled {
 			refreshes = append(refreshes, item.value)
@@ -215,6 +221,9 @@ func refreshInstalledAdapters(binary string, scopes adapterScopes, runner instal
 	}
 	if scopes.codexGlobal || scopes.codexProject {
 		fmt.Fprintln(stdout, "Restart Codex, then run /hooks and trust the refreshed ktx hook.")
+	}
+	if scopes.claudeCode {
+		fmt.Fprintln(stdout, "Run /reload-plugins in Claude Code (or restart it).")
 	}
 	return nil
 }

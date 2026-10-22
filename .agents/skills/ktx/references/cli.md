@@ -16,7 +16,7 @@ ktx [--format text|json] [--quiet|-q] <command> [args]
 | Command      | Purpose                                                            | Database behavior                                          |
 | ------------ | ------------------------------------------------------------------ | ---------------------------------------------------------- |
 | `run`        | Wrap an agent process and record events                            | Write-capable                                              |
-| `init`       | Install or remove OpenCode/Codex adapters                          | DB-free                                                    |
+| `init`       | Install or remove OpenCode, Codex, or Claude Code adapters         | DB-free                                                    |
 | `hook`       | Adapter ingress: persist and compress a tool result                | Write-capable                                              |
 | `write`      | Persist a flat sidecar tool-call record                            | Write-capable                                              |
 | `list`       | List sessions                                                      | Read-only                                                  |
@@ -71,6 +71,7 @@ repeat a committed observation; duplicate tool-call IDs remain rejected.
 | OpenCode project plugin | `./.opencode/plugins/ktx.ts`                                     |
 | Codex global hooks      | `~/.codex/hooks.json`                                            |
 | Codex project hooks     | `./.codex/hooks.json`                                            |
+| Claude Code plugins     | `$XDG_DATA_HOME/ktx/claude-code/marketplace`                     |
 
 Database path precedence is:
 
@@ -185,6 +186,32 @@ still race the final check-to-rename/remove window. Avoid simultaneous edits fro
 such tools. An interrupted update leaves a complete old or new document, not a
 truncated shared file; power-loss durability of the directory entry is not
 guaranteed by this file-sync protocol.
+
+### Claude Code
+
+```bash
+ktx init claude-code
+ktx init claude-code --show
+ktx init claude-code --uninstall
+```
+
+Install generates a local plugin marketplace named `ktx-local` with two
+plugins and never edits Claude Code settings. `ktx` holds one `PostToolUse`
+hook (matcher `Bash`) that runs the pinned canonical binary in exec form as
+`<ktx> hook --runtime claude-code` with no timeout. `ktx-stats` is a mod that
+polls `ktx stats summary` every 10 seconds and shows a status line and a `/ktx`
+pane; its figures cover every runtime. Register once with
+`claude plugin marketplace add <folder>`, `claude plugin install ktx@ktx-local`,
+and `claude plugin install ktx-stats@ktx-local`; the install output prints the
+exact commands. After regenerating, run `/reload-plugins` in Claude Code.
+
+`--project` is a usage error. A `.ktx-generated.json` marker records the
+revision, pinned path, and generated files. Show reads only the marker and
+those files, reports staleness, exits 2 when nothing is generated, and never
+verifies Claude Code registration. Uninstall removes only listed files and the
+`.claude-plugin/types/` folders, keeps and warns about other files, and prints
+`claude plugin marketplace remove ktx-local`. See the
+[Claude Code guide](../../../../docs/guides/claude-code.md).
 
 ## Wrapper Collection
 

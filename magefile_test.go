@@ -23,8 +23,11 @@ func (e testExitError) ExitCode() int { return int(e) }
 func TestDiscoverInstalledAdapters(t *testing.T) {
 	runner := func(_ string, args ...string) (string, string, error) {
 		runtimeName := args[3]
-		if runtimeName == "opencode" {
+		switch runtimeName {
+		case "opencode":
 			return `{"installed":true,"path":"/project/ktx.ts","candidate_locations":{"global":"/global/ktx.ts","project":"/project/ktx.ts"}}`, "", nil
+		case "claude-code":
+			return `{"installed":true,"path":"/data/ktx/claude-code/marketplace","stale":true}`, "", nil
 		}
 		return `{"installed":true,"scopes":["global","project"]}`, "", nil
 	}
@@ -32,8 +35,23 @@ func TestDiscoverInstalledAdapters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != (adapterScopes{opencodeProject: true, codexGlobal: true, codexProject: true}) {
+	if got != (adapterScopes{opencodeProject: true, codexGlobal: true, codexProject: true, claudeCode: true}) {
 		t.Fatalf("scopes = %+v", got)
+	}
+
+	var inspected []string
+	got, err = discoverInstalledAdapters("./build/ktx", func(_ string, args ...string) (string, string, error) {
+		inspected = append(inspected, strings.Join(args, " "))
+		if args[3] == "claude-code" {
+			return `{"installed":true}`, "", nil
+		}
+		return "", "not installed", testExitError(2)
+	})
+	if err != nil || got != (adapterScopes{claudeCode: true}) {
+		t.Fatalf("claude-code only scopes = %+v, error = %v", got, err)
+	}
+	if want := "--format json init claude-code --show"; inspected[len(inspected)-1] != want {
+		t.Fatalf("inspected = %q, want last %q", inspected, want)
 	}
 
 	_, err = discoverInstalledAdapters("./build/ktx", func(_ string, _ ...string) (string, string, error) {
@@ -60,14 +78,14 @@ func TestRefreshInstalledAdapters(t *testing.T) {
 		return "", "", nil
 	}
 	var output strings.Builder
-	err := refreshInstalledAdapters("/bin/ktx", adapterScopes{opencodeGlobal: true, codexProject: true}, runner, &output)
+	err := refreshInstalledAdapters("/bin/ktx", adapterScopes{opencodeGlobal: true, codexProject: true, claudeCode: true}, runner, &output)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := strings.Join(calls, "\n"), "/bin/ktx init opencode\n/bin/ktx init codex --project"; got != want {
+	if got, want := strings.Join(calls, "\n"), "/bin/ktx init opencode\n/bin/ktx init codex --project\n/bin/ktx init claude-code"; got != want {
 		t.Fatalf("calls = %q, want %q", got, want)
 	}
-	for _, required := range []string{"Restart OpenCode", "Restart Codex", "/hooks"} {
+	for _, required := range []string{"Restart OpenCode", "Restart Codex", "/hooks", "Run /reload-plugins in Claude Code (or restart it)."} {
 		if !strings.Contains(output.String(), required) {
 			t.Errorf("success output lacks %q: %s", required, output.String())
 		}

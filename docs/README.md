@@ -13,6 +13,7 @@ from past experiments and are kept unchanged as evidence.
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | [Pipelines and benchmarks](guides/pipelines.md)      | Compression stages, routing, recipes, config optimization, replay, and benchmark runs |
 | [OpenCode integration](guides/opencode-telemetry.md) | Installing the OpenCode plugin, what it records, and troubleshooting                  |
+| [Claude Code integration](guides/claude-code.md)     | Installing the Claude Code plugins, the status line and `/ktx` pane, troubleshooting  |
 | [Diagnostic logging](guides/logging.md)              | The optional log file for database-unavailable errors                                 |
 | [Development and benchmarking](development.md)       | Building from source, running the checks, and measuring compression with `ktx bench`  |
 

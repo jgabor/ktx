@@ -94,11 +94,11 @@ type initParsedArgs struct {
 //
 // Behaviour:
 //   - Listens on `event`, normalizes accepted OpenCode model-step events, and
-//     shells out to `ktx telemetry record --ack`. Only a matching durable ACK
+//     runs `ktx telemetry record --ack`. Only a matching durable ACK
 //     retires a delivery; failures leave the first payload available for retry
 //     without altering runtime events.
-//   - Listens on `tool.execute.after` and shells out to
-//     `ktx hook` via Bun.spawn, sending the raw callback object
+//   - Listens on `tool.execute.after` and runs `ktx hook` as a direct
+//     child process (no shell), sending the raw callback object
 //     (input + output) tagged with `runtime: "opencode"`. The binary owns
 //     tool-result extraction, ID generation, and timestamps.
 //   - `ktx hook` persists the original and returns a JSON envelope:
@@ -113,12 +113,17 @@ type initParsedArgs struct {
 //   - Noops when KTX_SESSION_ID is present for an ordinary wrapper run. An
 //     explicit collection keeps the hook active under wrapper-owned lifecycle.
 //
+// The source uses only node: built-ins, so it runs under Bun, which OpenCode
+// uses to load plugins, and under Node.
+//
 // Candidate check: the plugin factory resolves one ktx from PATH, canonicalizes
 // its path, and invokes that pinned path. If resolution fails, no hooks are
 // registered and a one-line warning makes the disabled state and correction visible.
 const ktxOpencodePluginTemplate = `import type { Plugin } from "@opencode-ai/plugin"
-import { lstat, realpath, stat } from "node:fs/promises"
-import { resolve } from "node:path"
+import childProcess from "node:child_process"
+import { access, constants, lstat, realpath, stat } from "node:fs/promises"
+import os from "node:os"
+import { delimiter, resolve } from "node:path"
 
 interface KtxEnvelope {
   output: string
@@ -253,19 +258,49 @@ const parseDeadlineExceeded = (
   }
 }
 
+// Runs ktx directly, without a shell. ktx may exit before it reads stdin, so a
+// stdin write error is ignored and the exit status stays authoritative. A
+// signal exit reports 128 plus the signal number; a spawn failure rejects.
+const spawnKtx = (
+  executablePath: string, args: string[], payload?: string,
+): Promise<KtxCommandResult> => new Promise((settle, reject) => {
+  const child = childProcess.spawn(executablePath, args, {
+    env: process.env, stdio: [payload === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+  })
+  const stdout: Buffer[] = []
+  const stderr: Buffer[] = []
+  child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk))
+  child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk))
+  child.on("error", reject)
+  child.on("close", (code: number | null, signal: string | null) => {
+    const decode = (chunks: Buffer[]): string => new TextDecoder().decode(Buffer.concat(chunks))
+    const signals = os.constants.signals as Record<string, number>
+    settle({ stdout: decode(stdout), stderr: decode(stderr), exitCode: code ?? 128 + (signals[signal ?? ""] ?? 0) })
+  })
+  child.stdin?.on("error", () => {})
+  if (payload !== undefined) child.stdin?.end(payload)
+})
+
+// Mirrors a PATH search: the first regular, executable file named ktx wins.
+const findKtx = async (): Promise<string | null> => {
+  for (const directory of (process.env.PATH || "").split(delimiter)) {
+    if (!directory) continue
+    const candidate = resolve(directory, "ktx")
+    try {
+      if (!(await stat(candidate)).isFile()) continue
+      await access(candidate, constants.X_OK)
+      return candidate
+    } catch {
+      // Missing or non-executable entries do not stop the search.
+    }
+  }
+  return null
+}
+
 const ktxRequiredCommand = async (
   executablePath: string, args: string[], payload: string,
 ): Promise<unknown> => {
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(new TextEncoder().encode(payload))
-      controller.close()
-    },
-  })
-  const proc = Bun.spawn([executablePath, ...args], { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited,
-  ])
+  const { stdout, stderr, exitCode } = await spawnKtx(executablePath, args, payload)
   if (exitCode !== 0) throw new Error("ktx command exited " + exitCode + ": " + stderr.trim())
   const result = JSON.parse(stdout)
   if (!result || typeof result !== "object") throw new Error("malformed ktx acknowledgement")
@@ -420,12 +455,12 @@ const requiredEventSnapshot = (event: any): string => {
   } } })
 }
 
-const KtxPlugin: Plugin = async ({ $ }) => {
+const KtxPlugin: Plugin = async () => {
   const required = process.env.KTX_BENCH_COLLECTOR_MODE === "required"
   let ktxExecutable = ""
   // Resolve one candidate and pin its canonical path for this plugin instance.
   try {
-    const candidate = Bun.which("ktx", { PATH: process.env.PATH })
+    const candidate = await findKtx()
     if (!candidate) throw new Error("ktx binary not found in PATH")
     ktxExecutable = await realpath(candidate)
   } catch (e) {
@@ -437,22 +472,8 @@ const KtxPlugin: Plugin = async ({ $ }) => {
 
   const openBackedArgs = (args: string[]): string[] => args
 
-  const runOrdinaryProcess = async (args: string[], payload?: string): Promise<KtxCommandResult> => {
-    let stream: ReadableStream<Uint8Array> | "ignore" = "ignore"
-    if (payload !== undefined) {
-      stream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode(payload))
-          controller.close()
-        },
-      })
-    }
-    const proc = Bun.spawn([ktxExecutable, ...args], { env: process.env, stdin: stream, stdout: "pipe", stderr: "pipe" })
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited,
-    ])
-    return { stdout, stderr, exitCode }
-  }
+  const runOrdinaryProcess = (args: string[], payload?: string): Promise<KtxCommandResult> =>
+    spawnKtx(ktxExecutable, args, payload)
 
   const databasePaths = new Map<string, string>()
   const schemaByTarget = new Map<string, { key: string; fingerprint: string }>()

@@ -49,21 +49,19 @@ const key=JSON.stringify(["runtime","message","part"])
 let started:()=>void, release:()=>void
 const starting=new Promise<void>(resolve=>started=resolve)
 const gate=new Promise<void>(resolve=>release=resolve)
-const originalSpawn=Bun.spawn
+` + adapterSpawnTap + `
 let deliveries=0, spawns=0
-Bun.spawn=((argv:any,options:any)=>{
+childProcess.spawn=((command:any,args:any,options:any)=>{
   spawns++
-  const proc=originalSpawn(argv,options)
-  if(argv[1]!=="telemetry" || argv[2]!=="record") return proc
+  const proc=originalSpawn(command,args,options)
+  if(args[0]!=="telemetry" || args[1]!=="record") return proc
   const number=++deliveries
-  const stdout=new ReadableStream({async start(controller){
-    const body=await new Response(proc.stdout).text()
+  return tapProcess(proc,()=>{},async(body,code)=>{
     if(number===1){ started(); await gate }
     // Commit through the real CLI, but lose the first ACK in transport.
-    controller.enqueue(new TextEncoder().encode(number===1 ? "" : body)); controller.close()
-  }})
-  return {stdout,stderr:proc.stderr,exited:proc.exited}
-}) as typeof Bun.spawn
+    return [number===1 ? "" : body,code]
+  })
+}) as typeof childProcess.spawn
 const diagnostics:string[]=[]
 console.error=(message:any)=>diagnostics.push(String(message))
 const first=hooks.event({event})
@@ -129,14 +127,14 @@ const hooks:any=await plugin({} as any)
 const retainedControl=` + strconv.FormatBool(retain) + `
 const state=hooks.__collectorState()
 let sentBytes=0, deliveries=0
-const originalSpawn=Bun.spawn
-Bun.spawn=((argv:any,options:any)=>{
-  if(argv[1]!=="telemetry" || argv[2]!=="record") return originalSpawn(argv,options)
+` + adapterSpawnTap + `
+childProcess.spawn=((command:any,args:any,options:any)=>{
+  const proc=originalSpawn(command,args,options)
+  if(args[0]!=="telemetry" || args[1]!=="record") return proc
   // Count and forward chunks, never keep a payload corpus in the harness.
   deliveries++
-  const stdin=options.stdin.pipeThrough(new TransformStream({transform(chunk,controller){sentBytes+=chunk.byteLength;controller.enqueue(chunk)}}))
-  return originalSpawn(argv,{...options,stdin})
-}) as typeof Bun.spawn
+  return tapProcess(proc,chunk=>{sentBytes+=chunk.byteLength})
+}) as typeof childProcess.spawn
 for(let i=0;i<256;i++){
   const id="message-"+i
   await hooks.event({event:{type:"message.updated",properties:{info:{sessionID:"runtime",id,role:"assistant",providerID:"provider",modelID:"model"}}}})

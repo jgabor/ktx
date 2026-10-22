@@ -28,6 +28,40 @@ type durableCase struct {
 	JavaScript string
 }
 
+// adapterSpawnTap wraps the generated adapter's real ktx processes. A tapped
+// process forwards stdin through the harness and may rewrite stdout and the exit
+// code after the real process closes. Every write still reaches the local CLI.
+const adapterSpawnTap = `
+import childProcess from "node:child_process"
+import {EventEmitter} from "node:events"
+import {PassThrough} from "node:stream"
+const originalSpawn=childProcess.spawn
+const tapProcess=(proc:any,onChunk:(chunk:Buffer)=>void,respond?:(stdout:string,code:number|null)=>Promise<[string,number|null]>)=>{
+  const child:any=new EventEmitter()
+  const input=new PassThrough()
+  proc.stdin.on("error",()=>{})
+  input.on("data",onChunk)
+  input.pipe(proc.stdin)
+  child.stdin=input; child.stderr=proc.stderr; child.stdout=new PassThrough()
+  const stdout:Buffer[]=[]
+  proc.stdout.on("data",(chunk:Buffer)=>stdout.push(chunk))
+  proc.on("error",(error:Error)=>child.emit("error",error))
+  proc.on("close",async(code:number|null,signal:string|null)=>{
+    const body=Buffer.concat(stdout).toString()
+    const [rewritten,exitCode]=respond ? await respond(body,code) : [body,code]
+    child.stdout.on("end",()=>child.emit("close",exitCode,signal))
+    child.stdout.end(rewritten)
+  })
+  return child
+}
+const tapPayload=(proc:any,payloads:Promise<string>[],respond?:(stdout:string,code:number|null)=>Promise<[string,number|null]>)=>{
+  const chunks:Buffer[]=[]
+  const child=tapProcess(proc,chunk=>chunks.push(chunk),respond)
+  payloads.push(new Promise(resolve=>child.stdin.on("end",()=>resolve(Buffer.concat(chunks).toString()))))
+  return child
+}
+`
+
 type telemetryDiagnosticWriter func([]byte) (int, error)
 
 func (w telemetryDiagnosticWriter) Write(p []byte) (int, error) { return w(p) }
@@ -357,14 +391,13 @@ func TestTelemetryAdapterLocalNonfiniteSnapshot(t *testing.T) {
 	root, _, bun, plugin, path := localTelemetryAdapter(t, true)
 	driver := `import plugin from ` + strconv.Quote(plugin) + `
 import {Database} from "bun:sqlite"
-const originalSpawn=Bun.spawn
+` + adapterSpawnTap + `
 const payloads:Promise<string>[]=[]
-Bun.spawn=((argv:any,options:any)=>{
-  if(argv[1]!=="telemetry" || argv[2]!=="event-record") return originalSpawn(argv,options)
-  const [input,copy]=options.stdin.tee()
-  payloads.push(new Response(copy).text())
-  return originalSpawn(argv,{...options,stdin:input})
-}) as typeof Bun.spawn
+childProcess.spawn=((command:any,args:any,options:any)=>{
+  const proc=originalSpawn(command,args,options)
+  if(args[0]!=="telemetry" || args[1]!=="event-record") return proc
+  return tapPayload(proc,payloads)
+}) as typeof childProcess.spawn
 const hooks:any=await plugin({} as any)
 const tokens={input:NaN,output:2,reasoning:0,cache:{read:0,write:0},extra:Infinity}
 const event={type:"message.part.updated",cost:Infinity,properties:{metadata:tokens,part:{
@@ -426,19 +459,16 @@ const required=` + strconv.FormatBool(required) + `
 const overlapping=mode==="overlapping"
 const beforeCommit=mode.endsWith("before-commit") || overlapping
 if(beforeCommit) db.exec("CREATE TRIGGER fail_telemetry BEFORE INSERT ON session_telemetry BEGIN SELECT RAISE(FAIL,'controlled persistence failure'); END")
-const originalSpawn=Bun.spawn
+` + adapterSpawnTap + `
 const payloads:Promise<string>[]=[]
 let deliveries=0
 // Fault only the acknowledgement transport. Every write uses the actual local CLI.
-Bun.spawn=((argv:any,options:any)=>{
-  const selected=argv[1]==="telemetry" && (argv[2]==="record" || argv[2]==="event-record")
-  if(!selected) return originalSpawn(argv,options)
-  const [input,copy]=options.stdin.tee()
-  payloads.push(new Response(copy).text())
-  const proc=originalSpawn(argv,{...options,stdin:input})
+childProcess.spawn=((command:any,args:any,options:any)=>{
+  const proc=originalSpawn(command,args,options)
+  const selected=args[0]==="telemetry" && (args[1]==="record" || args[1]==="event-record")
+  if(!selected) return proc
   const number=++deliveries
-  const stdout=new ReadableStream({async start(controller){
-    let body=await new Response(proc.stdout).text()
+  return tapPayload(proc,payloads,async(body,code)=>{
     if(number===1 && !beforeCommit){
       if(mode.endsWith("ack-loss")) body=""
       else if(mode==="malformed-ack") body="not JSON"
@@ -455,10 +485,9 @@ Bun.spawn=((argv:any,options:any)=>{
       }
     }
     if(number===1 && overlapping) db.exec("DROP TRIGGER fail_telemetry")
-    controller.enqueue(new TextEncoder().encode(body)); controller.close()
-  }})
-  return {stdout,stderr:proc.stderr,exited:proc.exited.then(code=>number===1 && mode==="nonzero" ? 8 : code)}
-}) as typeof Bun.spawn
+    return [body,number===1 && mode==="nonzero" ? 8 : code]
+  })
+}) as typeof childProcess.spawn
 const hooks:any=await plugin({} as any)
 const state=hooks.__collectorState()
 const event=` + string(event) + `

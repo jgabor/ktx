@@ -54,9 +54,7 @@ const out = {
   compact: [0, 999, 1000, 1234, 9949, 9950, 12345, 999499, 999500, 1200000, 650000, 2.5e9, 3e12, 5e15, -1500].map(
     s.formatCompactEstimate,
   ),
-  saved: [s.savedPercentage(0, 0), s.savedPercentage(100, 150), s.savedPercentage(100, -50), Math.round(s.savedPercentage(1200000, 650000) * 100) / 100],
   savedText: [s.formatSavedPercent(0, 0), s.formatSavedPercent(1200000, 650000)],
-  bars: [s.textBar(46, 10), s.textBar(150, 4), s.textBar(-5, 4), s.textBar(0, 0)],
   valid: data,
   valid60: attempt(() => s.validateKtxSummary(valid(60), 60)).ok?.windowSeconds,
   nanoseconds: attempt(() =>
@@ -97,19 +95,15 @@ const out = {
     attempt(() => s.parseKtxSummaryRun({ exitCode: 0, stdout: JSON.stringify(valid(30)), stderr: "" }, 15)).error,
     attempt(() => s.parseKtxSummaryRun({ exitCode: 0, stdout: JSON.stringify(valid(15)), stderr: "" }, 15)).ok?.totalCalls,
   ],
-  band: [
-    s.bandLine(null, 15),
-    s.bandLine({ window: 15, data: null, error: "ktx stats summary failed (exit 1)" }, 15),
-    s.bandLine({ window: 15, data: s.validateKtxSummary(idle, 15), error: null }, 15),
-    s.bandLine({ window: 15, data, error: null }, 15),
-    s.bandLine({ window: 15, data, error: "timed out" }, 15),
-    s.bandLine({ window: 15, data, error: null }, 30),
+  summary: [
+    s.summaryLine(null, 15),
+    s.summaryLine({ window: 15, data: null, error: "ktx stats summary failed (exit 1)" }, 15),
+    s.summaryLine({ window: 15, data: s.validateKtxSummary(idle, 15), error: null }, 15),
+    s.summaryLine({ window: 15, data, error: null }, 15),
+    s.summaryLine({ window: 15, data, error: "timed out" }, 15),
+    s.summaryLine({ window: 15, data, error: null }, 30),
   ],
-  pane: [
-    s.paneLines({ window: 15, data, error: "timed out" }, 15, 10),
-    s.paneLines(null, 15, 10),
-    s.paneLines({ window: 15, data: s.validateKtxSummary(idle, 15), error: null }, 15, 10),
-  ],
+  windowArgs: ["", " ", "15", "30m", "60", "45", "15 m", "abc"].map((a) => s.parseWindowArgument(a) ?? (a.trim() === "" ? "none" : "invalid")),
   windows: s.ktxStatsWindows,
 };
 console.log(JSON.stringify(out));
@@ -158,9 +152,7 @@ func TestClaudeCodeStatsHelpersUnderNode(t *testing.T) {
 		}
 	}
 	expect("compact", []any{"0", "999", "1k", "1.2k", "9.9k", "10k", "12k", "999k", "1M", "1.2M", "650k", "2.5B", "3T", "5000T", "-1.5k"})
-	expect("saved", []any{0.0, 0.0, 100.0, 45.83})
 	expect("savedText", []any{"—", "46%"})
-	expect("bars", []any{"█████░░░░░", "████", "░░░░", "░"})
 	expect("valid", map[string]any{
 		"windowSeconds": 900.0, "from": "2026-10-22T11:45:00.000Z", "to": "2026-10-22T12:00:00.000Z",
 		"totalCalls": 300.0, "compressedCalls": 120.0, "rawTokens": 1200000.0, "deliveredTokens": 650000.0,
@@ -190,7 +182,7 @@ func TestClaudeCodeStatsHelpersUnderNode(t *testing.T) {
 		"ktx returned invalid stats data: window.seconds must be equal to the requested 15m window",
 		300.0,
 	})
-	expect("band", []any{
+	expect("summary", []any{
 		"ktx 15m: loading stats…",
 		"ktx 15m: unavailable (ktx stats summary failed (exit 1))",
 		"ktx: no calls in 15m",
@@ -198,16 +190,5 @@ func TestClaudeCodeStatsHelpersUnderNode(t *testing.T) {
 		"ktx 15m (stale): 46% saved · 1.2M→650k tok · 120/300 calls",
 		"ktx 30m: loading stats…",
 	})
-	line := func(text, tone string) any { return map[string]any{"text": text, "tone": tone} }
-	expect("pane", []any{
-		[]any{
-			line("Stale: timed out", "error"),
-			line("Saved      550k tokens (46%)", "normal"),
-			line("█████░░░░░", "normal"),
-			line("Tokens     1.2M → 650k", "dim"),
-			line("Calls      120 compressed / 300 total", "dim"),
-		},
-		[]any{line("Loading ktx stats…", "dim")},
-		[]any{line("No calls in 15m", "dim")},
-	})
+	expect("windowArgs", []any{"none", "none", 15.0, 30.0, 60.0, "invalid", "invalid", "invalid"})
 }

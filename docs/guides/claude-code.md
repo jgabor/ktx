@@ -81,16 +81,20 @@ ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls
 
 That reads as: 46% of the raw output tokens were saved, 1.2 million raw tokens
 became 650 thousand, and 120 of 300 calls with output had a compressed copy.
-With no calls in the window it shows `ktx: no calls in 15m`. The band
-appears after the first refresh and steps aside while Claude Code shows a
-survey. If a refresh
+With no calls in the window it shows `ktx: no calls in 15m`. If a refresh
 fails, the mod keeps the last good figures and marks them `(stale)` until a
 later refresh works.
 
-Type `/ktx` to open a pane with the same figures: saved tokens and percent, a
-bar, raw and delivered tokens, and compressed and total calls. Buttons switch
-between the 15, 30, and 60 minute windows. The mod polls only in interactive
-sessions, not in `claude -p` runs.
+The band appears after the first refresh and steps aside while Claude Code
+shows a survey. Only one plugin can draw the band at a time, so another mod
+that draws its own band can hide it. The pane always works.
+
+Type `/ktx` to open a one-line pane with the same line and buttons for the 15,
+30, and 60 minute windows. Type `/ktx` again to close it, which helps when
+clicks don't reach the terminal, for example over SSH. `/ktx 30` (or `/ktx 30m`)
+switches to that window and opens the pane. The band steps aside while the
+pane is open. The mod polls only in interactive sessions, not in `claude -p`
+runs.
 
 ## Status line without the mod
 

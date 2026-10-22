@@ -1,6 +1,6 @@
 // Pure helpers for the ktx-stats mod: strict validation of
-// `ktx stats summary --format json` output and the text the band above the
-// prompt and the /ktx pane draw. Nothing here uses the engine, so it also runs under Node.
+// `ktx stats summary --format json` output, the summary line the band above
+// the prompt and the /ktx pane draw, and the /ktx argument. Nothing here uses the engine, so it also runs under Node.
 
 import type {
   KtxStatsSnapshot,
@@ -212,43 +212,25 @@ export function formatCompactEstimate(value: number): string {
   return `${sign}${rounded}${units[unit]}`;
 }
 
-/** The saved share of raw tokens, clamped to 0..100; 0 when raw is 0. */
-export function savedPercentage(raw: number, delivered: number): number {
-  if (raw === 0) return 0;
-  return Math.min(100, Math.max(0, ((raw - delivered) / raw) * 100));
-}
-
 /** The saved share as text: a rounded percent, or "—" when raw is 0. */
 export function formatSavedPercent(raw: number, delivered: number): string {
   return raw === 0 ? "—" : `${Math.round(((raw - delivered) / raw) * 100)}%`;
 }
 
-/** A text bar of width cells, filled to the clamped percentage. */
-export function textBar(percentage: number, width: number): string {
-  const cells = Math.max(1, Math.floor(width));
-  const share = Math.min(100, Math.max(0, percentage));
-  const filled = Math.round((share / 100) * cells);
-  return "█".repeat(filled) + "░".repeat(cells - filled);
-}
-
 export type KtxSummaryView = {
-  savedTokens: string;
   savedPercent: string;
-  barPercentage: number;
   rawTokens: string;
   deliveredTokens: string;
   compressedCalls: string;
   totalCalls: string;
 };
 
-/** The figures the band and pane draw; null when no call had output. */
+/** The figures the summary line shows; null when no call had output. */
 export function summaryView(summary: KtxSummary): KtxSummaryView | null {
   if (summary.totalCalls === 0) return null;
   const { rawTokens: raw, deliveredTokens: delivered } = summary;
   return {
-    savedTokens: formatCompactEstimate(raw - delivered),
     savedPercent: formatSavedPercent(raw, delivered),
-    barPercentage: savedPercentage(raw, delivered),
     rawTokens: formatCompactEstimate(raw),
     deliveredTokens: formatCompactEstimate(delivered),
     compressedCalls: String(summary.compressedCalls),
@@ -262,8 +244,8 @@ export function shortError(error: string, maxLength: number): string {
     : error;
 }
 
-/** The one line drawn in the band above the prompt. */
-export function bandLine(
+/** The one summary line the band and the pane draw. */
+export function summaryLine(
   snapshot: KtxStatsSnapshot | null,
   window: KtxStatsWindow,
 ): string {
@@ -279,48 +261,18 @@ export function bandLine(
   return `ktx ${window}m${stale}: ${view.savedPercent} saved · ${view.rawTokens}→${view.deliveredTokens} tok · ${view.compressedCalls}/${view.totalCalls} calls`;
 }
 
-export type PaneLine = { text: string; tone: "normal" | "dim" | "error" };
-
-/** The rows of the /ktx pane below its heading, for a bar of barWidth cells. */
-export function paneLines(
-  snapshot: KtxStatsSnapshot | null,
-  window: KtxStatsWindow,
-  barWidth: number,
-): PaneLine[] {
-  const current =
-    snapshot !== null && snapshot.window === window ? snapshot : null;
-  const lines: PaneLine[] = [];
-  if (current?.error) {
-    const prefix = current.data ? "Stale: " : "Unavailable: ";
-    lines.push({
-      text: prefix + shortError(current.error, 160),
-      tone: "error",
-    });
-  }
-  if (!current?.data) {
-    if (!current?.error)
-      lines.push({ text: "Loading ktx stats…", tone: "dim" });
-    return lines;
-  }
-  const view = summaryView(current.data);
-  if (view === null) {
-    lines.push({ text: `No calls in ${window}m`, tone: "dim" });
-    return lines;
-  }
-  lines.push(
-    {
-      text: `Saved      ${view.savedTokens} tokens (${view.savedPercent})`,
-      tone: "normal",
-    },
-    { text: textBar(view.barPercentage, barWidth), tone: "normal" },
-    {
-      text: `Tokens     ${view.rawTokens} → ${view.deliveredTokens}`,
-      tone: "dim",
-    },
-    {
-      text: `Calls      ${view.compressedCalls} compressed / ${view.totalCalls} total`,
-      tone: "dim",
-    },
-  );
-  return lines;
+/**
+ * The window named by `/ktx` arguments: undefined for none, null for anything
+ * other than 15, 30, or 60 with an optional "m".
+ */
+export function parseWindowArgument(
+  args: string,
+): KtxStatsWindow | null | undefined {
+  const text = args.trim();
+  if (text === "") return undefined;
+  const match = /^(\d+)m?$/.exec(text);
+  const minutes = match ? Number(match[1]) : NaN;
+  return (ktxStatsWindows as readonly number[]).includes(minutes)
+    ? (minutes as KtxStatsWindow)
+    : null;
 }

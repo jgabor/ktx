@@ -2,9 +2,11 @@
 //
 // On session start it registers /ktx and polls `ktx stats summary` every
 // 10 seconds through the ktx executable pinned when the plugin was generated.
-// A band above the prompt shows the current window; /ktx opens a
-// pane with the same figures and buttons for the 15, 30, and 60 minute
-// windows. The figures cover every runtime ktx records, not only this session.
+// A band above the prompt shows one summary line for the current window.
+// `/ktx` toggles a one-line pane with the same summary and buttons for the 15,
+// 30, and 60 minute windows; `/ktx 30` picks a window and opens the pane. The
+// band steps aside while the pane is open. The figures cover every runtime
+// ktx records, not only this session.
 
 import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register, Timer } from "claude-code";
@@ -14,9 +16,9 @@ import {
   defaultKtxStatsWindow,
   errorMessage,
   ktxStatsWindows,
-  paneLines,
   parseKtxSummaryRun,
-  bandLine,
+  parseWindowArgument,
+  summaryLine,
 } from "./stats.ts";
 
 const KTX_EXECUTABLE: string = "__KTX_EXECUTABLE__";
@@ -32,6 +34,7 @@ const lastSnapshot = atom(
   { plugin: "ktx-stats", key: "snapshot" } as const,
   null,
 );
+const paneOpen = atom({ plugin: "ktx-stats", key: "paneOpen" } as const, false);
 
 // Module variables reset when the module reloads; the drawn state lives in
 // $.state and survives.
@@ -107,47 +110,55 @@ export const register: Register = (on) => {
     return next(e);
   });
 
-  on("command.run", { command: "ktx" }, async ($) => {
-    await $.ui.open({ id: PANE, title: "ktx" });
-    void refresh($);
-    return { text: "ktx stats pane opened." };
+  on("command.run", { command: "ktx" }, async ($, e) => {
+    const window = parseWindowArgument(e.args);
+    if (window === null) return { text: "Usage: /ktx [15|30|60]" };
+    const isOpen = (await $.ui.panes()).some((pane) => pane.id === PANE);
+    if (window === undefined && isOpen) {
+      await $.ui.close({ id: PANE });
+      return { text: "ktx stats pane closed." };
+    }
+    if (window !== undefined) await selectWindow($, window);
+    await $.ui.open({ id: PANE, title: "ktx", rows: 1 });
+    await update($, paneOpen, () => true);
+    if (window === undefined) void refresh($);
+    return {
+      text: `ktx stats pane opened (${await read($, selectedWindow)}m).`,
+    };
   });
 
-  // The band yields to a survey and draws nothing until the first poll.
+  on("ui.close", async ($, e, next) => {
+    const closed = await next(e);
+    if (e.id === PANE) await update($, paneOpen, () => false);
+    return closed;
+  });
+
+  // The band yields to a survey and to the open pane, and draws nothing until
+  // the first poll.
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const snapshot = await read($, lastSnapshot);
-    if (e.props.hasSurvey || snapshot === null) return next(e);
+    if (e.props.hasSurvey || snapshot === null || (await read($, paneOpen)))
+      return next(e);
     const { Text } = $.ui.resolve(e);
     const window = await read($, selectedWindow);
-    return <Text dimColor>{bandLine(snapshot, window)}</Text>;
+    return <Text dimColor>{summaryLine(snapshot, window)}</Text>;
   });
 
   on("ui.render", { component: "Pane", requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e);
     const window = await read($, selectedWindow);
     const snapshot = await read($, lastSnapshot);
-    const barWidth = Math.max(10, Math.min(40, e.props.bodyColumns - 2));
-
     return (
-      <Box flexDirection="column">
-        <Text bold>ktx · last {window}m · all runtimes</Text>
-        {paneLines(snapshot, window, barWidth).map((line) =>
-          line.tone === "error" ? (
-            <Text color="error">{line.text}</Text>
-          ) : (
-            <Text dimColor={line.tone === "dim"}>{line.text}</Text>
-          ),
-        )}
-        <Box flexDirection="row" gap={1}>
-          {ktxStatsWindows.map((choice) => (
-            <Button
-              key={`window-${choice}`}
-              label={`${choice}m`}
-              variant={choice === window ? "primary" : "secondary"}
-              onPress={() => void selectWindow($, choice)}
-            />
-          ))}
-        </Box>
+      <Box flexDirection="row" gap={1}>
+        <Text>{summaryLine(snapshot, window)}</Text>
+        {ktxStatsWindows.map((choice) => (
+          <Button
+            key={`window-${choice}`}
+            label={`${choice}m`}
+            variant={choice === window ? "primary" : "secondary"}
+            onPress={() => void selectWindow($, choice)}
+          />
+        ))}
       </Box>
     );
   });

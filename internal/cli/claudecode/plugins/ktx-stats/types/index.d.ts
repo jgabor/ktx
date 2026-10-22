@@ -26,6 +26,7 @@ declare module "claude-code" {
     "ktx-stats": {
       window: KtxStatsWindow;
       snapshot: KtxStatsSnapshot | null;
+      paneOpen: boolean;
     };
   }
 }

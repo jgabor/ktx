@@ -308,6 +308,15 @@ is success; nested `tool_response` outcome-looking fields are unconstrained and
 non-overriding. Nonconforming, untrusted, unsupported, and historical missing
 evidence remains unknown.
 
+`ktx hook --runtime claude-code` reads the Claude Code 2.1.304 `PostToolUse`
+payload. Trusted occurrences are success, except interrupted results, which are
+unknown. The hook records Bash `stdout` and, when the pipeline transforms it,
+writes `hookSpecificOutput.updatedToolOutput`: the original `tool_response`
+with only `stdout` replaced. Otherwise it writes `{}`. `claude-code` is the only
+accepted `--runtime` value; any other, missing, or repeated value is a usage
+error before the database opens. In this mode a not-found failure exits `1`,
+never `2`, because Claude Code shows hook stderr to the model on exit `2`.
+
 ## Compression and Recovery
 
 ```bash

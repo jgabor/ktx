@@ -80,9 +80,12 @@ func (i hookIngress) agent() string {
 	}
 }
 
-func writeTrustedHookOutput(stdout io.Writer, ingress hookIngress, result evidence.Result, output, runtimeSessionID, runtimeCallID string, recoveryCue bool) error {
+func writeTrustedHookOutput(stdout io.Writer, ingress hookIngress, result evidence.Result, output string, response claudeCodeToolResponse, runtimeSessionID, runtimeCallID string, recoveryCue bool) error {
 	enc := json.NewEncoder(stdout)
 	enc.SetEscapeHTML(false)
+	if ingress == ingressClaudeCode {
+		return writeClaudeCodeHookOutput(enc, result, output, response)
+	}
 	if ingress == ingressCodex {
 		var response codexHookOutput
 		if result.Transformed {
@@ -115,12 +118,106 @@ func writeTrustedHookOutput(stdout io.Writer, ingress hookIngress, result eviden
 	return nil
 }
 
+// claudeCodeHookOutput is the Claude Code PostToolUse hook response. When
+// the pipeline transforms a replaceable result, updatedToolOutput carries the
+// original tool_response with only stdout replaced by the delivered text.
+// Otherwise the response is an empty object and Claude Code keeps the
+// original result.
+type claudeCodeHookOutput struct {
+	HookSpecificOutput *claudeCodeHookSpecificOutput `json:"hookSpecificOutput,omitempty"`
+}
+
+type claudeCodeHookSpecificOutput struct {
+	HookEventName     string         `json:"hookEventName"`
+	UpdatedToolOutput map[string]any `json:"updatedToolOutput"`
+}
+
+func writeClaudeCodeHookOutput(enc *json.Encoder, result evidence.Result, output string, response claudeCodeToolResponse) error {
+	var out claudeCodeHookOutput
+	if result.Transformed && response.replaceable {
+		updated := make(map[string]any, len(response.fields))
+		for key, value := range response.fields {
+			updated[key] = value
+		}
+		updated["stdout"] = output
+		out.HookSpecificOutput = &claudeCodeHookSpecificOutput{HookEventName: claudeCodePostToolUseEvent, UpdatedToolOutput: updated}
+	}
+	if err := enc.Encode(out); err != nil {
+		return internalError("ktx hook: write Claude Code output: %v", err)
+	}
+	return nil
+}
+
+// hookRuntimeClaudeCode is the only value `ktx hook --runtime` accepts. It
+// selects the Claude Code PostToolUse input and output contract.
+const hookRuntimeClaudeCode = "claude-code"
+
+// claudeCodePostToolUseEvent is the only hook_event_name accepted when the
+// Claude Code runtime is selected.
+const claudeCodePostToolUseEvent = "PostToolUse"
+
+// hookParsedArgs carries `ktx hook` flags through the dispatcher. runtime is
+// empty unless --runtime selected an adapter contract.
+type hookParsedArgs struct {
+	runtime string
+}
+
+// parseHookDispatchArgs consumes `--runtime <value>` and `--runtime=<value>`.
+// The value must be "claude-code"; a missing, different, or repeated value is
+// a usage error reported before the database opens.
+func parseHookDispatchArgs(args []string) ([]string, any, error) {
+	var parsed hookParsedArgs
+	seen := false
+	rest := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			rest = append(rest, args[i:]...)
+			break
+		}
+		var value string
+		switch {
+		case arg == "--runtime":
+			if i+1 >= len(args) {
+				return nil, nil, fmt.Errorf("ktx hook: --runtime requires a value; the only accepted value is %q", hookRuntimeClaudeCode)
+			}
+			i++
+			value = args[i]
+		case strings.HasPrefix(arg, "--runtime="):
+			value = strings.TrimPrefix(arg, "--runtime=")
+		default:
+			rest = append(rest, arg)
+			continue
+		}
+		if seen {
+			return nil, nil, errors.New("ktx hook: --runtime may be given only once")
+		}
+		seen = true
+		if value != hookRuntimeClaudeCode {
+			return nil, nil, fmt.Errorf("ktx hook: unsupported --runtime %q; the only accepted value is %q", value, hookRuntimeClaudeCode)
+		}
+		parsed.runtime = value
+	}
+	return rest, parsed, nil
+}
+
+// hookExitCode keeps a Claude Code hook from exiting with the not-found
+// status. Claude Code shows a PostToolUse hook's stderr to the model when the
+// hook exits 2, so that failure exits as a usage error instead.
+func hookExitCode(parsedArgs any, code int) int {
+	if parsed, ok := parsedArgs.(hookParsedArgs); ok && parsed.runtime == hookRuntimeClaudeCode && code == ExitNotFound {
+		return ExitUsage
+	}
+	return code
+}
+
 // hookCommandFunc is the dispatch entry point for `ktx hook`. The
 // dispatcher opens a current schema without exclusive coordination and exposes
 // stdin (NeedsStdin=true, PassthroughStdout=true). Creation and migration keep
 // the normal coordinated fallback.
 func hookCommandFunc(ctx *DispatchContext) (any, error) {
-	return hookLogic(ctx.Stdin, ctx.DB, ctx.Stdout, ctx.Stderr)
+	parsed, _ := ctx.ParsedArgs.(hookParsedArgs)
+	return hookLogicFor(ctx.Stdin, ctx.DB, ctx.Stdout, ctx.Stderr, parsed.runtime)
 }
 
 // openCodeInput is the OpenCode callback input shape: an object with a
@@ -285,6 +382,72 @@ func nullOrJSONString(raw json.RawMessage) bool {
 	return json.Unmarshal(raw, &value) == nil
 }
 
+func nonEmptyJSONString(raw json.RawMessage) bool {
+	var value *string
+	return json.Unmarshal(raw, &value) == nil && value != nil && *value != ""
+}
+
+// jsonObject reports whether a raw JSON value is an object. A JSON null
+// decodes into a nil map without error, so the leading byte decides.
+func jsonObject(raw json.RawMessage) bool {
+	return strings.HasPrefix(strings.TrimSpace(string(raw)), "{")
+}
+
+func jsonTrue(raw json.RawMessage) bool {
+	var value bool
+	return json.Unmarshal(raw, &value) == nil && value
+}
+
+// validClaudeCodePostToolUse reports whether a Claude Code PostToolUse
+// payload carries the fields trusted provenance needs: non-empty session_id
+// and tool_use_id strings, a tool_name string, and tool_input and
+// tool_response objects. Other fields are allowed because Claude Code adds
+// fields across releases. The caller has already checked hook_event_name.
+func validClaudeCodePostToolUse(raw map[string]json.RawMessage) bool {
+	return nonEmptyJSONString(raw["session_id"]) &&
+		nonEmptyJSONString(raw["tool_use_id"]) &&
+		jsonString(raw["tool_name"]) &&
+		jsonObject(raw["tool_input"]) &&
+		jsonObject(raw["tool_response"])
+}
+
+// claudeCodeToolResponse is a decoded Claude Code tool_response. fields keeps
+// every key's raw value so a replacement can return the response with only
+// stdout changed.
+type claudeCodeToolResponse struct {
+	fields      map[string]json.RawMessage
+	output      string
+	interrupted bool
+	replaceable bool
+}
+
+// decodeClaudeCodeToolResponse extracts the recorded output and decides,
+// before any pipeline runs, whether the delivered output may replace stdout.
+// The recorded output is the stdout string. When tool_response is not an
+// object or its stdout is not a string, the recorded output is the raw
+// tool_response JSON, so the stored source still holds what the runtime
+// returned. A result is replaceable only when stdout is a string, isImage
+// and interrupted are not true, and backgroundTaskId is absent.
+func decodeClaudeCodeToolResponse(raw json.RawMessage) claudeCodeToolResponse {
+	var response claudeCodeToolResponse
+	if len(raw) > 0 {
+		response.output = string(raw)
+	}
+	if !jsonObject(raw) || json.Unmarshal(raw, &response.fields) != nil {
+		response.fields = nil
+		return response
+	}
+	response.interrupted = jsonTrue(response.fields["interrupted"])
+	var stdout *string
+	stdoutString := json.Unmarshal(response.fields["stdout"], &stdout) == nil && stdout != nil
+	if stdoutString {
+		response.output = *stdout
+	}
+	_, background := response.fields["backgroundTaskId"]
+	response.replaceable = stdoutString && !jsonTrue(response.fields["isImage"]) && !response.interrupted && !background
+	return response
+}
+
 // extractCodexFields extracts the flat tool, input, and output strings
 // from a Codex PostToolUse payload's top-level tool_name, tool_input,
 // and tool_response fields. The tool_input is stringified JSON. The
@@ -374,12 +537,23 @@ const (
 )
 
 func hookLogic(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer) (any, error) {
-	return hookLogicObserved(stdin, db, stdout, stderr, nil)
+	return runHook(stdin, db, stdout, stderr, "", nil)
+}
+
+// hookLogicFor runs the hook with an explicit runtime contract. An empty
+// runtime keeps payload-based dispatch; "claude-code" selects the Claude Code
+// PostToolUse contract.
+func hookLogicFor(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, runtime string) (any, error) {
+	return runHook(stdin, db, stdout, stderr, runtime, nil)
 }
 
 // hookLogicObserved exposes successful hook write phases to package tests.
 // It does not emit production output or change phase ownership.
 func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, observe hookPhaseObserver) (any, error) {
+	return runHook(stdin, db, stdout, stderr, "", observe)
+}
+
+func runHook(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, runtime string, observe hookPhaseObserver) (any, error) {
 	explicitCollectionID := os.Getenv("KTX_COLLECTION_ID")
 	benchmarkEnv, benchmarkPresent, benchmarkErr := benchcontract.ReadEnvironment()
 	if os.Getenv("KTX_SESSION_ID") != "" && explicitCollectionID == "" && !benchmarkPresent {
@@ -409,18 +583,85 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	// complete native contract below controls trusted provenance and success.
 	// Any other non-empty hook_event_name is rejected before persistence.
 	// An absent or empty hook_event_name falls back to OpenCode/flat.
+	// The Claude Code runtime flag bypasses the peek; its branch checks the
+	// event name itself.
 	var peek struct {
 		Runtime       *string `json:"runtime"`
 		HookEventName *string `json:"hook_event_name"`
 	}
-	if err := json.Unmarshal(body, &peek); err != nil {
-		return nil, usageError("ktx hook: parse JSON: %v", err)
+	if runtime != hookRuntimeClaudeCode {
+		if err := json.Unmarshal(body, &peek); err != nil {
+			return nil, usageError("ktx hook: parse JSON: %v", err)
+		}
 	}
 
 	ingress := ingressFlat
 	var runtimeSessionID, runtimeCallID string
 	var src correlation.Source
-	if peek.HookEventName != nil && *peek.HookEventName != "" {
+	var claudeResponse claudeCodeToolResponse
+	if runtime == hookRuntimeClaudeCode {
+		ingress = ingressClaudeCode
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(body, &raw); err != nil {
+			return nil, usageError("ktx hook: parse JSON: %v", err)
+		}
+		var eventName *string
+		if json.Unmarshal(raw["hook_event_name"], &eventName) != nil || eventName == nil || *eventName != claudeCodePostToolUseEvent {
+			// Fail before side effects: the Claude Code hook is registered
+			// only for PostToolUse, so any other event is a wiring error.
+			got := "absent"
+			if value, ok := raw["hook_event_name"]; ok {
+				got = string(value)
+			}
+			return nil, &Error{
+				Code: CodeUsage,
+				Message: fmt.Sprintf(
+					`ktx hook: --runtime %s requires hook_event_name %q; got %s. Register the hook for the PostToolUse event only.`,
+					hookRuntimeClaudeCode, claudeCodePostToolUseEvent, got,
+				),
+				Extra: map[string]any{"valid_values": []string{claudeCodePostToolUseEvent}},
+			}
+		}
+		var toolName, sessionID, toolUseID string
+		if v := raw["tool_name"]; len(v) > 0 {
+			_ = json.Unmarshal(v, &toolName)
+		}
+		if v := raw["session_id"]; len(v) > 0 {
+			_ = json.Unmarshal(v, &sessionID)
+		}
+		if v := raw["tool_use_id"]; len(v) > 0 {
+			_ = json.Unmarshal(v, &toolUseID)
+		}
+		tc.Tool = "unknown"
+		if toolName != "" {
+			tc.Tool = toolName
+		}
+		if v := raw["tool_input"]; len(v) > 0 {
+			tc.Input = string(v)
+		}
+		claudeResponse = decodeClaudeCodeToolResponse(raw["tool_response"])
+		tc.Output = claudeResponse.output
+		provenance := correlation.Untrusted()
+		if validClaudeCodePostToolUse(raw) {
+			provenance = correlation.Trusted(correlation.ProvenanceClaudeCodePostToolUse)
+			// An interrupted call has no completion evidence, so its outcome
+			// stays unknown.
+			if !claudeResponse.interrupted {
+				succeeded := false
+				tc.IsError = &succeeded
+			}
+		}
+		resolved, err := correlation.Resolve(
+			correlation.NativeTuple{Runtime: hookRuntimeClaudeCode, SessionID: sessionID, CallID: toolUseID},
+			provenance)
+		if err != nil {
+			return nil, internalError("ktx hook: resolve identity: %v", err)
+		}
+		src = resolved
+		tc.ID = src.ID
+		rt := hookRuntimeClaudeCode
+		tc.Runtime = &rt
+	} else if peek.HookEventName != nil && *peek.HookEventName != "" {
 		if *peek.HookEventName != codexPostToolUseEvent {
 			// Fail before side effects: an unknown Codex-shaped event
 			// must not enter trusted provenance or roll up into
@@ -586,6 +827,11 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 			// never construction or execution of a replacement pipeline.
 			selection := router.Resolve(&tc, cfg.Routes, "default")
 			execution.recoverFooter = config.ResolveRecoverFooter(cfg, selection.Profile)
+		} else if ingress == ingressClaudeCode && !claudeResponse.replaceable {
+			// Claude Code would keep the original result, so the call is
+			// recorded as passthrough without running the pipeline and no
+			// savings are counted that the model never received.
+			execution = pipelineExecution{output: tc.Output}
 		} else {
 			// Route selection and transformation stay outside exclusive database
 			// coordination. Source-only retries can still produce their first artifact.
@@ -606,7 +852,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		if err := retainRecoveryAttempt(db, collectionID, ingress == ingressOpenCode && src.Eligible, &tc); err != nil {
 			return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
 		}
-		return nil, writeHookResult(stdout, ingress, preflight.result, tc.Output, execution, runtimeSessionID, runtimeCallID)
+		return nil, writeHookResult(stdout, ingress, preflight.result, tc.Output, execution, claudeResponse, runtimeSessionID, runtimeCallID)
 	}
 
 	var candidate *dbpkg.Compressed
@@ -675,14 +921,14 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 			if err := retainRecoveryAttempt(db, collectionID, ingress == ingressOpenCode && src.Eligible, &tc); err != nil {
 				return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
 			}
-			return nil, writeHookResult(stdout, ingress, result, tc.Output, pipelineExecution{}, runtimeSessionID, runtimeCallID)
+			return nil, writeHookResult(stdout, ingress, result, tc.Output, pipelineExecution{}, claudeResponse, runtimeSessionID, runtimeCallID)
 		}
 		return nil, usageError("%v", configErr)
 	}
 	if err := retainRecoveryAttempt(db, collectionID, ingress == ingressOpenCode && src.Eligible, &tc); err != nil {
 		return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
 	}
-	return nil, writeHookResult(stdout, ingress, result, tc.Output, execution, runtimeSessionID, runtimeCallID)
+	return nil, writeHookResult(stdout, ingress, result, tc.Output, execution, claudeResponse, runtimeSessionID, runtimeCallID)
 }
 
 func retainRecoveryAttempt(db *dbpkg.DB, collectionID string, trustedOpenCode bool, tc *dbpkg.ToolCall) error {
@@ -839,14 +1085,14 @@ func hookSourceError(err error, ingress hookIngress, sourceID string) error {
 	return conflictError("ktx hook: %s retry conflicts with the evidence already stored for source %q", label, sourceID)
 }
 
-func writeHookResult(stdout io.Writer, ingress hookIngress, result evidence.Result, original string, execution pipelineExecution, runtimeSessionID, runtimeCallID string) error {
+func writeHookResult(stdout io.Writer, ingress hookIngress, result evidence.Result, original string, execution pipelineExecution, response claudeCodeToolResponse, runtimeSessionID, runtimeCallID string) error {
 	structuredFallback, _ := pipeline.StructuredFallbackFromRecord(result.ArtifactPipeline)
 	output := result.Output
 	if result.Transformed && execution.recoverFooter && !structuredFallback {
 		output, _ = recoveryCueOutput(result.SourceID, original, result.Output)
 	}
 	if ingress.adapter() {
-		return writeTrustedHookOutput(stdout, ingress, result, output, runtimeSessionID, runtimeCallID, result.Transformed && execution.recoverFooter && strings.Contains(output, "`ktx read "+result.SourceID+"`"))
+		return writeTrustedHookOutput(stdout, ingress, result, output, response, runtimeSessionID, runtimeCallID, result.Transformed && execution.recoverFooter && strings.Contains(output, "`ktx read "+result.SourceID+"`"))
 	}
 	var compressedID *string
 	if result.CompressedID != "" {
@@ -910,6 +1156,7 @@ func init() {
 		DatabaseAccess:    DatabaseReadWrite,
 		NeedsStdin:        true,
 		PassthroughStdout: true,
+		ParseArgs:         parseHookDispatchArgs,
 		Help:              printHookHelp,
 	}, hookCommandFunc)
 }
@@ -917,7 +1164,7 @@ func init() {
 func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "ktx hook — in-flight tool_call compression")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage: ktx hook < tool_call.json")
+	fmt.Fprintln(w, "Usage: ktx hook [--runtime claude-code] < tool_call.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Reads a tool-call event from stdin, persists the original, runs the")
 	fmt.Fprintln(w, "configured compression pipeline, and writes a JSON envelope to stdout")
@@ -964,13 +1211,16 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "  A trusted schema-conforming Codex 0.144.4 PostToolUse occurrence is success.")
 	fmt.Fprintln(w, "  Unconstrained nested tool_response fields cannot override it; nonconforming")
 	fmt.Fprintln(w, "  or untrusted payloads are unknown.")
+	fmt.Fprintln(w, "  A trusted Claude Code 2.1.304 PostToolUse occurrence is success, except an")
+	fmt.Fprintln(w, "  interrupted tool_response, which is unknown. Untrusted payloads are unknown.")
 	fmt.Fprintln(w, "  Flat sidecar is_error is a caller assertion whose authority the caller")
 	fmt.Fprintln(w, "  establishes. Runtime, model, and provider labels do not strengthen it.")
 	fmt.Fprintln(w, "  Historical unsupported evidence remains unknown.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Source identity:")
-	fmt.Fprintln(w, "  Recognized OpenCode hook events and Codex PostToolUse events are eligible")
-	fmt.Fprintln(w, "  for deterministic source IDs when their verified native schema supplies a")
+	fmt.Fprintln(w, "  Recognized OpenCode hook events, Codex PostToolUse events, and Claude Code")
+	fmt.Fprintln(w, "  PostToolUse events are eligible for deterministic source IDs when their")
+	fmt.Fprintln(w, "  verified native schema supplies a")
 	fmt.Fprintln(w, "  complete runtime/session/call tuple. The recognized `ktx run opencode`")
 	fmt.Fprintln(w, "  wrapper applies the same contract. Runtime IDs are correlation inputs, not")
 	fmt.Fprintln(w, "  KTX record IDs or KTX session ownership.")
@@ -1000,16 +1250,43 @@ func printHookHelp(w io.Writer) {
 	fmt.Fprintln(w, "passthrough (Codex leaves the tool result unchanged). The envelope")
 	fmt.Fprintln(w, "documented above does not apply to the Codex path.")
 	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Claude Code mode: `--runtime claude-code` (or `--runtime=claude-code`)")
+	fmt.Fprintln(w, "selects the Claude Code 2.1.304 PostToolUse command-hook contract. It is")
+	fmt.Fprintln(w, "the only accepted --runtime value; a missing, different, or repeated value")
+	fmt.Fprintln(w, "is a usage error before the database opens. `hook_event_name` must be")
+	fmt.Fprintln(w, "exactly \"PostToolUse\"; any other, empty, or absent value is rejected")
+	fmt.Fprintln(w, "before persistence. A payload is trusted when `session_id` and")
+	fmt.Fprintln(w, "`tool_use_id` are non-empty strings, `tool_name` is a string, and")
+	fmt.Fprintln(w, "`tool_input` and `tool_response` are objects; other fields are allowed.")
+	fmt.Fprintln(w, "Trusted payloads derive the source ID from the Claude Code session and")
+	fmt.Fprintln(w, "tool-use IDs; untrusted payloads receive a fresh NanoID. The hook records")
+	fmt.Fprintln(w, "`tool_response.stdout`, or the raw tool_response JSON when stdout is not")
+	fmt.Fprintln(w, "a string. It compresses stdout only when stdout is a string, isImage and")
+	fmt.Fprintln(w, "interrupted are not true, and backgroundTaskId is absent; other results")
+	fmt.Fprintln(w, "are recorded as passthrough without running the pipeline. When the")
+	fmt.Fprintln(w, "pipeline transforms the output, the response is")
+	fmt.Fprintln(w, `  {"hookSpecificOutput":{"hookEventName":"PostToolUse","updatedToolOutput":{...}}}`)
+	fmt.Fprintln(w, "where updatedToolOutput is the original tool_response with only stdout")
+	fmt.Fprintln(w, "replaced by the compressed text (and recovery footer, when enabled).")
+	fmt.Fprintln(w, "Otherwise the response is `{}` and Claude Code keeps the original result.")
+	fmt.Fprintln(w, "Claude Code names its shell tool \"Bash\" and route matching is")
+	fmt.Fprintln(w, "case-sensitive, so routes for it use tool = \"Bash\". A not-found failure")
+	fmt.Fprintln(w, "exits 1 instead of 2 in this mode, because Claude Code shows a")
+	fmt.Fprintln(w, "PostToolUse hook's stderr to the model on exit 2. Without the flag, a")
+	fmt.Fprintln(w, "Claude Code payload takes the Codex path above, fails its schema check,")
+	fmt.Fprintln(w, "and is untrusted.")
+	fmt.Fprintln(w)
 	fmt.Fprintln(w, "When only KTX_SESSION_ID is set, the hook exits 0 with no output so")
 	fmt.Fprintln(w, "ordinary `ktx run` remains the single evidence owner. Explicit collection")
 	fmt.Fprintln(w, "also sets KTX_COLLECTION_ID and keeps the hook active with strict ownership.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "This verb is called by `ktx init` adapters: the OpenCode plugin's")
-	fmt.Fprintln(w, "tool.execute.after hook and the Codex PostToolUse command hook. It is not")
-	fmt.Fprintln(w, "typically invoked directly by users.")
+	fmt.Fprintln(w, "tool.execute.after hook, the Codex PostToolUse command hook, and the")
+	fmt.Fprintln(w, "Claude Code PostToolUse command hook. It is not typically invoked")
+	fmt.Fprintln(w, "directly by users.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Related commands:")
 	fmt.Fprintln(w, "  ktx compress    explicit-verb compression (returns compressed id)")
 	fmt.Fprintln(w, "  ktx decompress  reverse a compression (return source output verbatim)")
-	fmt.Fprintln(w, "  ktx init        install an OpenCode or Codex adapter")
+	fmt.Fprintln(w, "  ktx init        install an OpenCode, Codex, or Claude Code adapter")
 }

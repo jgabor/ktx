@@ -284,6 +284,10 @@ profile = "json-compact"
 # unknown; its hook has only supported shell exit evidence. Trusted,
 # schema-conforming Codex 0.144.4 PostToolUse occurrence is success, while
 # nested tool_response fields are unconstrained and cannot override it.
+# Trusted Claude Code 2.1.304 PostToolUse occurrence (`ktx hook --runtime
+# claude-code`) is success; an interrupted result is unknown. Claude Code
+# receives compressed Bash stdout through updatedToolOutput. Its shell tool is
+# named "Bash" and matching is case-sensitive, so its routes use tool = "Bash".
 # Nonconforming/untrusted adapter payloads and unsupported evidence remain
 # unknown. Flat sidecar is_error is a caller assertion whose authority the
 # caller must establish. Missing is_error persists as unknown; non-boolean

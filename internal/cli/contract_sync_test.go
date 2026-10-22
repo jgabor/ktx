@@ -69,7 +69,7 @@ func TestToolOutcomeContractSurfacesMatchBehavior(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assertContractText(t, contents,
-				[]string{"is_error=false", "is_error=true", "explicit success", "explicit failure", "unknown", "exit_code", "OpenCode 1.18.5", "Codex 0.144.4", "PostToolUse", "tool_response", "caller assertion"},
+				[]string{"is_error=false", "is_error=true", "explicit success", "explicit failure", "unknown", "exit_code", "OpenCode 1.18.5", "Codex 0.144.4", "Claude Code 2.1.304", "PostToolUse", "updatedToolOutput", "tool_response", "caller assertion"},
 				[]string{"success route can also match an unknown", "missing is_error matches success"},
 			)
 		})

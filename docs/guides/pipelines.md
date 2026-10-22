@@ -443,6 +443,16 @@ Outcome authority depends on ingress:
 - A trusted, schema-conforming Codex 0.144.4 `PostToolUse` occurrence is success.
   Its unconstrained nested `tool_response` fields have no outcome authority and
   cannot override the event. A nonconforming or untrusted payload is unknown.
+- A trusted Claude Code 2.1.304 `PostToolUse` occurrence, received through
+  `ktx hook --runtime claude-code`, is success. An interrupted `tool_response`
+  is unknown, and so is an untrusted payload. ktx records `tool_response.stdout`
+  and returns compressed text through `updatedToolOutput`: the original
+  `tool_response` with only `stdout` replaced. Background, image, interrupted,
+  and non-string results are recorded as passthrough without running the
+  pipeline. Claude Code names its shell tool `Bash`, and matching is
+  case-sensitive, so routes for it use `tool = "Bash"`. Without
+  `--runtime claude-code`, a Claude Code payload takes the Codex path, fails its
+  schema check, and is untrusted.
 - Flat sidecar `is_error` is an explicit caller assertion. The caller must
   establish its authority. Missing `is_error` persists as unknown; non-boolean
   `is_error` is malformed and rejected before persistence. A runtime, model, or

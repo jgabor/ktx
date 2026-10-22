@@ -117,8 +117,14 @@ The OpenCode 1.18.5 wrapper uses terminal error, then supported shell exit, then
 completed result, else unknown. Its hook has only supported shell exit evidence;
 absent, malformed, or unsupported evidence is unknown. A trusted,
 schema-conforming Codex 0.144.4 `PostToolUse` occurrence is success; unconstrained
-nested `tool_response` fields cannot override it. Nonconforming or untrusted
-payloads are unknown. Flat sidecar `is_error` is a caller assertion whose
+nested `tool_response` fields cannot override it. A trusted Claude Code 2.1.304
+`PostToolUse` occurrence from `ktx hook --runtime claude-code` is success; an
+interrupted result is unknown. Claude Code receives compressed Bash `stdout`
+through `updatedToolOutput`, with every other `tool_response` key unchanged.
+Background, image, interrupted, and non-string results pass through without
+running the pipeline. Route Claude Code shell calls with `tool = "Bash"`;
+matching is case-sensitive. Nonconforming or untrusted payloads are unknown.
+Flat sidecar `is_error` is a caller assertion whose
 authority the caller must establish. Missing `is_error` persists as unknown;
 non-boolean `is_error` is malformed and rejected before persistence. Runtime,
 model, and provider labels do not strengthen authority, and historical missing
@@ -224,8 +230,9 @@ a familiar stage token.
 
 ## Identity and Retry Semantics
 
-- Recognized trusted OpenCode/Codex native tuples can derive deterministic source
-  IDs. Runtime IDs are correlation inputs, not ktx record IDs.
+- Recognized trusted OpenCode, Codex, and Claude Code native tuples can derive
+  deterministic source IDs. Runtime IDs are correlation inputs, not ktx record
+  IDs.
 - Missing, malformed, or unverified native tuples receive a fresh NanoID.
 - Exact eligible retries converge on the first source evidence.
 - The first KTX session owner and first compressed artifact remain authoritative.

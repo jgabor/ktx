@@ -4,7 +4,8 @@
 // A native correlation tuple is the (runtime, native session id, native
 // tool-call id) triple that recognized agent runtimes expose — OpenCode's
 // (input.sessionID, input.callID) from both the hook adapter and the wrapper
-// stream, and Codex's (session_id, tool_use_id) from the PostToolUse hook.
+// stream, Codex's (session_id, tool_use_id) from the PostToolUse hook, and
+// Claude Code's (session_id, tool_use_id) from its PostToolUse hook.
 // This package owns that tuple shape, the provenance that vouches a tuple
 // arrived through a trusted adapter/schema path, and the resolution of a
 // tuple into the persisted KTX source identity.
@@ -35,6 +36,12 @@ import (
 // PostToolUse command hook, whose input schema KTX authors and recognizes.
 const ProvenanceCodexPostToolUse = "codex:post-tool-use"
 
+// ProvenanceClaudeCodePostToolUse is the trusted provenance label for the
+// Claude Code PostToolUse command hook that `ktx init` generates. The hook
+// selects this ingress with `ktx hook --runtime claude-code`, and the payload
+// must carry the required native fields.
+const ProvenanceClaudeCodePostToolUse = "claude-code:post-tool-use"
+
 // ProvenanceOpenCodeHook is the trusted provenance label for the OpenCode
 // plugin adapter hook that `ktx init` generates (tool.execute.after). The
 // adapter is trusted because KTX authors the plugin and forwards the native
@@ -49,10 +56,11 @@ const ProvenanceOpenCodeWrapper = "opencode:wrapper"
 // NativeTuple is the runtime-native correlation triple.
 //
 // It is deliberately separate from the KTX SessionID. Runtime is the agent
-// runtime literal (e.g. "codex", "opencode"). SessionID is the runtime's
-// OWN native session identifier (OpenCode input.sessionID, Codex session_id)
-// — not the KTX session. CallID is the runtime's OWN native tool-call
-// identifier (OpenCode callID, Codex tool_use_id). The KTX SessionID is a
+// runtime literal (e.g. "codex", "opencode", "claude-code"). SessionID is the
+// runtime's OWN native session identifier (OpenCode input.sessionID, Codex and
+// Claude Code session_id) — not the KTX session. CallID is the runtime's OWN
+// native tool-call identifier (OpenCode callID, Codex and Claude Code
+// tool_use_id). The KTX SessionID is a
 // separate association the wrapper or hook resolves independently; it may
 // change while the native tuple is unchanged.
 type NativeTuple struct {
@@ -73,8 +81,8 @@ type Provenance struct {
 
 // Trusted marks a tuple as arriving through a recognized KTX adapter or
 // parser path whose native schema KTX authors and recognizes (e.g.
-// ProvenanceCodexPostToolUse, ProvenanceOpenCodeHook,
-// ProvenanceOpenCodeWrapper). Only trusted code paths call this; source is
+// ProvenanceCodexPostToolUse, ProvenanceClaudeCodePostToolUse,
+// ProvenanceOpenCodeHook, ProvenanceOpenCodeWrapper). Only trusted code paths call this; source is
 // a diagnostic label and is not part of identity.
 func Trusted(source string) Provenance {
 	return Provenance{trusted: true, source: source}

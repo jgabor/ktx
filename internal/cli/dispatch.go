@@ -379,7 +379,7 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 				err = classified
 			}
 			printError(stderr, err, formatStr)
-			return exitCodeOf(err)
+			return hookExitCode(parsedArgs, exitCodeOf(err))
 		}
 		db = opened
 	}
@@ -417,7 +417,7 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 	if _, err := reg.do(ctx); err != nil {
 		var status *commandExit
 		if errors.As(err, &status) {
-			return status.code
+			return hookExitCode(parsedArgs, status.code)
 		}
 		var schemaErr *dbpkg.SchemaTooNewError
 		if errors.As(err, &schemaErr) {
@@ -431,7 +431,7 @@ func runRegisteredVerb(verb string, reg registeredVerb, args []string, global Op
 			err = classified
 		}
 		printError(stderr, err, formatStr)
-		return exitCodeOf(err)
+		return hookExitCode(parsedArgs, exitCodeOf(err))
 	}
 	return ExitOK
 }

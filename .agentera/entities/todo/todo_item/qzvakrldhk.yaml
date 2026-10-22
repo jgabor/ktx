@@ -30,4 +30,4 @@ record:
       description: "[task] Switch a machine between development and released Claude Code installs with mage"
       severity: normal
       status: open
-      order: 22
+      order: 21

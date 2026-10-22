@@ -1,13 +1,34 @@
 // Package version holds the ktx version string.
 //
-// Version is overridden at build time via ldflags:
+// A build installed with `go install github.com/jgabor/ktx/cmd/ktx@vX.Y.Z`
+// reports vX.Y.Z, read from Go build info. A build without a module version,
+// such as `mage build` or a local build without version control stamping,
+// reports Dev. A value set at build time takes precedence over both:
 //
 //	go build -ldflags "-X github.com/jgabor/ktx/internal/version.Version=1.0.0"
-//
-// When not overridden, it carries the dev marker so `ktx --version` always
-// reports something meaningful from a clean checkout.
 package version
 
-// Version is the ktx build version. Defaults to a dev marker; override via
-// -ldflags "-X github.com/jgabor/ktx/internal/version.Version=<value>".
-var Version = "0.1.0-dev"
+import "runtime/debug"
+
+// Dev is the version a build without a module version reports.
+const Dev = "dev"
+
+// Version is the ktx build version. An -ldflags "-X" value is set before init
+// runs and is kept; otherwise init fills it from Go build info.
+var Version = ""
+
+func init() {
+	Version = resolve(Version, debug.ReadBuildInfo)
+}
+
+// resolve returns override when set, else the main module version from build
+// info, else Dev. Go reports "(devel)" for a main module it could not version.
+func resolve(override string, readBuildInfo func() (*debug.BuildInfo, bool)) string {
+	if override != "" {
+		return override
+	}
+	if info, ok := readBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return Dev
+}

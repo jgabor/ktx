@@ -31,7 +31,6 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [ ] [id:bgxkskyvgu] [feature] Claude Code PostToolUse ingress — Accept `ktx hook --runtime claude-code`, trust schema-conforming Bash payloads with open extra fields, and replace only `stdout` through `updatedToolOutput`. → [Ingress](ARCHITECTURE.md#ingress)
 - [ ] [id:dqzkwfwovk] [task] Runtime-neutral OpenCode plugin and Node adapter tests — Replace Bun-only APIs in the generated plugin, run adapter tests under Node, keep the generated-adapter readiness gate on Bun, and resolve real runtime binaries before hermetic environment changes.
 - [ ] [id:guiiezgezj] [discussion] Claude Code model telemetry — Run a structured discussion and record whether and how ktx collects per-model-step token and cost telemetry from Claude Code, and how it relates to the pinned-runtime telemetry and cache-share contracts. → [Question](ARCHITECTURE.md#claude-code-model-telemetry)
-- [ ] [id:inkpfruyrp] [task] Report the ktx release version from Go build info
 - [ ] [id:pxoqusovzl] [feature] Publish the ktx Claude Code plugin as ktx@ktx
 - [ ] [id:qzvakrldhk] [task] Switch a machine between development and released Claude Code installs with mage
 
@@ -88,3 +87,4 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [x] [id:symvxmfbwz] [task] Instruction and tool-schema normalization
 - [x] [id:lzdlajlmrg] [discussion] Claude Code plugin distribution — Publish ktx@ktx from the ktx repository as the only install path. The plugin finds ktx on PATH and the mod stops below a minimum ktx release read from Go build info; publishing waits for tagged releases. `ktx init claude` installs through the claude CLI. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/rjnmbxjobr.yaml) · [Build-info version](.agentera/entities/todo/todo_item/inkpfruyrp.yaml) · [Published plugin](.agentera/entities/todo/todo_item/pxoqusovzl.yaml) · [Mage install modes](.agentera/entities/todo/todo_item/qzvakrldhk.yaml)
 - [x] [id:ikmkvqtvjf] [feature] Claude Code plugins from `ktx init claude` — Generate a local marketplace with one ktx plugin holding the hook and a stats mod (band above the prompt and `/ktx` pane), with show, uninstall, and mage adapter refresh.
+- [x] [id:inkpfruyrp] [task] Report the ktx release version from Go build info

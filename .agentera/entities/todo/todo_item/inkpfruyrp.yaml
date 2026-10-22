@@ -20,12 +20,16 @@ record:
     gate: null
     queue_rank: 32
     order_reason: Prerequisite for the published Claude Code plugin.
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[task] Report the ktx release version from Go build info"
+      status: resolved
+      order: 50
       severity: normal
-      status: open
-      order: 20
+  lifecycle:
+    operation: resolve
+    reason: ktx --version reads the module version from Go build info; tests cover release, pseudo-version, development, and ldflags-override builds, and a tagged clone build printed its tag.
+    date: 2026-10-22

@@ -38,4 +38,4 @@ record:
       description: "[feature] Publish the ktx Claude Code plugin as ktx@ktx"
       severity: normal
       status: open
-      order: 21
+      order: 20

@@ -38,6 +38,7 @@
 
 ### Changed
 
+- `ktx --version` reports the module version from Go build info, so a `go install github.com/jgabor/ktx/cmd/ktx@vX.Y.Z` build prints `vX.Y.Z` and an untagged build prints its pseudo-version. A build with no module version, such as `mage build`, prints `dev` instead of `0.1.0-dev`. A `-ldflags "-X …/internal/version.Version=…"` value still takes precedence.
 - The generated OpenCode plugin now starts `ktx` through `node:child_process` and finds it with its own `PATH` search instead of `Bun.spawn` and `Bun.which`, so it runs under both Bun and Node. Its generated revision changes: run `ktx init opencode` (or `ktx init opencode --project`) again to refresh an installed copy (`mage install` refreshes discovered installs), and rebuild the benchmark image (a `ktx bench compare --preflight --build` run) so its plugin matches the binary.
 - Development checks now run the generated OpenCode plugin tests on Node 22.18 or newer and keep a Bun generated-adapter gate. Mage resolves the real `node` and `bun` executables before it isolates `HOME` and passes them as `KTX_TEST_NODE` and `KTX_TEST_BUN`, so version-manager shims no longer break hermetic runs. CI installs Node 24 alongside Bun.
 - Building from source now requires Go 1.26.10 or newer (was 1.26.5).

@@ -43,7 +43,7 @@ More results are in the [reports](docs/README.md#reports).
 
 ## Install
 
-ktx runs on Linux. Building it needs Go 1.26.5 or newer.
+ktx runs on Linux. Building it needs Go 1.26.10 or newer.
 
 ```bash
 go install github.com/jgabor/ktx/cmd/ktx@latest

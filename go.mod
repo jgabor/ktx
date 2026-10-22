@@ -1,8 +1,6 @@
 module github.com/jgabor/ktx
 
-go 1.26.5
-
-toolchain go1.26.10
+go 1.26.10
 
 require (
 	github.com/BurntSushi/toml v1.6.0

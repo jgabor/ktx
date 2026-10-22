@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-22
+
 ### Added
 
 - `ktx hook --runtime claude-code` accepts Claude Code 2.1.304 `PostToolUse` payloads: trusted calls get deterministic identity and explicit success (interrupted calls stay unknown), and compressed Bash `stdout` returns through `updatedToolOutput` with every other `tool_response` key unchanged. Background, image, interrupted, and non-string results pass through without running the pipeline.

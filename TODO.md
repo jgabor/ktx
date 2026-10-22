@@ -31,6 +31,8 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [ ] [id:bgxkskyvgu] [feature] Claude Code PostToolUse ingress — Accept `ktx hook --runtime claude-code`, trust schema-conforming Bash payloads with open extra fields, and replace only `stdout` through `updatedToolOutput`. → [Ingress](ARCHITECTURE.md#ingress)
 - [ ] [id:dqzkwfwovk] [task] Runtime-neutral OpenCode plugin and Node adapter tests — Replace Bun-only APIs in the generated plugin, run adapter tests under Node, keep the generated-adapter readiness gate on Bun, and resolve real runtime binaries before hermetic environment changes.
 - [ ] [id:guiiezgezj] [discussion] Claude Code model telemetry — Run a structured discussion and record whether and how ktx collects per-model-step token and cost telemetry from Claude Code, and how it relates to the pinned-runtime telemetry and cache-share contracts. → [Question](ARCHITECTURE.md#claude-code-model-telemetry)
+- [ ] [id:fcdbvqmrpt] [feature] Record Claude Code tools beyond Bash and failed calls
+- [ ] [id:jlmwvmstlx] [feature] Filter `ktx stats summary` to one session
 
 ## ✓ Resolved
 

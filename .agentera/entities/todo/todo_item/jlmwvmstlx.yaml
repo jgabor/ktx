@@ -1,0 +1,27 @@
+id: jlmwvmstlx
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Filter `ktx stats summary` to one session
+  requirements:
+    - Let `ktx stats summary` report one runtime session instead of every runtime ktx records, so a Claude Code band or pane can show the current session.
+  acceptance:
+    []
+  release_blocker: false
+  severity: normal
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Filter `ktx stats summary` to one session"
+      severity: normal
+      status: open
+      order: 21
+    create_batch:
+      effect_sha256: be881b0b502482fc7dd99a8218b09ce81dbb6c96f38ac29db2d268b2ab86444f
+      input_sha256: 9a45fee4be42e0e39617e26fc810db57d7fc425f2f0175311ca6e0aad9e2f256
+      local_refs:
+        claude-code-more-tools: fcdbvqmrpt
+        stats-session-filter: jlmwvmstlx

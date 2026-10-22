@@ -1,0 +1,28 @@
+id: fcdbvqmrpt
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Record Claude Code tools beyond Bash and failed calls
+  requirements:
+    - Extend the Claude Code PostToolUse ingress beyond Bash only where each tool's output shape maps to text and back exactly, so `updatedToolOutput` keeps the shape Claude Code expects.
+    - Record failed calls (`PostToolUseFailure`) as measured failures, without compressing their output.
+  acceptance:
+    []
+  release_blocker: false
+  severity: normal
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Record Claude Code tools beyond Bash and failed calls"
+      severity: normal
+      status: open
+      order: 20
+    create_batch:
+      effect_sha256: be881b0b502482fc7dd99a8218b09ce81dbb6c96f38ac29db2d268b2ab86444f
+      input_sha256: 9a45fee4be42e0e39617e26fc810db57d7fc425f2f0175311ca6e0aad9e2f256
+      local_refs:
+        claude-code-more-tools: fcdbvqmrpt
+        stats-session-filter: jlmwvmstlx

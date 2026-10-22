@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -26,8 +27,6 @@ func TestDiscoverInstalledAdapters(t *testing.T) {
 		switch runtimeName {
 		case "opencode":
 			return `{"installed":true,"path":"/project/ktx.ts","candidate_locations":{"global":"/global/ktx.ts","project":"/project/ktx.ts"}}`, "", nil
-		case "claude":
-			return `{"installed":true,"path":"/data/ktx/claude-code/marketplace","stale":true}`, "", nil
 		}
 		return `{"installed":true,"scopes":["global","project"]}`, "", nil
 	}
@@ -35,23 +34,23 @@ func TestDiscoverInstalledAdapters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != (adapterScopes{opencodeProject: true, codexGlobal: true, codexProject: true, claudeCode: true}) {
+	if got != (adapterScopes{opencodeProject: true, codexGlobal: true, codexProject: true}) {
 		t.Fatalf("scopes = %+v", got)
 	}
 
 	var inspected []string
 	got, err = discoverInstalledAdapters("./build/ktx", func(_ string, args ...string) (string, string, error) {
 		inspected = append(inspected, strings.Join(args, " "))
-		if args[3] == "claude" {
-			return `{"installed":true}`, "", nil
+		if args[3] == "codex" {
+			return `{"installed":true,"scopes":["global"]}`, "", nil
 		}
 		return "", "not installed", testExitError(2)
 	})
-	if err != nil || got != (adapterScopes{claudeCode: true}) {
-		t.Fatalf("claude only scopes = %+v, error = %v", got, err)
+	if err != nil || got != (adapterScopes{codexGlobal: true}) {
+		t.Fatalf("codex only scopes = %+v, error = %v", got, err)
 	}
-	if want := "--format json init claude --show"; inspected[len(inspected)-1] != want {
-		t.Fatalf("inspected = %q, want last %q", inspected, want)
+	if want := []string{"--format json init opencode --show", "--format json init codex --show"}; !reflect.DeepEqual(inspected, want) {
+		t.Fatalf("inspected = %q, want %q", inspected, want)
 	}
 
 	_, err = discoverInstalledAdapters("./build/ktx", func(_ string, _ ...string) (string, string, error) {
@@ -78,14 +77,14 @@ func TestRefreshInstalledAdapters(t *testing.T) {
 		return "", "", nil
 	}
 	var output strings.Builder
-	err := refreshInstalledAdapters("/bin/ktx", adapterScopes{opencodeGlobal: true, codexProject: true, claudeCode: true}, runner, &output)
+	err := refreshInstalledAdapters("/bin/ktx", adapterScopes{opencodeGlobal: true, codexProject: true}, runner, &output)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := strings.Join(calls, "\n"), "/bin/ktx init opencode\n/bin/ktx init codex --project\n/bin/ktx init claude"; got != want {
+	if got, want := strings.Join(calls, "\n"), "/bin/ktx init opencode\n/bin/ktx init codex --project"; got != want {
 		t.Fatalf("calls = %q, want %q", got, want)
 	}
-	for _, required := range []string{"Restart OpenCode", "Restart Codex", "/hooks", "Run /reload-plugins in Claude Code (or restart it)."} {
+	for _, required := range []string{"Restart OpenCode", "Restart Codex", "/hooks"} {
 		if !strings.Contains(output.String(), required) {
 			t.Errorf("success output lacks %q: %s", required, output.String())
 		}

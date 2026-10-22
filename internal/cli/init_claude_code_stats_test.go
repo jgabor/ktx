@@ -1,5 +1,5 @@
 // Runs the ktx mod's pure helpers (hooks/stats.ts) under Node with type
-// stripping, against the embedded source that `ktx init claude` ships.
+// stripping, against the plugin source the ktx marketplace publishes.
 package cli
 
 import (
@@ -11,7 +11,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/jgabor/ktx/internal/cli/claudecode"
 	"github.com/jgabor/ktx/internal/testjs"
 )
 
@@ -105,6 +104,9 @@ const out = {
   ],
   windowArgs: ["", " ", "15", "30m", "60", "45", "15 m", "abc"].map((a) => s.parseWindowArgument(a) ?? (a.trim() === "" ? "none" : "invalid")),
   windows: s.ktxStatsWindows,
+  releases: ["v0.1.0", "v12.3.40", " v1.2.3\n", "dev", "0.1.0", "v1.2", "v0.1.1-0.20261023101500-0123456789ab", "v1.2.3+dirty"].map((v) => s.parseReleaseVersion(v)),
+  outdated: ["v0.0.9", "v0.1.0", "v0.1.1", "v0.2.0", "v1.0.0", "dev", "v0.0.0-20261022161733-1556ce145842", "v0.0.9\n"].map((v) => s.outdatedLine(v)),
+  minimum: s.minimumKtxVersion,
 };
 console.log(JSON.stringify(out));
 `
@@ -117,7 +119,7 @@ func TestClaudeCodeStatsHelpersUnderNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"hooks/stats.ts", "types/index.d.ts"} {
-		data, err := claudecode.Files.ReadFile("plugins/ktx/" + name)
+		data, err := os.ReadFile(filepath.Join("..", "..", "plugins", "ktx", filepath.FromSlash(name)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,6 +162,14 @@ func TestClaudeCodeStatsHelpersUnderNode(t *testing.T) {
 	expect("valid60", 3600.0)
 	expect("nanoseconds", "2026-10-22T11:45:00.563329946Z")
 	expect("windows", []any{15.0, 30.0, 60.0})
+	expect("releases", []any{
+		[]any{0.0, 1.0, 0.0}, []any{12.0, 3.0, 40.0}, []any{1.0, 2.0, 3.0}, nil, nil, nil, nil, nil,
+	})
+	expect("outdated", []any{
+		"ktx v0.0.9 is older than v0.1.0; upgrade ktx", nil, nil, nil, nil, nil, nil,
+		"ktx v0.0.9 is older than v0.1.0; upgrade ktx",
+	})
+	expect("minimum", "v0.1.0")
 	expect("invalid", map[string]any{
 		"array":        "response must be an object",
 		"schema":       "schema_version must be 10",

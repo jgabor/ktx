@@ -7,8 +7,8 @@
 // caller-supplied payloads, and adapters (`ktx init`) install native
 // extension points in the agent runtime. OpenCode uses an in-process
 // TypeScript plugin; Codex uses a PostToolUse command hook merged into
-// the shared ~/.codex/hooks.json; Claude Code uses generated local plugins
-// (see init_claude_code.go).
+// the shared ~/.codex/hooks.json; Claude Code installs the published ktx@ktx
+// plugin through the claude CLI (see init_claude_code.go).
 //
 // `ktx init opencode` installs a plugin that subscribes to `event` for
 // optional model-step telemetry and `tool.execute.after` for tool-result
@@ -1139,8 +1139,8 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "             (a standalone ktx.ts file at $XDG_CONFIG_HOME/opencode/plugins/)")
 	fmt.Fprintln(w, "  codex      merge a PostToolUse hook into ~/.codex/hooks.json or ./.codex/hooks.json")
 	fmt.Fprintln(w, "             (shared hooks file; other Codex hooks are preserved on install/uninstall)")
-	fmt.Fprintln(w, "  claude     generate a Claude Code plugin marketplace at $XDG_DATA_HOME/ktx/claude-code/marketplace")
-	fmt.Fprintln(w, "             (one ktx plugin: a PostToolUse hook and a stats mod; no --project)")
+	fmt.Fprintln(w, "  claude     install the ktx@ktx Claude Code plugin through the claude CLI")
+	fmt.Fprintln(w, "             (a PostToolUse hook and a stats mod that run the ktx on PATH; no --project)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --project      install to project scope")
@@ -1152,7 +1152,7 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "                 opencode: checks both global and project locations")
 	fmt.Fprintln(w, "                 codex:    scopes to the target (--project for project scope,")
 	fmt.Fprintln(w, "                           otherwise global); only the ktx PostToolUse entry is removed")
-	fmt.Fprintln(w, "                 claude-code: removes only the files ktx generated")
+	fmt.Fprintln(w, "                 claude:   uninstalls ktx@ktx and removes the ktx marketplace")
 	fmt.Fprintln(w, "  --show         report whether the adapter is installed and where")
 	fmt.Fprintln(w, "  --format       json or text; boolean action/scope flags also accept =false")
 	fmt.Fprintln(w, "  -h, --help     show this help")
@@ -1180,13 +1180,14 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "preserves other hooks (SessionStart, etc.). After install, run /hooks")
 	fmt.Fprintln(w, "in Codex to trust the ktx hook before it fires — untrusted hooks do not execute.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "The Claude Code hook runs the installing executable's canonical path with")
-	fmt.Fprintln(w, "`hook --runtime claude-code` after each Bash call and sets no timeout. ktx")
-	fmt.Fprintln(w, "never edits Claude Code settings. Register the generated folder once with")
-	fmt.Fprintln(w, "`claude plugin marketplace add <folder>`, then `claude plugin install ktx@ktx-local`.")
-	fmt.Fprintln(w, "The install output lists every command. After regenerating, run /reload-plugins")
-	fmt.Fprintln(w, "in Claude Code. --show reads the generated marker and reports staleness; it does")
-	fmt.Fprintf(w, "not verify Claude Code registration. Troubleshooting: %s\n", claudeCodeTroubleshooting)
+	fmt.Fprintln(w, "The Claude Code plugin is published as ktx@ktx from github.com/jgabor/ktx. Its")
+	fmt.Fprintln(w, "hook runs `ktx hook --runtime claude-code` after each Bash call with no timeout,")
+	fmt.Fprintln(w, "and its mod runs `ktx stats summary`; both use the ktx on PATH. Install runs")
+	fmt.Fprintln(w, "`claude plugin marketplace add jgabor/ktx` and `claude plugin install ktx@ktx`,")
+	fmt.Fprintln(w, "skipping whichever is already present, and keeps an existing ktx marketplace")
+	fmt.Fprintln(w, "whatever its source. Without claude on PATH it prints the commands. ktx never")
+	fmt.Fprintln(w, "edits Claude Code settings files. Afterwards run /reload-plugins in Claude Code.")
+	fmt.Fprintf(w, "--show reads `claude plugin list`. Troubleshooting: %s\n", claudeCodeTroubleshooting)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  ktx init opencode              # global install")
@@ -1197,9 +1198,9 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "  ktx init codex --project       # merge into ./.codex/hooks.json")
 	fmt.Fprintln(w, "  ktx init codex --show          # check both global and project scopes")
 	fmt.Fprintln(w, "  ktx init codex --uninstall     # remove ktx entry from global hooks.json")
-	fmt.Fprintln(w, "  ktx init claude           # generate the Claude Code plugin marketplace")
-	fmt.Fprintln(w, "  ktx init claude --show    # check the generated plugins")
-	fmt.Fprintln(w, "  ktx init claude --uninstall  # remove the generated plugins")
+	fmt.Fprintln(w, "  ktx init claude                # install ktx@ktx through the claude CLI")
+	fmt.Fprintln(w, "  ktx init claude --show         # check the installed plugin")
+	fmt.Fprintln(w, "  ktx init claude --uninstall    # uninstall ktx@ktx and remove its marketplace")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
 }

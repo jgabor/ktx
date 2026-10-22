@@ -98,8 +98,15 @@ ktx init codex
 ktx init claude
 ```
 
-For Claude Code, the install output also prints the `claude plugin` commands
-that register the generated plugin. See the
+For Claude Code, `ktx init claude` installs the `ktx@ktx` plugin through the
+`claude` CLI, or prints the commands when `claude` isn't on `PATH`. Inside
+Claude Code you can install it in one step instead:
+
+```text
+/plugin install ktx --marketplace jgabor/ktx
+```
+
+See the
 [Claude Code guide](docs/guides/claude-code.md) for the stats band, the
 `/ktx` pane, and updates.
 

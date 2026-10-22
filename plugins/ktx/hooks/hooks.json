@@ -1,0 +1,19 @@
+{
+  "description": "ktx compresses Bash tool output before Claude reads it and shows its stats.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ktx",
+            "args": ["hook", "--runtime", "claude-code"],
+            "statusMessage": "ktx: compressing tool output"
+          }
+        ]
+      }
+    ]
+  },
+  "modules": ["./register.tsx"]
+}

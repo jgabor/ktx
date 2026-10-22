@@ -71,7 +71,7 @@ repeat a committed observation; duplicate tool-call IDs remain rejected.
 | OpenCode project plugin | `./.opencode/plugins/ktx.ts`                                     |
 | Codex global hooks      | `~/.codex/hooks.json`                                            |
 | Codex project hooks     | `./.codex/hooks.json`                                            |
-| Claude Code plugins     | `$XDG_DATA_HOME/ktx/claude-code/marketplace`                     |
+| Claude Code plugin      | `ktx@ktx`, managed by Claude Code (`claude plugin list`)         |
 
 Database path precedence is:
 
@@ -195,23 +195,25 @@ ktx init claude --show
 ktx init claude --uninstall
 ```
 
-Install generates a local plugin marketplace named `ktx-local` with one `ktx`
-plugin and never edits Claude Code settings. It holds one `PostToolUse` hook
-(matcher `Bash`) that runs the pinned canonical binary in exec form as
-`<ktx> hook --runtime claude-code` with no timeout, and a mod that polls
-`ktx stats summary` every 10 seconds and shows a band above the prompt and a
-`/ktx` pane; its figures cover every runtime, and an interactive session
-reopens the pane when it was left open. Register once with
-`claude plugin marketplace add <folder>` and
-`claude plugin install ktx@ktx-local`; the install output prints the exact
-commands. After regenerating, run `/reload-plugins` in Claude Code.
+Install runs `claude plugin marketplace add jgabor/ktx` and
+`claude plugin install ktx@ktx`, skipping whichever is already present, and
+keeps an existing `ktx` marketplace whatever its source. Without `claude` on
+`PATH` it prints those commands and exits 0. ktx never edits Claude Code
+settings files. The `ktx@ktx` plugin holds one `PostToolUse` hook (matcher
+`Bash`) that runs `ktx hook --runtime claude-code` in exec form with no
+timeout, and a mod that polls `ktx stats summary` every 10 seconds and shows a
+band above the prompt and a `/ktx` pane; its figures cover every runtime, and
+an interactive session reopens the pane when it was left open. Both run the
+`ktx` on `PATH`. The mod needs ktx v0.1.0 or newer: an older release turns it
+off with one line saying to upgrade, and a build without a release version
+passes. After installing or upgrading, run `/reload-plugins` in Claude Code.
 
-`--project` is a usage error. A `.ktx-generated.json` marker records the
-revision, pinned path, and generated files. Show reads only the marker and
-those files, reports staleness, exits 2 when nothing is generated, and never
-verifies Claude Code registration. Uninstall removes only listed files and the
-`.claude-plugin/types/` folders, keeps and warns about other files, and prints
-`claude plugin marketplace remove ktx-local`. See the
+`--project` is a usage error. Show reads `claude plugin list` and
+`claude plugin marketplace list`, reports the plugin, its marketplace source
+and the `ktx` on `PATH`, and exits 2 when `ktx@ktx` is not installed or
+`claude` is missing. Uninstall runs `claude plugin uninstall ktx@ktx` and
+`claude plugin marketplace remove ktx` for whichever is present and exits 2
+when neither is. See the
 [Claude Code guide](../../../../docs/guides/claude-code.md).
 
 ## Wrapper Collection

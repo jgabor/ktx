@@ -6,3 +6,6 @@ docs/notes/
 .opencode/
 .ruff_cache/
 docs/evidence/schema-readiness/*.attempt.failed.json
+
+# Claude Code writes type declarations into a plugin it loads from a folder.
+plugins/ktx/.claude-plugin/types/

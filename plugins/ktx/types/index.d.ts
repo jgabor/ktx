@@ -27,6 +27,7 @@ declare module "claude-code" {
       window: KtxStatsWindow;
       snapshot: KtxStatsSnapshot | null;
       paneOpen: boolean;
+      outdated: string | null;
     };
   }
 }

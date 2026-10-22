@@ -1,6 +1,8 @@
 // Pure helpers for the ktx mod: strict validation of
 // `ktx stats summary --format json` output, the summary line the band above
-// the prompt and the /ktx pane draw, and the /ktx argument. Nothing here uses the engine, so it also runs under Node.
+// the prompt and the /ktx pane draw, the /ktx argument, and the check of the
+// ktx version on PATH. Nothing here uses the engine, so it also runs under
+// Node.
 
 import type {
   KtxStatsSnapshot,
@@ -275,4 +277,35 @@ export function parseWindowArgument(
   return (ktxStatsWindows as readonly number[]).includes(minutes)
     ? (minutes as KtxStatsWindow)
     : null;
+}
+
+// The oldest ktx release this plugin runs against.
+export const minimumKtxVersion = "v0.1.0";
+
+// Returns [major, minor, patch] for an exact release version such as v1.2.3,
+// or null for anything else: dev, pseudo-versions, prereleases and builds
+// with metadata.
+export function parseReleaseVersion(
+  text: string,
+): [number, number, number] | null {
+  const match = /^v(\d+)\.(\d+)\.(\d+)$/.exec(text.trim());
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+// The line the mod shows instead of its figures when the ktx on PATH is an
+// older release than it needs, or null when the version passes. A version
+// that is not an exact release passes.
+export function outdatedLine(
+  found: string,
+  minimum: string = minimumKtxVersion,
+): string | null {
+  const have = parseReleaseVersion(found);
+  const need = parseReleaseVersion(minimum);
+  if (have === null || need === null) return null;
+  for (let i = 0; i < 3; i++) {
+    if (have[i]! > need[i]!) return null;
+    if (have[i]! < need[i]!)
+      return `ktx ${found.trim()} is older than ${minimum}; upgrade ktx`;
+  }
+  return null;
 }

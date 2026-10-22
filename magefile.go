@@ -106,14 +106,13 @@ func Install() error {
 type adapterScopes struct {
 	opencodeGlobal, opencodeProject bool
 	codexGlobal, codexProject       bool
-	claudeCode                      bool
 }
 
 type installRunner func(string, ...string) (string, string, error)
 
 func discoverInstalledAdapters(binary string, runner installRunner) (adapterScopes, error) {
 	var scopes adapterScopes
-	for _, runtimeName := range []string{"opencode", "codex", "claude"} {
+	for _, runtimeName := range []string{"opencode", "codex"} {
 		stdout, stderr, err := runner(binary, "--format", "json", "init", runtimeName, "--show")
 		if err != nil {
 			var exitErr interface{ ExitCode() int }
@@ -139,8 +138,6 @@ func discoverInstalledAdapters(binary string, runner installRunner) (adapterScop
 				scopes.opencodeGlobal = scopes.opencodeGlobal || path == report.CandidateLocations["global"]
 				scopes.opencodeProject = scopes.opencodeProject || path == report.CandidateLocations["project"]
 			}
-		case "claude":
-			scopes.claudeCode = report.Installed
 		default:
 			for _, scope := range report.Scopes {
 				scopes.codexGlobal = scopes.codexGlobal || scope == "global"
@@ -184,7 +181,6 @@ func refreshInstalledAdapters(binary string, scopes adapterScopes, runner instal
 	}{
 		{scopes.opencodeGlobal, refresh{"opencode", false}}, {scopes.opencodeProject, refresh{"opencode", true}},
 		{scopes.codexGlobal, refresh{"codex", false}}, {scopes.codexProject, refresh{"codex", true}},
-		{scopes.claudeCode, refresh{"claude", false}},
 	} {
 		if item.enabled {
 			refreshes = append(refreshes, item.value)
@@ -221,9 +217,6 @@ func refreshInstalledAdapters(binary string, scopes adapterScopes, runner instal
 	}
 	if scopes.codexGlobal || scopes.codexProject {
 		fmt.Fprintln(stdout, "Restart Codex, then run /hooks and trust the refreshed ktx hook.")
-	}
-	if scopes.claudeCode {
-		fmt.Fprintln(stdout, "Run /reload-plugins in Claude Code (or restart it).")
 	}
 	return nil
 }
@@ -559,23 +552,16 @@ func opencodeTelemetryFixture() error {
 	return run("go", "test", "-race", "./internal/telemetry/...", "./internal/db", "./internal/cli", "-run", pattern, "-count=1", "-timeout=30s")
 }
 
-// ClaudePluginCheck generates the Claude Code plugins with build/ktx into a
-// disposable data folder, runs `claude plugin validate --strict` on the
-// marketplace and its plugin, and runs `claude plugin test` on the ktx plugin
-// with its mod tests copied in. It is opt-in, never part of check or test, and
-// skips when claude is not on PATH. It never adds or installs a marketplace.
+// ClaudePluginCheck runs `claude plugin validate` on the ktx marketplace at
+// the repository root and on its plugin, and runs
+// `claude plugin test` on the plugin, with application folders pointed at a
+// disposable root. It is opt-in, never part of check or test, and skips when
+// claude is not on PATH. It never adds or installs a marketplace.
 func ClaudePluginCheck() error {
 	claude, err := exec.LookPath("claude")
 	if err != nil {
 		fmt.Println("claude not found on PATH; skipping Claude Code plugin checks")
 		return nil
-	}
-	if err := Build(); err != nil {
-		return err
-	}
-	binary, err := filepath.Abs(binaryPath())
-	if err != nil {
-		return err
 	}
 	root, err := os.MkdirTemp("", "ktx-claude-plugin-")
 	if err != nil {
@@ -598,44 +584,18 @@ func ClaudePluginCheck() error {
 		return command.Run()
 	}
 
-	if err := isolated(binary, "init", "claude", "--format", "text"); err != nil {
-		return fmt.Errorf("generate Claude Code plugins: %w", err)
-	}
-	marketplace := filepath.Join(values["XDG_DATA_HOME"], "ktx", "claude-code", "marketplace")
-	mod := filepath.Join(marketplace, "plugins", "ktx")
-	if err := copyDirectory(filepath.Join("internal", "cli", "claudecode", "plugins", "ktx", "tests"), filepath.Join(mod, "tests")); err != nil {
-		return fmt.Errorf("copy ktx mod tests: %w", err)
-	}
-	for _, folder := range []string{marketplace, mod} {
-		if err := isolated(claude, "plugin", "validate", "--strict", folder); err != nil {
+	// Not --strict: the plugin deliberately has no version, so Claude Code
+	// versions it by commit, and the validator warns about that.
+	plugin := filepath.Join("plugins", "ktx")
+	for _, folder := range []string{".", plugin} {
+		if err := isolated(claude, "plugin", "validate", folder); err != nil {
 			return fmt.Errorf("claude plugin validate %s: %w", folder, err)
 		}
 	}
-	if err := isolated(claude, "plugin", "test", mod); err != nil {
-		return fmt.Errorf("claude plugin test %s: %w", mod, err)
+	if err := isolated(claude, "plugin", "test", plugin); err != nil {
+		return fmt.Errorf("claude plugin test %s: %w", plugin, err)
 	}
 	return nil
-}
-
-func copyDirectory(source, target string) error {
-	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		relative, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		destination := filepath.Join(target, relative)
-		if entry.IsDir() {
-			return os.MkdirAll(destination, 0o755)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(destination, data, 0o644)
-	})
 }
 
 func Vet() error {

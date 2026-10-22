@@ -59,12 +59,15 @@ type Engine = {
   failing: boolean;
   // A terminal too narrow to draw a pane the person did not ask for.
   narrow: boolean;
+  // What `ktx --version` prints; null makes the command fail.
+  version: string | null;
 };
 
 type EngineOptions = {
   refuseCommand?: boolean;
   store?: Record<string, unknown>;
   narrow?: boolean;
+  version?: string | null;
 };
 
 // Hooks beneath the plugin stand for the engine: they answer the calls the
@@ -76,6 +79,7 @@ function engine(on: On, options: EngineOptions = {}): Engine {
     store: new Map(Object.entries(options.store ?? {})),
     failing: false,
     narrow: options.narrow ?? false,
+    version: options.version === undefined ? "dev" : options.version,
   };
   on("command.register", () =>
     options.refuseCommand
@@ -115,6 +119,18 @@ function engine(on: On, options: EngineOptions = {}): Engine {
   }));
   on("session.start", (_, e) => ({ cwd: e.cwd }));
   on("process.run", (_, e) => {
+    if (e.argv[1] === "--version") {
+      if (state.version === null) return { deny: "ktx: not found" };
+      return {
+        value: {
+          exitCode: 0,
+          stdout: `${state.version}\n`,
+          stderr: "",
+          isStdoutTruncated: false,
+          isStderrTruncated: false,
+        },
+      };
+    }
     state.argv.push(e.argv);
     const window = Number(String(e.argv[4]).replace("m", ""));
     return {
@@ -347,4 +363,56 @@ test("a restored pane waiting on a narrow terminal keeps the band", async ($, on
   expect((await ktx($, "")).text).toBe("ktx stats pane opened (15m).");
   expect(host.panes.get("ktx")).toBe(true);
   expect(await band($)).toBeUndefined();
+});
+
+test("an older ktx release turns the mod off", async ($, on) => {
+  const clock = mock.clock(on);
+  const host = engine(on, { version: "v0.0.9", store: { paneOpen: true } });
+
+  await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
+  await clock.advance(30_000);
+
+  const line = "ktx v0.0.9 is older than v0.1.0; upgrade ktx";
+  expect(host.argv.length).toBe(0);
+  expect(host.panes.has("ktx")).toBe(false);
+  expect(await band($)).toBe(line);
+  expect((await ktx($, "")).text).toBe(line);
+  expect(host.panes.has("ktx")).toBe(false);
+});
+
+for (const version of [
+  "v0.1.0",
+  "v1.0.0",
+  "dev",
+  "v0.1.1-0.20261023101500-0123456789ab",
+]) {
+  test(`ktx ${version} passes the version check`, async ($, on) => {
+    const clock = mock.clock(on);
+    const host = engine(on, { version });
+
+    await $.session.start({
+      cwd: "/",
+      surface: "terminal",
+      isInteractive: true,
+    });
+    await clock.settle();
+
+    expect(host.argv.length).toBe(1);
+    expect(await band($)).toBe(
+      "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
+    );
+  });
+}
+
+test("a failed version check still polls", async ($, on) => {
+  const clock = mock.clock(on);
+  const host = engine(on, { version: null });
+
+  await $.session.start({ cwd: "/", surface: "terminal", isInteractive: true });
+  await clock.settle();
+
+  expect(host.argv.length).toBe(1);
+  expect(await band($)).toBe(
+    "ktx 15m: 46% saved · 1.2M→650k tok · 120/300 calls",
+  );
 });

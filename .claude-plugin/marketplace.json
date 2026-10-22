@@ -1,0 +1,14 @@
+{
+  "name": "ktx",
+  "description": "The ktx Claude Code plugin.",
+  "owner": {
+    "name": "ktx"
+  },
+  "plugins": [
+    {
+      "name": "ktx",
+      "source": "./plugins/ktx",
+      "description": "Compresses Bash tool output through ktx and shows ktx stats in a band above the prompt and a /ktx pane."
+    }
+  ]
+}

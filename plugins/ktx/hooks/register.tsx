@@ -1,8 +1,10 @@
 // ktx: shows ktx compression figures in Claude Code.
 //
-// On session start it registers /ktx and polls `ktx stats summary` every
-// 10 seconds through the ktx executable pinned when the plugin was generated.
-// A band above the prompt shows one summary line for the current window.
+// On session start it registers /ktx, checks that the ktx on PATH is at least
+// the release this plugin needs, and polls `ktx stats summary` every 10
+// seconds. An older ktx release turns the mod off: the band and /ktx show one
+// line saying to upgrade. A band above the prompt shows one summary line for
+// the current window.
 // `/ktx` toggles a one-line pane with the same summary and buttons for the 15,
 // 30, and 60 minute windows; `/ktx 30` picks a window and opens the pane. The
 // band steps aside while the pane is drawn. Whether the pane is open is kept
@@ -17,12 +19,13 @@ import {
   defaultKtxStatsWindow,
   errorMessage,
   ktxStatsWindows,
+  outdatedLine,
   parseKtxSummaryRun,
   parseWindowArgument,
   summaryLine,
 } from "./stats.ts";
 
-const KTX_EXECUTABLE: string = "__KTX_EXECUTABLE__";
+const KTX_EXECUTABLE = "ktx";
 const PANE = "ktx";
 // The $.store key that keeps whether the person left the pane open.
 const PANE_OPEN_KEY = "paneOpen";
@@ -35,6 +38,7 @@ const selectedWindow = atom(
 );
 const lastSnapshot = atom({ plugin: "ktx", key: "snapshot" } as const, null);
 const paneOpen = atom({ plugin: "ktx", key: "paneOpen" } as const, false);
+const outdated = atom({ plugin: "ktx", key: "outdated" } as const, null);
 
 // Module variables reset when the module reloads; the drawn state lives in
 // $.state and survives.
@@ -99,19 +103,36 @@ async function openPane($: EngineInterface): Promise<void> {
   await update($, paneOpen, () => opened.isPlaced);
 }
 
+// Checks the ktx on PATH, then starts polling and restores the pane. An older
+// release leaves only the outdated line. A failed check starts as usual, so
+// the band reports why ktx is unavailable.
+async function start($: EngineInterface): Promise<void> {
+  let line: string | null = null;
+  try {
+    const result = await $.process.run([KTX_EXECUTABLE, "--version"], {
+      timeoutMs: TIMEOUT_MS,
+    });
+    if (result.exitCode === 0) line = outdatedLine(result.stdout);
+  } catch {
+    // The poll reports the same failure.
+  }
+  await update($, outdated, () => line);
+  if (line !== null) return;
+  if (poll === undefined) {
+    poll = $.clock.every(POLL_MS, () => {
+      void refresh($);
+    });
+    void refresh($);
+  }
+  // A failed restore leaves the pane closed; the band still runs.
+  const wasOpen = await $.store.get(PANE_OPEN_KEY).catch(() => false);
+  if (wasOpen === true) await openPane($).catch(() => undefined);
+}
+
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
-    if (e.isInteractive) {
-      if (poll === undefined) {
-        poll = $.clock.every(POLL_MS, () => {
-          void refresh($);
-        });
-        void refresh($);
-      }
-      // A failed restore leaves the pane closed; the band still runs.
-      const wasOpen = await $.store.get(PANE_OPEN_KEY).catch(() => false);
-      if (wasOpen === true) await openPane($).catch(() => undefined);
-    }
+    // Session start never waits on ktx.
+    if (e.isInteractive) void start($).catch(() => undefined);
     // Another plugin or skill may already own /ktx; the band still runs.
     await $.command
       .register({
@@ -123,6 +144,8 @@ export const register: Register = (on) => {
   });
 
   on("command.run", { command: "ktx" }, async ($, e) => {
+    const line = await read($, outdated);
+    if (line !== null) return { text: line };
     const window = parseWindowArgument(e.args);
     if (window === null) return { text: "Usage: /ktx [15|30|60]" };
     // A pane that waits undrawn counts as closed, so /ktx shows it.
@@ -154,12 +177,14 @@ export const register: Register = (on) => {
   });
 
   // The band yields to a survey and to the drawn pane, and draws nothing until
-  // the first poll.
+  // the first poll. An outdated ktx shows its line, since no poll runs.
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
-    const snapshot = await read($, lastSnapshot);
-    if (e.props.hasSurvey || snapshot === null || (await read($, paneOpen)))
-      return next(e);
+    if (e.props.hasSurvey) return next(e);
     const { Text } = $.ui.resolve(e);
+    const line = await read($, outdated);
+    if (line !== null) return <Text dimColor>{line}</Text>;
+    const snapshot = await read($, lastSnapshot);
+    if (snapshot === null || (await read($, paneOpen))) return next(e);
     const window = await read($, selectedWindow);
     return <Text dimColor>{summaryLine(snapshot, window)}</Text>;
   });

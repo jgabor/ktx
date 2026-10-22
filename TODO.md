@@ -31,7 +31,6 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [ ] [id:bgxkskyvgu] [feature] Claude Code PostToolUse ingress — Accept `ktx hook --runtime claude-code`, trust schema-conforming Bash payloads with open extra fields, and replace only `stdout` through `updatedToolOutput`. → [Ingress](ARCHITECTURE.md#ingress)
 - [ ] [id:dqzkwfwovk] [task] Runtime-neutral OpenCode plugin and Node adapter tests — Replace Bun-only APIs in the generated plugin, run adapter tests under Node, keep the generated-adapter readiness gate on Bun, and resolve real runtime binaries before hermetic environment changes.
 - [ ] [id:guiiezgezj] [discussion] Claude Code model telemetry — Run a structured discussion and record whether and how ktx collects per-model-step token and cost telemetry from Claude Code, and how it relates to the pinned-runtime telemetry and cache-share contracts. → [Question](ARCHITECTURE.md#claude-code-model-telemetry)
-- [ ] [id:qzvakrldhk] [task] Switch a machine between development and released Claude Code installs with mage
 
 ## ✓ Resolved
 
@@ -88,3 +87,4 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [x] [id:ikmkvqtvjf] [feature] Claude Code plugins from `ktx init claude` — Generate a local marketplace with one ktx plugin holding the hook and a stats mod (band above the prompt and `/ktx` pane), with show, uninstall, and mage adapter refresh.
 - [x] [id:inkpfruyrp] [task] Report the ktx release version from Go build info
 - [x] [id:pxoqusovzl] [feature] Publish the ktx Claude Code plugin as ktx@ktx
+- [x] [id:qzvakrldhk] [task] Switch a machine between development and released Claude Code installs with mage

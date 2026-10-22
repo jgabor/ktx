@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `mage install` now also points the `ktx` Claude Code marketplace at the local checkout and installs `ktx@ktx`, so Claude Code loads the plugin from your working tree. The new `mage installRelease` installs the latest ktx release with `go install`, refreshes enabled OpenCode and Codex adapters with it, and points the marketplace at `jgabor/ktx` on GitHub. Each target replaces the other's marketplace, and both skip the plugin when `claude` is not on `PATH`.
+
 ## [0.1.0] - 2026-10-22
 
 ### Added

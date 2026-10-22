@@ -85,6 +85,9 @@ func Build() error {
 	return run("go", "build", "-buildvcs=false", "-trimpath", "-ldflags", ldflags(), "-o", binaryPath(), "./cmd/ktx")
 }
 
+// Install builds ktx, installs it with go install, refreshes enabled OpenCode
+// and Codex adapters with it, and points the ktx Claude Code marketplace at
+// this checkout with ktx@ktx installed. InstallRelease undoes the pairing.
 func Install() error {
 	if err := Build(); err != nil {
 		return err
@@ -100,7 +103,152 @@ func Install() error {
 	if _, stderr, err := installExec("go", "install", "-buildvcs=false", "-trimpath", "-ldflags", ldflags(), "./cmd/ktx"); err != nil {
 		return fmt.Errorf("install development binary: %w: %s", err, strings.TrimSpace(stderr))
 	}
-	return refreshInstalledAdapters(installedBinary, scopes, installExec, os.Stdout)
+	if err := refreshInstalledAdapters(installedBinary, scopes, installExec, os.Stdout); err != nil {
+		return err
+	}
+	checkout, err := filepath.Abs(".")
+	if err != nil {
+		return err
+	}
+	return installClaudePlugin(checkout, func(m claudeMarketplace) bool {
+		return m.Source == "directory" && filepath.Clean(m.Path) == checkout
+	})
+}
+
+// InstallRelease installs the latest ktx release with go install, refreshes
+// enabled OpenCode and Codex adapters with it, and points the ktx Claude Code
+// marketplace at jgabor/ktx on GitHub with ktx@ktx installed. It undoes the
+// development pairing that Install makes.
+func InstallRelease() error {
+	installedBinary, err := goInstalledBinary(installExec)
+	if err != nil {
+		return err
+	}
+	if _, stderr, err := installExec("go", "install", releaseModule+"/cmd/ktx@latest"); err != nil {
+		return fmt.Errorf("install released binary: %w: %s", err, strings.TrimSpace(stderr))
+	}
+	scopes, err := discoverInstalledAdapters(installedBinary, installExec)
+	if err != nil {
+		return err
+	}
+	if err := refreshInstalledAdapters(installedBinary, scopes, installExec, os.Stdout); err != nil {
+		return err
+	}
+	return installClaudePlugin(claudeReleaseSource, func(m claudeMarketplace) bool {
+		return m.Source == "github" && m.Repo == claudeReleaseSource
+	})
+}
+
+const (
+	releaseModule       = "github.com/jgabor/ktx"
+	claudeReleaseSource = "jgabor/ktx"
+	claudeMarketplaceID = "ktx"
+	claudePluginID      = "ktx@ktx"
+)
+
+// claudeMarketplace is one entry of `claude plugin marketplace list --json`.
+type claudeMarketplace struct {
+	Name   string `json:"name"`
+	Source string `json:"source"`
+	Repo   string `json:"repo"`
+	Path   string `json:"path"`
+}
+
+// installClaudePlugin runs useClaudeMarketplace against the real claude CLI,
+// or skips with a note when claude is not on PATH.
+func installClaudePlugin(source string, matches func(claudeMarketplace) bool) error {
+	claude, err := exec.LookPath("claude")
+	if err != nil {
+		fmt.Println("claude not found on PATH; skipping the Claude Code plugin")
+		return nil
+	}
+	return useClaudeMarketplace(claude, source, matches, installExec, os.Stdout)
+}
+
+// useClaudeMarketplace points the ktx marketplace at source and makes sure
+// ktx@ktx is installed. matches reports whether an existing ktx marketplace
+// already reads from source; one that doesn't is removed, after its plugin is
+// uninstalled.
+func useClaudeMarketplace(claude, source string, matches func(claudeMarketplace) bool, runner installRunner, stdout io.Writer) error {
+	call := func(args ...string) (string, error) {
+		out, stderr, err := runner(claude, args...)
+		if err != nil {
+			detail := fmt.Sprintf("claude %s: %v", strings.Join(args, " "), err)
+			if text := strings.TrimSpace(stderr); text != "" {
+				detail += ": " + text
+			}
+			return "", errors.New(detail)
+		}
+		return out, nil
+	}
+	recovery := func(err error) error {
+		return fmt.Errorf("point the ktx Claude Code marketplace at %s: %w\n  Recovery: run `%s`, `%s`, then `%s`", source, err,
+			recoveryCommand("claude", "plugin", "marketplace", "remove", claudeMarketplaceID),
+			recoveryCommand("claude", "plugin", "marketplace", "add", source),
+			recoveryCommand("claude", "plugin", "install", claudePluginID))
+	}
+
+	raw, err := call("plugin", "marketplace", "list", "--json")
+	if err != nil {
+		return recovery(err)
+	}
+	var marketplaces []claudeMarketplace
+	if err := json.Unmarshal([]byte(raw), &marketplaces); err != nil {
+		return recovery(fmt.Errorf("parse claude plugin marketplace list: %w", err))
+	}
+	raw, err = call("plugin", "list", "--json")
+	if err != nil {
+		return recovery(err)
+	}
+	var plugins []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(raw), &plugins); err != nil {
+		return recovery(fmt.Errorf("parse claude plugin list: %w", err))
+	}
+	installed := false
+	for _, plugin := range plugins {
+		installed = installed || plugin.ID == claudePluginID
+	}
+	var current *claudeMarketplace
+	for index := range marketplaces {
+		if marketplaces[index].Name == claudeMarketplaceID {
+			current = &marketplaces[index]
+		}
+	}
+
+	changed := false
+	if current != nil && !matches(*current) {
+		if installed {
+			if _, err := call("plugin", "uninstall", claudePluginID); err != nil {
+				return recovery(err)
+			}
+			installed = false
+		}
+		if _, err := call("plugin", "marketplace", "remove", claudeMarketplaceID); err != nil {
+			return recovery(err)
+		}
+		current = nil
+		changed = true
+	}
+	if current == nil {
+		if _, err := call("plugin", "marketplace", "add", source); err != nil {
+			return recovery(err)
+		}
+		changed = true
+	}
+	if !installed {
+		if _, err := call("plugin", "install", claudePluginID); err != nil {
+			return recovery(err)
+		}
+		changed = true
+	}
+	if changed {
+		fmt.Fprintf(stdout, "Claude Code: %s now reads from %s; run /reload-plugins\n", claudePluginID, source)
+	} else {
+		fmt.Fprintf(stdout, "Claude Code: %s already reads from %s\n", claudePluginID, source)
+	}
+	return nil
 }
 
 type adapterScopes struct {

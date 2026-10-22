@@ -70,6 +70,8 @@ Comments should describe the actual behavior. If the reader needs rationale, the
 ```bash
 mage build      # builds to build/ktx
 mage check      # test + vet + lint + build (default target)
+mage install         # dev ktx on PATH; this checkout is the ktx Claude Code marketplace
+mage installRelease  # released ktx on PATH; jgabor/ktx on GitHub is the marketplace
 ```
 
 Always use `mage build` or `go build -o build/ktx ./cmd/ktx`. Never run bare `go build ./cmd/ktx` — it drops the binary in the repo root.

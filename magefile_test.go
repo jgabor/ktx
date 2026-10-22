@@ -91,6 +91,123 @@ func TestRefreshInstalledAdapters(t *testing.T) {
 	}
 }
 
+// fakeClaudeCLI answers the claude plugin commands useClaudeMarketplace runs
+// from listings in memory and records every call that changes them.
+type fakeClaudeCLI struct {
+	marketplace *claudeMarketplace
+	installed   bool
+	failOn      string
+	changes     []string
+}
+
+func (f *fakeClaudeCLI) run(name string, args ...string) (string, string, error) {
+	if name != "/bin/claude" {
+		return "", "", fmt.Errorf("ran %s, not claude", name)
+	}
+	call := strings.Join(args, " ")
+	switch call {
+	case "plugin marketplace list --json":
+		data, _ := json.Marshal(append([]claudeMarketplace{{Name: "other", Source: "github", Repo: "someone/other"}}, f.marketplaceList()...))
+		return string(data), "", nil
+	case "plugin list --json":
+		if f.installed {
+			return `[{"id":"other@other"},{"id":"ktx@ktx"}]`, "", nil
+		}
+		return `[{"id":"other@other"}]`, "", nil
+	}
+	f.changes = append(f.changes, call)
+	if call == f.failOn {
+		return "", "network unreachable", errors.New("exit 1")
+	}
+	switch {
+	case call == "plugin uninstall ktx@ktx":
+		f.installed = false
+	case call == "plugin marketplace remove ktx":
+		f.marketplace = nil
+	case call == "plugin marketplace add jgabor/ktx":
+		f.marketplace = &claudeMarketplace{Name: "ktx", Source: "github", Repo: "jgabor/ktx"}
+	case strings.HasPrefix(call, "plugin marketplace add /"):
+		f.marketplace = &claudeMarketplace{Name: "ktx", Source: "directory", Path: strings.TrimPrefix(call, "plugin marketplace add ")}
+	case call == "plugin install ktx@ktx":
+		f.installed = true
+	default:
+		return "", "unexpected call", errors.New("exit 2")
+	}
+	return "", "", nil
+}
+
+func (f *fakeClaudeCLI) marketplaceList() []claudeMarketplace {
+	if f.marketplace == nil {
+		return nil
+	}
+	return []claudeMarketplace{*f.marketplace}
+}
+
+func TestUseClaudeMarketplaceSwitchesSources(t *testing.T) {
+	const checkout = "/home/dev/ktx"
+	dev := func(m claudeMarketplace) bool { return m.Source == "directory" && m.Path == checkout }
+	release := func(m claudeMarketplace) bool { return m.Source == "github" && m.Repo == "jgabor/ktx" }
+	devMarketplace := &claudeMarketplace{Name: "ktx", Source: "directory", Path: checkout}
+	releaseMarketplace := &claudeMarketplace{Name: "ktx", Source: "github", Repo: "jgabor/ktx"}
+	cases := []struct {
+		name    string
+		fake    fakeClaudeCLI
+		source  string
+		matches func(claudeMarketplace) bool
+		want    []string
+		output  string
+	}{
+		{"no ktx marketplace yet", fakeClaudeCLI{}, checkout, dev,
+			[]string{"plugin marketplace add " + checkout, "plugin install ktx@ktx"}, "now reads from " + checkout},
+		{"dev to release", fakeClaudeCLI{marketplace: devMarketplace, installed: true}, "jgabor/ktx", release,
+			[]string{"plugin uninstall ktx@ktx", "plugin marketplace remove ktx", "plugin marketplace add jgabor/ktx", "plugin install ktx@ktx"}, "now reads from jgabor/ktx"},
+		{"release to dev", fakeClaudeCLI{marketplace: releaseMarketplace, installed: true}, checkout, dev,
+			[]string{"plugin uninstall ktx@ktx", "plugin marketplace remove ktx", "plugin marketplace add " + checkout, "plugin install ktx@ktx"}, "now reads from " + checkout},
+		{"already on the source", fakeClaudeCLI{marketplace: releaseMarketplace, installed: true}, "jgabor/ktx", release,
+			nil, "already reads from jgabor/ktx"},
+		{"marketplace matches, plugin missing", fakeClaudeCLI{marketplace: devMarketplace}, checkout, dev,
+			[]string{"plugin install ktx@ktx"}, "now reads from " + checkout},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := c.fake
+			var output strings.Builder
+			if err := useClaudeMarketplace("/bin/claude", c.source, c.matches, fake.run, &output); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(fake.changes, c.want) {
+				t.Fatalf("changes = %q, want %q", fake.changes, c.want)
+			}
+			if !strings.Contains(output.String(), c.output) {
+				t.Fatalf("output = %q, want %q", output.String(), c.output)
+			}
+			if fake.marketplace == nil || !c.matches(*fake.marketplace) || !fake.installed {
+				t.Fatalf("end state = %+v installed=%t", fake.marketplace, fake.installed)
+			}
+		})
+	}
+}
+
+func TestUseClaudeMarketplaceFailureNamesRecovery(t *testing.T) {
+	fake := fakeClaudeCLI{failOn: "plugin marketplace add jgabor/ktx"}
+	var output strings.Builder
+	err := useClaudeMarketplace("/bin/claude", "jgabor/ktx", func(m claudeMarketplace) bool { return m.Repo == "jgabor/ktx" }, fake.run, &output)
+	if err == nil {
+		t.Fatal("switch succeeded")
+	}
+	for _, required := range []string{
+		"network unreachable",
+		"Recovery: run `claude plugin marketplace remove ktx`, `claude plugin marketplace add jgabor/ktx`, then `claude plugin install ktx@ktx`",
+	} {
+		if !strings.Contains(err.Error(), required) {
+			t.Errorf("failure lacks %q: %v", required, err)
+		}
+	}
+	if output.Len() != 0 {
+		t.Fatalf("failure claimed success: %q", output.String())
+	}
+}
+
 func TestRefreshInstalledAdaptersAttemptsAllFailuresWithSafeRecovery(t *testing.T) {
 	var calls []string
 	var output strings.Builder
@@ -506,5 +623,16 @@ func setTestEnvironment(t *testing.T, values map[string]string) {
 		if _, exists := values[name]; !exists {
 			t.Setenv(name, "")
 		}
+	}
+}
+
+func TestInstallClaudePluginSkipsWithoutClaude(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	matched := false
+	if err := installClaudePlugin("jgabor/ktx", func(claudeMarketplace) bool { matched = true; return true }); err != nil {
+		t.Fatalf("skip failed: %v", err)
+	}
+	if matched {
+		t.Fatal("read Claude Code state without claude on PATH")
 	}
 }

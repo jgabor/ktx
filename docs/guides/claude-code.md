@@ -141,6 +141,24 @@ This runs `claude plugin uninstall ktx@ktx` and
 `claude plugin marketplace remove ktx` for whichever is present. It exits 2
 when neither is.
 
+## Developing the plugin
+
+The plugin lives in `plugins/ktx` of the ktx repository. Two mage targets
+switch a machine between your checkout and the release, so the plugin and the
+ktx binary always come from the same place:
+
+```bash
+mage install         # build ktx from the checkout; ktx marketplace = the checkout
+mage installRelease  # go install the latest release; ktx marketplace = jgabor/ktx
+```
+
+Each target removes a `ktx` marketplace that points elsewhere, after
+uninstalling `ktx@ktx`, then adds its own and installs the plugin. With your
+checkout as the marketplace, Claude Code loads `plugins/ktx` in place, so your
+edits apply after `/reload-plugins`. Without `claude` on `PATH`, both targets
+skip the plugin. Both also refresh installed OpenCode and Codex adapters with
+the binary they install.
+
 ## Troubleshooting
 
 - Run `ktx init claude --show` to check that `ktx@ktx` is installed and

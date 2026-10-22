@@ -22,12 +22,16 @@ record:
     gate: null
     queue_rank: 34
     order_reason: Follows the published plugin.
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[task] Switch a machine between development and released Claude Code installs with mage"
+      status: resolved
+      order: 52
       severity: normal
-      status: open
-      order: 20
+  lifecycle:
+    operation: resolve
+    reason: mage install pairs the dev build with the checkout as the ktx marketplace and mage installRelease pairs the latest release with jgabor/ktx on GitHub; tests cover both directions, a fresh machine, no-op, partial state, failure recovery and missing claude, and both switches ran live on the maintainer machine.
+    date: 2026-10-22

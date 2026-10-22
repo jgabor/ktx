@@ -21,6 +21,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-python@v5
         with:
@@ -32,6 +35,7 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
       - name: Verify repository
         # mage verify allocates and audits its own disposable application root;
-        # includes Go race tests, Python verifier tests, and the Bun adapter gate.
+        # includes Go race tests (generated-plugin tests run on Node), Python
+        # verifier tests, and the Bun generated-adapter gate.
         # docs/reference/database-safety.md is the canonical contract.
         run: mage verify

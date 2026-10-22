@@ -18,6 +18,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/telemetry"
 	"github.com/jgabor/ktx/internal/telemetry/opencode"
+	"github.com/jgabor/ktx/internal/testjs"
 )
 
 type durableCase struct {
@@ -293,18 +294,15 @@ func TestTelemetryDurableSharedConformance(t *testing.T) {
 	}
 }
 
-func localTelemetryAdapter(t *testing.T, required bool) (root, binary, bun, plugin, path string) {
+func localTelemetryAdapter(t *testing.T, required bool) (root, binary, node, plugin, path string) {
 	t.Helper()
 	binary = os.Getenv("KTX_ADAPTER_CLI")
 	if binary == "" {
 		t.Skip("set KTX_ADAPTER_CLI to the locally built binary")
 	}
-	var err error
-	bun, err = exec.LookPath("bun")
-	if err != nil {
-		t.Fatal(err)
-	}
+	node = testjs.Runtime(t, "node", true)
 	root = t.TempDir()
+	testjs.WriteModulePackage(t, root)
 	for _, key := range []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR", "TMPDIR"} {
 		p := filepath.Join(root, key)
 		if err := os.Mkdir(p, 0o700); err != nil {
@@ -332,13 +330,13 @@ func localTelemetryAdapter(t *testing.T, required bool) (root, binary, bun, plug
 	return
 }
 
-func runTelemetryDriver(t *testing.T, root, bun, driver string) {
+func runTelemetryDriver(t *testing.T, root, node, driver string) {
 	t.Helper()
 	path := filepath.Join(root, "driver.ts")
 	if err := os.WriteFile(path, []byte(driver), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(bun, path)
+	cmd := exec.Command(node, testjs.DisableExperimentalWarning, path)
 	cmd.Dir = root
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("real adapter/CLI: %v\n%s", err, out)
@@ -351,7 +349,7 @@ func TestTelemetryAdapterLocalConformance(t *testing.T) {
 	for _, test := range durableCases(t) {
 		for _, required := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/required=%t", test.Name, required), func(t *testing.T) {
-				root, _, bun, plugin, path := localTelemetryAdapter(t, required)
+				root, _, node, plugin, path := localTelemetryAdapter(t, required)
 				event := test.JavaScript
 				if event == "" {
 					event = string(test.Event)
@@ -363,7 +361,7 @@ try { await hooks.event({event:` + event + `}) } catch { rejected=true }
 if(rejected !== ` + strconv.FormatBool(required && !test.Required) + `) throw new Error("incorrect required measurement policy: "+rejected)
 console.log("measurement policy verified")
 `
-				runTelemetryDriver(t, root, bun, driver)
+				runTelemetryDriver(t, root, node, driver)
 				d, err := dbpkg.Open(path)
 				if err != nil {
 					t.Fatal(err)
@@ -388,9 +386,9 @@ console.log("measurement policy verified")
 }
 
 func TestTelemetryAdapterLocalNonfiniteSnapshot(t *testing.T) {
-	root, _, bun, plugin, path := localTelemetryAdapter(t, true)
+	root, _, node, plugin, path := localTelemetryAdapter(t, true)
 	driver := `import plugin from ` + strconv.Quote(plugin) + `
-import {Database} from "bun:sqlite"
+import {DatabaseSync as Database} from "node:sqlite"
 ` + adapterSpawnTap + `
 const payloads:Promise<string>[]=[]
 childProcess.spawn=((command:any,args:any,options:any)=>{
@@ -431,19 +429,19 @@ if(JSON.stringify(firstPayload.event)!==JSON.stringify(expected)) throw new Erro
 const captured=Date.parse(firstPayload.captured_at)
 if(captured<started || captured>=retryAt) throw new Error("lost first capture time")
 const db=new Database(` + strconv.Quote(path) + `)
-const rows:any[]=db.query("SELECT cost_state,tokens_input_state,captured_at FROM session_telemetry").all()
+const rows:any[]=db.prepare("SELECT cost_state,tokens_input_state,captured_at FROM session_telemetry").all()
 if(rows.length!==1 || rows[0].cost_state!=="malformed" || rows[0].tokens_input_state!=="malformed" || rows[0].captured_at!==firstPayload.captured_at) throw new Error("wrong persisted evidence: "+JSON.stringify(rows))
 db.close()
 console.log("nonfinite snapshot, metadata, and retry verified")
 `
-	runTelemetryDriver(t, root, bun, driver)
+	runTelemetryDriver(t, root, node, driver)
 }
 
 func TestTelemetryAdapterLocalDurableRedelivery(t *testing.T) {
 	for _, mode := range []string{"before-commit", "overlapping", "ack-loss", "malformed-ack", "wrong-schema", "wrong-runtime", "wrong-version", "wrong-source", "wrong-key", "wrong-measurement", "not-durable", "nonzero", "required-before-commit", "required-ack-loss"} {
 		t.Run(mode, func(t *testing.T) {
 			required := strings.HasPrefix(mode, "required-")
-			root, _, bun, plugin, path := localTelemetryAdapter(t, required)
+			root, _, node, plugin, path := localTelemetryAdapter(t, required)
 			inspectTelemetryCollector(t, plugin, false)
 			var event json.RawMessage
 			for _, c := range durableCases(t) {
@@ -452,7 +450,7 @@ func TestTelemetryAdapterLocalDurableRedelivery(t *testing.T) {
 				}
 			}
 			driver := `import plugin from ` + strconv.Quote(plugin) + `
-import {Database} from "bun:sqlite"
+import {DatabaseSync as Database} from "node:sqlite"
 const db=new Database(` + strconv.Quote(path) + `)
 const mode=` + strconv.Quote(mode) + `
 const required=` + strconv.FormatBool(required) + `
@@ -503,7 +501,7 @@ if(required){
   const delivery=state.observed.values().next().value
   if(!delivery || delivery.accepted!==overlapping || Object.hasOwn(delivery,"payload")===overlapping) throw new Error("incorrect failed/accepted payload retention")
 }
-const count=()=> (db.query("SELECT count(*) AS n FROM session_telemetry").get() as any).n
+const count=()=> (db.prepare("SELECT count(*) AS n FROM session_telemetry").get() as any).n
 if(count()!==((beforeCommit && !overlapping)?0:1)) throw new Error("wrong first persistence state")
 if(beforeCommit && !overlapping) db.exec("DROP TRIGGER fail_telemetry")
 if(!required) await hooks.event({event:{type:"message.updated",properties:{info:{id:"message",sessionID:"runtime",role:"assistant",providerID:"late",modelID:"late"}}}})
@@ -521,19 +519,19 @@ if(required){
   const delivery=state.observed.values().next().value
   if(!delivery?.accepted || Object.hasOwn(delivery,"payload")) throw new Error("valid ACK retained payload")
 }
-const row:any=db.query("SELECT * FROM session_telemetry").get()
+const row:any=db.prepare("SELECT captured_at,cost,provider,model FROM session_telemetry").get()
 const first=JSON.parse(sent[0])
 if(row.captured_at!==first.captured_at || row.cost!==0.25 || row.provider!==null || row.model!==null) throw new Error("first evidence enriched/replaced: "+JSON.stringify(row))
-const rollup:any=db.query("SELECT sum(tool_call_count) AS n FROM sessions").get()
+const rollup:any=db.prepare("SELECT sum(tool_call_count) AS n FROM sessions").get()
 if(rollup.n!==0) throw new Error("telemetry retry changed tool rollup")
 if(required){
-  const interval:any=db.query("SELECT event_count,contradiction_count FROM runtime_event_intervals").get()
+  const interval:any=db.prepare("SELECT event_count,contradiction_count FROM runtime_event_intervals").get()
   if(interval.event_count!==3 || interval.contradiction_count!==0) throw new Error("required callback convergence "+JSON.stringify(interval))
 }
 db.close()
 console.log("durable retry verified: "+mode)
 `
-			runTelemetryDriver(t, root, bun, driver)
+			runTelemetryDriver(t, root, node, driver)
 		})
 	}
 }

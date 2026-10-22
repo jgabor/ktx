@@ -243,6 +243,14 @@ nested target inherits those roots. Go, Bun, and lint caches remain outside the
 application root through explicit `GOCACHE`, `GOMODCACHE`,
 `BUN_INSTALL_CACHE_DIR`, and `GOLANGCI_LINT_CACHE` values.
 
+Before Mage replaces `HOME`, it resolves the real `node` and `bun` executables
+and passes them to the nested target as `KTX_TEST_NODE` and `KTX_TEST_BUN`.
+Version-manager shims can reinstall themselves or fail under a disposable
+`HOME`, so tests start the resolved executable instead of searching `PATH`.
+Each value must be an absolute path outside the disposable root. Set either
+variable yourself to choose a different executable; a runtime that is not
+installed stays unset.
+
 The verification boundary records database resolution, inspection, read-only
 open, and normal open attempts before filesystem or SQLite effects. It rejects
 any attempt to touch the captured ambient default database or incoming
@@ -255,27 +263,33 @@ regressions. Its parallel lint and vulnerability checks do not fix or stage
 files; automatic fixes remain in the serial pre-commit hook.
 
 For routine verification, install the Go version declared in `go.mod`, Mage,
-and `golangci-lint`, with Bun and Python 3 on `PATH` (`python3` must resolve).
-`mage check` runs the Python schema-readiness verifier unit tests as well as
-the Go suite and required Bun generated-adapter gate. That gate currently
+and `golangci-lint`, with Node, Bun, and Python 3 on `PATH` (`python3` must
+resolve). Node must be 22.18 or newer, or 23.6 or newer on the 23 line, so it
+runs TypeScript without flags. `mage check` runs the Python schema-readiness
+verifier unit tests as well as the Go suite and required Bun generated-adapter
+gate. The Go suite runs the generated OpenCode plugin tests on Node; the gate
+runs the plugin on Bun, the runtime OpenCode uses. That gate currently
 requires Linux. `mage verify` adds the retained replay fixture and
 `govulncheck`, which must also be on `PATH`.
 CI explicitly installs these prerequisites. The Python unit tests are offline;
 they do not run the production-scale schema release gate.
 
 Focused manual commands that bypass Mage need an equivalent fresh disposable
-root. Define and use `ktx_verify` for each such command:
+root. Define and use `ktx_verify` for each such command. Like Mage, it resolves
+the JavaScript runtimes before it replaces `HOME`:
 
 ```sh
 ktx_verify() (
   root=$(mktemp -d "${TMPDIR:-/tmp}/ktx-verify.XXXXXX") || return
   trap 'rm -rf "$root"' EXIT HUP INT TERM
   mkdir -p "$root/home" "$root/data" "$root/config" "$root/cache" "$root/state" "$root/tmp"
+  node=${KTX_TEST_NODE:-$(node -p process.execPath 2>/dev/null)}
+  bun=${KTX_TEST_BUN:-$(bun -p process.execPath 2>/dev/null)}
   env -u KTX_DB \
     HOME="$root/home" XDG_DATA_HOME="$root/data" \
     XDG_CONFIG_HOME="$root/config" XDG_CACHE_HOME="$root/cache" \
     XDG_STATE_HOME="$root/state" TMPDIR="$root/tmp" \
-    KTX_VERIFY_ROOT="$root" \
+    KTX_VERIFY_ROOT="$root" KTX_TEST_NODE="$node" KTX_TEST_BUN="$bun" \
     "$@"
 )
 ```

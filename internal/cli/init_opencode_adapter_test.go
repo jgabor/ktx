@@ -16,6 +16,7 @@ import (
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/telemetry"
 	telemetryopencode "github.com/jgabor/ktx/internal/telemetry/opencode"
+	"github.com/jgabor/ktx/internal/testjs"
 )
 
 func TestOpencodeInstallIsIdempotentAndReportsGeneratedContract(t *testing.T) {
@@ -157,12 +158,10 @@ func TestOpencodeGeneratedAdapterEventAndToolIntegration(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test fixture uses a POSIX shell executable")
 	}
-	bun, err := exec.LookPath("bun")
-	if err != nil {
-		t.Skip("bun is required to execute the generated OpenCode adapter")
-	}
+	node := testjs.Runtime(t, "node", false)
 
 	dir := t.TempDir()
+	testjs.WriteModulePackage(t, dir)
 	pluginPath := filepath.Join(dir, "ktx.ts")
 	if err := os.WriteFile(pluginPath, []byte(ktxOpencodePluginTemplate), 0o644); err != nil {
 		t.Fatal(err)
@@ -217,7 +216,7 @@ if [ "$1" = "telemetry" ] && [ "$KTX_TEST_TELEMETRY_FAIL" = "1" ]; then
   exit 8
 fi
 if [ "$1 $2" = "telemetry record" ]; then
-  printf '%s' "$payload" | ` + strconv.Quote(bun) + ` -e 'const o=JSON.parse(await Bun.stdin.text()); o.provider ??= null; o.model ??= null; o.runtime="opencode"; o.runtime_version="1.18.5"; o.source="event_hook"; console.log(JSON.stringify({schema:"ktx.telemetry-ack.v1",ok:true,durable:true,observation:o}))'
+  printf '%s' "$payload" | ` + strconv.Quote(node) + ` ` + testjs.DisableExperimentalWarning + ` --input-type=module -e 'import {text} from "node:stream/consumers"; const o=JSON.parse(await text(process.stdin)); o.provider ??= null; o.model ??= null; o.runtime="opencode"; o.runtime_version="1.18.5"; o.source="event_hook"; console.log(JSON.stringify({schema:"ktx.telemetry-ack.v1",ok:true,durable:true,observation:o}))'
   exit $?
 fi
 if [ "$1 $2" = "telemetry collector-open" ]; then
@@ -348,13 +347,13 @@ console.log(JSON.stringify(output))
 	run := func(t *testing.T, extraEnv ...string) (map[string]any, []string, string) {
 		t.Helper()
 		logPath := filepath.Join(t.TempDir(), "calls.log")
-		cmd := exec.Command(bun, driverPath)
+		cmd := exec.Command(node, testjs.DisableExperimentalWarning, driverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath)
 		cmd.Env = append(cmd.Env, extraEnv...)
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &stdout, &stderr
 		if err := cmd.Run(); err != nil {
-			t.Fatalf("bun adapter driver: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+			t.Fatalf("node adapter driver: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 		}
 		var output map[string]any
 		if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &output); err != nil {
@@ -565,6 +564,7 @@ console.log(JSON.stringify(output))
 
 	containmentDriverPath := filepath.Join(dir, "containment-driver.ts")
 	containmentDriver := `import plugin from ` + strconv.Quote(pluginPath) + `
+import {writeFile} from "node:fs/promises"
 const input = {tool:"bash",sessionID:"ses_1",callID:"call_1",args:{}}
 const invoke = async (hooks: any) => {
   const output: any = {title:"tool",output:"original tool output",metadata:{kept:true}}
@@ -597,19 +597,19 @@ if (scenario === "restart") {
         process.env.KTX_DB = process.env.KTX_TEST_DB_PATH_2
         process.env.KTX_TEST_SCHEMA_ACTUAL = "10"
       } else if (scenario === "same-path-database") {
-        await Bun.write(process.env.KTX_TEST_DB_PATH!, "changed database metadata")
+        await writeFile(process.env.KTX_TEST_DB_PATH!, "changed database metadata")
         process.env.KTX_TEST_SCHEMA_ACTUAL = "11"
       } else if (scenario === "same-path-symlink") {
-        await Bun.write(process.env.KTX_TEST_DB_PATH!, "changed symlink target metadata")
+        await writeFile(process.env.KTX_TEST_DB_PATH!, "changed symlink target metadata")
         process.env.KTX_TEST_SCHEMA_ACTUAL = "11"
       } else if (scenario === "same-path-wal") {
-        await Bun.write(process.env.KTX_TEST_DB_PATH! + "-wal", "new wal metadata")
+        await writeFile(process.env.KTX_TEST_DB_PATH! + "-wal", "new wal metadata")
         process.env.KTX_TEST_SCHEMA_ACTUAL = "11"
       } else if (scenario?.startsWith("windows-")) {
         const variable = scenario.slice("windows-".length).toUpperCase()
         process.env[variable] = (process.env[variable] || "") + "-changed"
         process.env.KTX_TEST_DB_PATH = process.env.KTX_TEST_DB_PATH_2
-        await Bun.write(process.env.KTX_TEST_DB_PATH!, "second database")
+        await writeFile(process.env.KTX_TEST_DB_PATH!, "second database")
       }
       results.push(await invoke(hooks))
       if (scenario === "same-path-database" || scenario === "same-path-symlink" || scenario === "same-path-wal" ||
@@ -684,7 +684,7 @@ console.log(JSON.stringify(results))
 						t.Skipf("symlink fixture unavailable: %v", err)
 					}
 				}
-				cmd := exec.Command(bun, containmentDriverPath)
+				cmd := exec.Command(node, testjs.DisableExperimentalWarning, containmentDriverPath)
 				cmd.Env = append(os.Environ(),
 					"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 					"KTX_TEST_LOG="+logPath,
@@ -786,6 +786,7 @@ console.log(JSON.stringify(results))
 
 	t.Run("actual schema incompatibility envelope is suppressed by state", func(t *testing.T) {
 		root := t.TempDir()
+		testjs.WriteModulePackage(t, root)
 		actualBinDir := filepath.Join(root, "bin")
 		if err := os.Mkdir(actualBinDir, 0o755); err != nil {
 			t.Fatal(err)
@@ -832,7 +833,7 @@ console.log(JSON.stringify(results))
 				t.Fatal(err)
 			}
 		}
-		cmd := exec.Command(bun, driverPath)
+		cmd := exec.Command(node, testjs.DisableExperimentalWarning, driverPath)
 		cmd.Env = []string{
 			"PATH=" + actualBinDir + string(os.PathListSeparator) + os.Getenv("PATH"),
 			"HOME=" + filepath.Join(root, "home"),
@@ -880,6 +881,7 @@ console.log(JSON.stringify(results))
 
 	t.Run("plugin factories pin independent candidates and containment state", func(t *testing.T) {
 		fixture := t.TempDir()
+		testjs.WriteModulePackage(t, fixture)
 		binB := filepath.Join(fixture, "bin-b")
 		if err := os.Mkdir(binB, 0o755); err != nil {
 			t.Fatal(err)
@@ -915,7 +917,7 @@ console.log("ok")
 		}
 		logPath := filepath.Join(fixture, "calls.log")
 		pathLog := filepath.Join(fixture, "paths.log")
-		cmd := exec.Command(bun, factoryDriverPath)
+		cmd := exec.Command(node, testjs.DisableExperimentalWarning, factoryDriverPath)
 		cmd.Env = append(os.Environ(),
 			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 			"KTX_TEST_BIN_A="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -997,7 +999,7 @@ console.log("ok")
 	}
 	t.Run("required callback failure does not poison later queue work", func(t *testing.T) {
 		logPath := filepath.Join(t.TempDir(), "calls.log")
-		cmd := exec.Command(bun, queueDriverPath)
+		cmd := exec.Command(node, testjs.DisableExperimentalWarning, queueDriverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EVENT_FAIL_ORDINAL=3")
@@ -1038,7 +1040,7 @@ console.log("ok")
 	runEpochDriver := func(t *testing.T, scenario string) ([]string, string) {
 		t.Helper()
 		logPath := filepath.Join(t.TempDir(), "calls.log")
-		cmd := exec.Command(bun, epochDriverPath)
+		cmd := exec.Command(node, testjs.DisableExperimentalWarning, epochDriverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_EPOCH_SCENARIO="+scenario)
@@ -1076,7 +1078,7 @@ console.log("ok")
 
 	t.Run("required benchmark failure rejects plugin startup", func(t *testing.T) {
 		logPath := filepath.Join(t.TempDir(), "calls.log")
-		cmd := exec.Command(bun, driverPath)
+		cmd := exec.Command(node, testjs.DisableExperimentalWarning, driverPath)
 		cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 			"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 			"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_TELEMETRY_FAIL=1")
@@ -1091,7 +1093,7 @@ console.log("ok")
 	} {
 		t.Run("required rejects "+bad, func(t *testing.T) {
 			logPath := filepath.Join(t.TempDir(), "calls.log")
-			cmd := exec.Command(bun, driverPath)
+			cmd := exec.Command(node, testjs.DisableExperimentalWarning, driverPath)
 			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 				"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+bad)
@@ -1116,7 +1118,7 @@ console.log("ok")
 	} {
 		t.Run("required rejects "+test.name, func(t *testing.T) {
 			logPath := filepath.Join(t.TempDir(), "calls.log")
-			cmd := exec.Command(bun, driverPath)
+			cmd := exec.Command(node, testjs.DisableExperimentalWarning, driverPath)
 			cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KTX_TEST_LOG="+logPath,
 				"KTX_BENCH_SESSION_ID=aaaaaaaaaaaaaaaa", "KTX_BENCH_EVENT_INTERVAL_ID=bbbbbbbbbbbbbbbb",
 				"KTX_BENCH_EVENT_CONTRACT=opencode-event-v3", "KTX_BENCH_COLLECTOR_MODE=required", "KTX_TEST_BAD_RESPONSE="+test.response)

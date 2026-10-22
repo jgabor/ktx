@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"github.com/jgabor/ktx/internal/testjs"
 )
 
 func TestOpencodeEnvelopeLocalCLI(t *testing.T) {
@@ -14,13 +16,11 @@ func TestOpencodeEnvelopeLocalCLI(t *testing.T) {
 	if binary == "" {
 		t.Skip("set KTX_ADAPTER_CLI to the locally built binary")
 	}
-	bun, err := exec.LookPath("bun")
-	if err != nil {
-		t.Fatal(err)
-	}
+	node := testjs.Runtime(t, "node", true)
 	for _, input := range []string{"", "unchanged", "{\n  \"hello\": \"world\"\n}"} {
 		t.Run(strconv.Quote(input), func(t *testing.T) {
 			root := t.TempDir()
+			testjs.WriteModulePackage(t, root)
 			for _, key := range []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "TMPDIR"} {
 				path := filepath.Join(root, key)
 				if err := os.Mkdir(path, 0o700); err != nil {
@@ -60,7 +60,7 @@ console.log("delivery verified")
 			if err := os.WriteFile(path, []byte(driver), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			cmd = exec.Command(bun, path)
+			cmd = exec.Command(node, testjs.DisableExperimentalWarning, path)
 			cmd.Dir = root
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &stdout, &stderr

@@ -2,6 +2,7 @@
 """Generate disposable schema-readiness fixtures and raw measurement evidence."""
 
 import argparse
+import functools
 import hashlib
 import gzip
 import json
@@ -9,6 +10,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shutil
 import signal
 import sqlite3
 import string
@@ -50,10 +52,41 @@ def progress(phase, message):
     print(f"[{phase}] {message}", file=sys.stderr, flush=True)
 
 
+@functools.cache
+def js_runtimes():
+    """Resolve real node and bun executables while the ambient HOME applies.
+
+    Version-manager shims can reinstall themselves or fail under a disposable
+    HOME, so tests receive the executable a shim would launch.
+    """
+    resolved = {}
+    for name, variable in (("node", "KTX_TEST_NODE"), ("bun", "KTX_TEST_BUN")):
+        if os.environ.get(variable):
+            continue
+        candidate = shutil.which(name)
+        if candidate is None:
+            continue
+        try:
+            result = subprocess.run(
+                [candidate, "-p", "process.execPath"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        lines = result.stdout.strip().splitlines()
+        if lines and os.path.isabs(lines[-1]):
+            resolved[variable] = lines[-1]
+    return resolved
+
+
 def roots(parent, name):
     root = parent / name
     env = os.environ.copy()
     env.pop("KTX_DB", None)
+    env.update(js_runtimes())
     for key, directory in {
         "HOME": "home",
         "XDG_DATA_HOME": "data",

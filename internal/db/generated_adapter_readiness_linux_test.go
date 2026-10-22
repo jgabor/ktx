@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/jgabor/ktx/internal/identity"
+	"github.com/jgabor/ktx/internal/testjs"
 )
 
 const generatedAdapterCompressedRows = compressedTimestampMigrationBatch + 1
@@ -48,13 +49,9 @@ type generatedAdapterFixture struct {
 
 func TestGeneratedOpenCodeAdapterReadinessOverlap(t *testing.T) {
 	binary := builtKTXBinary(t)
-	bun, err := exec.LookPath("bun")
-	if err != nil {
-		if os.Getenv("KTX_TEST_REQUIRE_GENERATED_ADAPTER") == "1" {
-			t.Fatal("bun is required to execute the generated OpenCode adapter")
-		}
-		t.Skip("bun is required to execute the generated OpenCode adapter")
-	}
+	// Bun is OpenCode's plugin runtime, so this gate keeps executing the
+	// generated adapter under Bun.
+	bun := testjs.Runtime(t, "bun", os.Getenv("KTX_TEST_REQUIRE_GENERATED_ADAPTER") == "1")
 
 	t.Run("query owner hands readiness to generated hook and telemetry", func(t *testing.T) {
 		fixture := newGeneratedAdapterFixture(t, binary, bun)
@@ -104,10 +101,7 @@ func TestGeneratedOpenCodeAdapterProductionReadiness(t *testing.T) {
 		t.Fatal("KTX_TEST_SCHEMA15_EXPECTED_ROWS must be a positive integer")
 	}
 	binary := builtKTXBinary(t)
-	bun, err := exec.LookPath("bun")
-	if err != nil {
-		t.Fatal("bun is required to execute the generated OpenCode adapter")
-	}
+	bun := testjs.Runtime(t, "bun", true)
 
 	fixture := newGeneratedAdapterFixture(t, binary, bun)
 	fixture.database = database
@@ -163,6 +157,7 @@ func builtKTXBinary(t *testing.T) string {
 func newGeneratedAdapterFixture(t *testing.T, binary, bun string) generatedAdapterFixture {
 	t.Helper()
 	root := t.TempDir()
+	testjs.WriteModulePackage(t, root)
 	for _, directory := range []string{"home", "data", "config", "cache", "state", "runtime", "project"} {
 		if err := os.Mkdir(filepath.Join(root, directory), 0o700); err != nil {
 			t.Fatal(err)
@@ -210,16 +205,18 @@ func newGeneratedAdapterFixture(t *testing.T, binary, bun string) generatedAdapt
 	callbacks := filepath.Join(root, "callbacks-started")
 	driver := filepath.Join(root, "driver.ts")
 	source := `import plugin from ` + strconv.Quote(plugin) + `
+import { access, writeFile } from "node:fs/promises"
+import { setTimeout as sleep } from "node:timers/promises"
 const telemetryHooks: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
 const toolHooks: any = await plugin({ $: () => ({ quiet: async () => {} }) } as any)
 if (!telemetryHooks.event || !toolHooks["tool.execute.after"]) throw new Error("generated hooks unavailable")
-await Bun.write(process.env.KTX_TEST_ADAPTER_READY!, "ready")
-while (!(await Bun.file(process.env.KTX_TEST_ADAPTER_START!).exists())) await Bun.sleep(5)
+await writeFile(process.env.KTX_TEST_ADAPTER_READY!, "ready")
+while (!(await access(process.env.KTX_TEST_ADAPTER_START!).then(() => true, () => false))) await sleep(5)
 const identity = {type:"message.updated",properties:{info:{id:"message-overlap",sessionID:"session-overlap",role:"assistant",providerID:"openai",modelID:"gpt-5"}}}
 const step = {type:"message.part.updated",properties:{part:{id:"part-overlap",sessionID:"session-overlap",messageID:"message-overlap",type:"step-finish",reason:"stop",cost:1.25,tokens:{input:11,output:7,reasoning:3,cache:{read:5,write:2}}}}}
 await telemetryHooks.event({event:identity})
 const output: any = {title:"tool",output:"adapter overlap output",metadata:{kept:true}}
-await Bun.write(process.env.KTX_TEST_CALLBACKS_STARTED!, "started")
+await writeFile(process.env.KTX_TEST_CALLBACKS_STARTED!, "started")
 await Promise.all([
   telemetryHooks.event({event:step}),
   toolHooks["tool.execute.after"]({tool:"bash",sessionID:"session-overlap",callID:"call-overlap",args:{command:"true"}}, output),

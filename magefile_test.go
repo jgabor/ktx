@@ -164,6 +164,11 @@ func TestHermeticVerificationEnvironment(t *testing.T) {
 			t.Errorf("%s=%q is inside disposable root %q", key, value, root)
 		}
 	}
+	for _, key := range jsRuntimeVariables {
+		if value := os.Getenv(key); value != "" && (!filepath.IsAbs(value) || pathWithin(root, value)) {
+			t.Errorf("%s=%q is not an absolute path outside disposable root %q", key, value, root)
+		}
+	}
 	if audit := os.Getenv(databaseAuditEnv); audit == "" || filepath.Dir(audit) != root {
 		t.Errorf("database audit path %q is not owned by disposable root %q", audit, root)
 	}
@@ -185,7 +190,7 @@ func TestOpencodeTelemetryFixtureRejectsInvalidBoundaryBeforeTools(t *testing.T)
 	t.Setenv(hermeticBoundaryIDEnv, "")
 	t.Setenv("PATH", t.TempDir())
 	if err := OpencodeTelemetryFixture(); err == nil || !strings.Contains(err.Error(), "invalid hermetic reentry") {
-		t.Fatalf("fixture must validate isolation before looking up Bun or running tests: %v", err)
+		t.Fatalf("fixture must validate isolation before looking up Node or running tests: %v", err)
 	}
 }
 
@@ -209,7 +214,7 @@ func TestMaintainedVerificationEntrypointWiring(t *testing.T) {
 	})
 	t.Run("CI prerequisites", func(t *testing.T) {
 		workflow := read(".github/workflows/ci.yml")
-		for _, required := range []string{"oven-sh/setup-bun@", "actions/setup-python@", "run: mage verify"} {
+		for _, required := range []string{"oven-sh/setup-bun@", "actions/setup-node@", "actions/setup-python@", "run: mage verify"} {
 			if !strings.Contains(workflow, required) {
 				t.Errorf("CI lacks %q", required)
 			}
@@ -231,10 +236,16 @@ func TestGeneratedAdapterGateRequiresBinaryAndBun(t *testing.T) {
 	if err := os.WriteFile(binary, []byte("binary"), 0o700); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("KTX_TEST_BUN", "")
 	t.Setenv("PATH", t.TempDir())
 	if _, err := generatedAdapterGateRequirements(binary); err == nil || !strings.Contains(err.Error(), "bun not found") {
 		t.Fatalf("missing Bun result = %v", err)
 	}
+	t.Setenv("KTX_TEST_BUN", filepath.Join(directory, "missing-bun"))
+	if _, err := generatedAdapterGateRequirements(binary); err == nil || !strings.Contains(err.Error(), "KTX_TEST_BUN") {
+		t.Fatalf("missing captured Bun result = %v", err)
+	}
+	t.Setenv("KTX_TEST_BUN", "")
 
 	bin := t.TempDir()
 	bun := "bun"
@@ -383,6 +394,10 @@ func TestHermeticReentryValidationFailsClosed(t *testing.T) {
 		{name: "empty cache", mutate: func(t *testing.T, env map[string]string) { env["GOCACHE"] = "" }},
 		{name: "cache inside root", mutate: func(t *testing.T, env map[string]string) {
 			env["GOCACHE"] = filepath.Join(env[hermeticRootEnv], "tool-cache")
+		}},
+		{name: "relative JavaScript runtime", mutate: func(t *testing.T, env map[string]string) { env["KTX_TEST_NODE"] = "node" }},
+		{name: "JavaScript runtime inside root", mutate: func(t *testing.T, env map[string]string) {
+			env["KTX_TEST_BUN"] = filepath.Join(env[hermeticRootEnv], "bun")
 		}},
 		{name: "missing capability", mutate: func(t *testing.T, env map[string]string) {
 			env[hermeticCapabilityEnv] = filepath.Join(env[hermeticRootEnv], "missing-capability")

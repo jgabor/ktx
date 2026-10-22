@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -42,6 +43,10 @@ const (
 
 var applicationRootVariables = []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"}
 var toolCacheVariables = []string{"GOCACHE", "GOMODCACHE", "BUN_INSTALL_CACHE_DIR", "GOLANGCI_LINT_CACHE"}
+
+// jsRuntimeVariables name the executables that tests use to run generated
+// TypeScript. Each is optional: tests skip, and gates fail, when it is absent.
+var jsRuntimeVariables = map[string]string{"node": "KTX_TEST_NODE", "bun": "KTX_TEST_BUN"}
 
 type engineeringReportSpec struct {
 	name         string
@@ -538,8 +543,8 @@ func OpencodeTelemetryFixture() error {
 }
 
 func opencodeTelemetryFixture() error {
-	if _, err := exec.LookPath("bun"); err != nil {
-		return errors.New("bun not found; it is required to execute the generated OpenCode plugin fixture")
+	if err := requireJSRuntime("node", "to execute the generated OpenCode plugin fixture"); err != nil {
+		return err
 	}
 	pattern := "^Test(ValidateObservationRequiresRuntimeIdentity|ValidateObservationPreservesMeasurementStates|ContractFixtures|CollectorCorrelatesDeduplicatesAndOrders|CollectorKeepsFirstObservationAuthoritative|HookAndWrapperModelStepsNormalizeWithParity|SessionTelemetryPersistsSeparatelyAndListsMeasurements|SessionTelemetryPersistsUnknownAndMalformedFields|SessionTelemetryDuplicateConcurrentAndAtomicAssociation|SessionTelemetryRuntimeQualifiedIdentityAndFirstEvidence|SessionTelemetryConcurrentConflictHasOneCompleteWinner|SessionTelemetrySchemaV6FreshAndHistorical|SessionTelemetryV4MigrationPreservesAllEvidence|SessionTelemetryV6MigrationRollsBack|TelemetryRecordAndBoundedJSONInspection|TelemetryInspectionOrdersRuntimeNamespacesAndShowsProvenance|TelemetryRecordDistinguishesUnavailableFieldsAndPreservesZeros|TelemetryExplicitStatesPreserveCrossIngressFirstEvidence|TelemetryCommandDatabaseFailuresFailOpenOnlyForRecord|TelemetryRejectsMalformedAndFailsOpenOnPersistenceError|WrapperRetainsModelStepsSeparatelyWithFirstEvidenceAuthority|OpencodeGeneratedAdapterEventAndToolIntegration)$"
 	return run("go", "test", "-race", "./internal/telemetry/...", "./internal/db", "./internal/cli", "-run", pattern, "-count=1", "-timeout=30s")
@@ -654,10 +659,26 @@ func generatedAdapterGateRequirements(binary string) (string, error) {
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("built KTX binary is not a regular file: %s", absolute)
 	}
-	if _, err := exec.LookPath("bun"); err != nil {
-		return "", errors.New("bun not found; it is required for the generated-adapter gate")
+	if err := requireJSRuntime("bun", "for the generated-adapter gate"); err != nil {
+		return "", err
 	}
 	return absolute, nil
+}
+
+// requireJSRuntime checks that tests can start the named runtime: the captured
+// executable when one was passed in, otherwise a PATH entry.
+func requireJSRuntime(name, purpose string) error {
+	variable := jsRuntimeVariables[name]
+	if path := os.Getenv(variable); path != "" {
+		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("%s=%s is not a %s executable; it is required %s", variable, path, name, purpose)
+		}
+		return nil
+	}
+	if _, err := exec.LookPath(name); err != nil {
+		return fmt.Errorf("%s not found; it is required %s", name, purpose)
+	}
+	return nil
 }
 
 // Verify runs the complete repository verification used locally and in CI.
@@ -691,6 +712,7 @@ func hermeticTarget(target string, body func() error) error {
 	if err != nil {
 		return err
 	}
+	runtimes := captureJSRuntimes()
 	root, err := os.MkdirTemp("", "ktx-verify-")
 	if err != nil {
 		return fmt.Errorf("create disposable verification root: %w", err)
@@ -710,6 +732,11 @@ func hermeticTarget(target string, body func() error) error {
 	for name, path := range caches {
 		if pathWithin(root, path) {
 			return fmt.Errorf("%s must remain outside disposable application root", name)
+		}
+	}
+	for name, path := range runtimes {
+		if !filepath.IsAbs(path) || pathWithin(root, path) {
+			return fmt.Errorf("%s must be an absolute path outside disposable application root", name)
 		}
 	}
 	forbidden, err := ambientDatabasePaths()
@@ -738,6 +765,9 @@ func hermeticTarget(target string, body func() error) error {
 		values[name] = value
 	}
 	for name, value := range caches {
+		values[name] = value
+	}
+	for name, value := range runtimes {
 		values[name] = value
 	}
 	executable, err := os.Executable()
@@ -856,6 +886,12 @@ func validateHermeticReentry() error {
 			return fmt.Errorf("%s must remain outside disposable application root", name)
 		}
 	}
+	for _, name := range jsRuntimeVariables {
+		path := os.Getenv(name)
+		if path != "" && (!filepath.IsAbs(path) || pathWithin(root, path)) {
+			return fmt.Errorf("%s must be an absolute path outside disposable application root", name)
+		}
+	}
 	capabilityPath := os.Getenv(hermeticCapabilityEnv)
 	nonce := os.Getenv(hermeticNonceEnv)
 	if !validHexToken(nonce, boundaryNonceHexLength) {
@@ -965,6 +1001,33 @@ func captureToolCaches() (map[string]string, error) {
 	bunCache := readEnv("BUN_INSTALL_CACHE_DIR", filepath.Join(cacheHome, ".bun", "install", "cache"))
 	lintCache := readEnv("GOLANGCI_LINT_CACHE", filepath.Join(cacheHome, "golangci-lint"))
 	return map[string]string{"GOCACHE": gocache, "GOMODCACHE": gomodcache, "BUN_INSTALL_CACHE_DIR": bunCache, "GOLANGCI_LINT_CACHE": lintCache}, nil
+}
+
+// captureJSRuntimes resolves the real node and bun executables while the
+// ambient HOME is still in place. Version-manager shims can reinstall
+// themselves, print setup output, or fail under the disposable HOME, so tests
+// receive the executable a shim would launch. An explicit KTX_TEST_NODE or
+// KTX_TEST_BUN passes through unchanged; an unavailable runtime stays unset.
+func captureJSRuntimes() map[string]string {
+	runtimes := map[string]string{}
+	for name, variable := range jsRuntimeVariables {
+		if explicit := os.Getenv(variable); explicit != "" {
+			runtimes[variable] = explicit
+			continue
+		}
+		candidate, err := exec.LookPath(name)
+		if err != nil {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		text, err := exec.CommandContext(ctx, candidate, "-p", "process.execPath").Output()
+		cancel()
+		lines := strings.Split(strings.TrimSpace(string(text)), "\n")
+		if path := lines[len(lines)-1]; err == nil && filepath.IsAbs(path) {
+			runtimes[variable] = path
+		}
+	}
+	return runtimes
 }
 
 func ambientDatabasePaths() ([]string, error) {

@@ -21,6 +21,16 @@ Without Mage, use `go build -o build/ktx ./cmd/ktx`. Avoid a bare
 and the portable replay gate. CI runs this same command on every push and pull
 request. You need both `golangci-lint` and `govulncheck` installed.
 
+The checks also need Node and Bun. Tests run the generated OpenCode plugin on
+Node 22.18 or newer (23.6 or newer on the 23 line), and the generated-adapter
+gate runs it on Bun, which OpenCode uses to load plugins. Mage resolves both
+executables before it isolates the run and passes them on as `KTX_TEST_NODE`
+and `KTX_TEST_BUN`, so version-manager shims keep working. Set either variable
+to an absolute path to pick a specific executable. Without Node, the plugin
+tests are skipped; without Bun, `mage check` fails at the gate. If the first
+`node` on `PATH` is older than 22.18, the plugin tests fail; set
+`KTX_TEST_NODE` to a newer executable.
+
 ### Database isolation
 
 Development and CI checks never touch your everyday ktx database. The standard

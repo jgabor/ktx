@@ -9,14 +9,13 @@ import (
 	"testing"
 
 	"github.com/jgabor/ktx/internal/benchcontract"
+	"github.com/jgabor/ktx/internal/testjs"
 )
 
 func TestReadDescriptionGeneratedHook(t *testing.T) {
-	bun, err := exec.LookPath("bun")
-	if err != nil {
-		t.Skip("bun required for generated adapter test")
-	}
+	node := testjs.Runtime(t, "node", false)
 	dir := t.TempDir()
+	testjs.WriteModulePackage(t, dir)
 	for _, name := range []string{"original", "candidate"} {
 		data, err := os.ReadFile("../../docs/reports/normalization/normalization-read-" + name + ".txt")
 		if err != nil {
@@ -39,9 +38,9 @@ func TestReadDescriptionGeneratedHook(t *testing.T) {
 	}
 	const script = `import {benchmarkReadDescription} from './plugin.ts';
 import {readFileSync,writeFileSync} from 'node:fs';
-const original=readFileSync(import.meta.dir+'/original.txt','utf8');
-const candidate=readFileSync(import.meta.dir+'/candidate.txt','utf8');
-const ast=JSON.parse(readFileSync(import.meta.dir+'/ast.json','utf8'));
+const original=readFileSync(import.meta.dirname+'/original.txt','utf8');
+const candidate=readFileSync(import.meta.dirname+'/candidate.txt','utf8');
+const ast=JSON.parse(readFileSync(import.meta.dirname+'/ast.json','utf8'));
 delete process.env.KTX_BENCH_READ_DESCRIPTION;
 if(benchmarkReadDescription(false,'epoch')!==undefined) throw Error('ordinary activation');
 process.env.KTX_BENCH_READ_DESCRIPTION='candidate';
@@ -61,7 +60,7 @@ for(const side of ['baseline','candidate']) {
  }
 }
 
-writeFileSync(import.meta.dir+'/candidate.txt',candidate+'changed');
+writeFileSync(import.meta.dirname+'/candidate.txt',candidate+'changed');
 let rejected=false;try { benchmarkReadDescription(true,'epoch') } catch {rejected=true}
 if(!rejected)throw Error('altered fixture accepted');
 console.log('deterministic generated hook: pass');
@@ -70,7 +69,7 @@ console.log('deterministic generated hook: pass');
 	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command(bun, scriptPath)
+	command := exec.Command(node, testjs.DisableExperimentalWarning, scriptPath)
 	if out, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("%v: %s", err, out)
 	}

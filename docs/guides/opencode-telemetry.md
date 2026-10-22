@@ -344,8 +344,8 @@ From a checkout, run the offline fixture matrix:
 mage opencodeTelemetryFixture
 ```
 
-The target needs Bun to run the generated TypeScript plugin, but it needs no
-network access. It covers accepted, rejected, explicit-zero, missing,
+The target needs Node 22.18 or newer to run the generated TypeScript plugin,
+but it needs no network access. It covers accepted, rejected, explicit-zero, missing,
 duplicate, wrapped, unwrapped, cross-runtime, migration-failure, and concurrent
 behavior. The migration cases include fresh
 databases, representative historical schema versions, populated version 4, and

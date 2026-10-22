@@ -37,6 +37,7 @@
 ### Changed
 
 - The generated OpenCode plugin now starts `ktx` through `node:child_process` and finds it with its own `PATH` search instead of `Bun.spawn` and `Bun.which`, so it runs under both Bun and Node. Its generated revision changes: run `ktx init opencode` (or `ktx init opencode --project`) again to refresh an installed copy (`mage install` refreshes discovered installs), and rebuild the benchmark image (a `ktx bench compare --preflight --build` run) so its plugin matches the binary.
+- Development checks now run the generated OpenCode plugin tests on Node 22.18 or newer and keep a Bun generated-adapter gate. Mage resolves the real `node` and `bun` executables before it isolates `HOME` and passes them as `KTX_TEST_NODE` and `KTX_TEST_BUN`, so version-manager shims no longer break hermetic runs. CI installs Node 24 alongside Bun.
 - Building from source now requires Go 1.26.10 or newer (was 1.26.5).
 - Schema-readiness release evidence now lives in tracked `docs/evidence/schema-readiness/`; the release gate reads the historical failed report from there.
 - Documentation is grouped into `docs/guides/`, `docs/reference/`, and `docs/reports/`; the former `benchs/` report moved to `docs/reports/`. `ktx init opencode` now points troubleshooting at `docs/guides/opencode-telemetry.md#troubleshooting`, `ktx bench export` help points at `docs/guides/pipelines.md`, and the read-description experiment reads its inputs from `docs/reports/normalization/`.

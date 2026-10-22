@@ -37,10 +37,10 @@ func inspectTelemetryCollector(t *testing.T, plugin string, retainAcceptedPayloa
 }
 
 func TestTelemetryAdapterLocalPayloadRelease(t *testing.T) {
-	root, _, bun, plugin, path := localTelemetryAdapter(t, false)
+	root, _, node, plugin, path := localTelemetryAdapter(t, false)
 	inspectTelemetryCollector(t, plugin, false)
 	driver := `import plugin from ` + strconv.Quote(plugin) + `
-import {Database} from "bun:sqlite"
+import {DatabaseSync as Database} from "node:sqlite"
 const db=new Database(` + strconv.Quote(path) + `)
 const hooks:any=await plugin({} as any)
 const state=hooks.__collectorState()
@@ -84,19 +84,19 @@ if(spawns!==before || deliveries!==2) throw new Error("accepted retry spawned a 
 const conflict=structuredClone(event); conflict.properties.part.cost=9
 await hooks.event({event:conflict})
 if(!diagnostics.some(s=>s.includes("conflicting model-step redelivery")) || spawns!==before || state.observed.get(key)!==accepted) throw new Error("accepted conflict not preserved")
-const rows:any[]=db.query("SELECT ordinal,captured_at,cost,provider,model FROM session_telemetry").all()
+const rows:any[]=db.prepare("SELECT ordinal,captured_at,cost,provider,model FROM session_telemetry").all()
 if(rows.length!==1 || rows[0].ordinal!==observation.ordinal || rows[0].captured_at!==observation.captured_at || rows[0].cost!==0.25 || rows[0].provider!==null || rows[0].model!==null) throw new Error("first durable evidence changed: "+JSON.stringify(rows))
 const identity=state.identities.get(JSON.stringify(["runtime","message"]))
 if(identity?.provider!=="late" || identity?.model!=="late") throw new Error("late assistant association lost")
 const later=structuredClone(event); later.properties.part.id="later"
 await hooks.event({event:later})
-const row:any=db.query("SELECT ordinal,provider,model FROM session_telemetry WHERE part_id='later'").get()
+const row:any=db.prepare("SELECT ordinal,provider,model FROM session_telemetry WHERE part_id='later'").get()
 if(row.ordinal!==2 || row.provider!=="late" || row.model!=="late") throw new Error("late identity unavailable to later part")
 if(state.pendingRequired.size!==0) throw new Error("optional collection changed required pending state")
 db.close()
 console.log("payload release, uncertain/in-flight retention, exact retry, accepted conflict, overlap and late identity verified")
 `
-	runTelemetryDriver(t, root, bun, driver)
+	runTelemetryDriver(t, root, node, driver)
 }
 
 func TestTelemetryAdapterLocalPairedRetention(t *testing.T) {
@@ -118,11 +118,12 @@ func TestTelemetryAdapterLocalPairedRetention(t *testing.T) {
 			name = "retained-control"
 		}
 		t.Run(name, func(t *testing.T) {
-			root, _, bun, plugin, path := localTelemetryAdapter(t, false)
+			root, _, node, plugin, path := localTelemetryAdapter(t, false)
 			inspectTelemetryCollector(t, plugin, retain)
 			measurement := filepath.Join(root, "retention.json")
 			driver := `import plugin from ` + strconv.Quote(plugin) + `
-import {Database} from "bun:sqlite"
+import {DatabaseSync as Database} from "node:sqlite"
+import {writeFile} from "node:fs/promises"
 const hooks:any=await plugin({} as any)
 const retainedControl=` + strconv.FormatBool(retain) + `
 const state=hooks.__collectorState()
@@ -151,14 +152,14 @@ for(const [key,value] of state.identities){keyBytes+=bytes(key);identityBytes+=b
 if(deliveries!==256 || state.observed.size!==256 || state.identities.size!==256 || state.pendingRequired.size!==0) throw new Error("identity membership changed")
 if(payloadBytes!==(retainedControl?sentBytes:0)) throw new Error("retained payload byte accounting differs from actual writes")
 const db=new Database(` + strconv.Quote(path) + `)
-const row:any=db.query("SELECT count(*) AS n,min(ordinal) AS first,max(ordinal) AS last FROM session_telemetry").get()
+const row:any=db.prepare("SELECT count(*) AS n,min(ordinal) AS first,max(ordinal) AS last FROM session_telemetry").get()
 if(row.n!==256 || row.first!==1 || row.last!==256) throw new Error("paired workload did not persist exactly once")
 db.close()
 const measurement=JSON.stringify({variant:retainedControl?"retained-control":"released",pairs:256,deliveries,evidenceBytes,payloadBytes,identityBytes,keyBytes,totalStringBytes:evidenceBytes+payloadBytes+identityBytes+keyBytes,sentBytes})
-await Bun.write(` + strconv.Quote(measurement) + `,measurement)
+await writeFile(` + strconv.Quote(measurement) + `,measurement)
 console.log(measurement)
 `
-			runTelemetryDriver(t, root, bun, driver)
+			runTelemetryDriver(t, root, node, driver)
 			data, err := os.ReadFile(measurement)
 			if err != nil {
 				t.Fatal(err)

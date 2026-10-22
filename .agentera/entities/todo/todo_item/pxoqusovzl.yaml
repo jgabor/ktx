@@ -14,7 +14,7 @@ record:
   acceptance:
     - A live session shows that the hooks.json command and the mod's process call both resolve a bare `ktx` through PATH.
     - Tests cover the version check (below minimum, at minimum, development build), `ktx init claude` with and without `claude`, and a re-run when the marketplace and plugin are already installed.
-    - "`claude plugin validate --strict` and `claude plugin test` pass on the published plugin."
+    - "`claude plugin validate` and `claude plugin test` pass on the published plugin; the only validation warning is the deliberately absent plugin version, which lets Claude Code version the plugin by commit."
   release_blocker: false
   severity: normal
   readiness:
@@ -25,17 +25,21 @@ record:
         id: inkpfruyrp
     blocked: null
     gate:
-      state: pending
+      state: satisfied
       reason: Publishing waits for a tagged ktx release that reports its version from build info.
       recovery: Tag a ktx release after the build-info version task ships.
     queue_rank: 33
     order_reason: Follows the build-info version task.
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[feature] Publish the ktx Claude Code plugin as ktx@ktx"
+      status: resolved
+      order: 51
       severity: normal
-      status: open
-      order: 20
+  lifecycle:
+    operation: resolve
+    reason: Published ktx@ktx from the repository marketplace and released v0.1.0. A live session confirmed the hook and the mod both resolve a bare ktx through PATH; mage check and mage claudePluginCheck pass; go install of v0.1.0 reports v0.1.0, and a GitHub install of ktx@ktx succeeds.
+    date: 2026-10-22

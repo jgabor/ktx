@@ -550,6 +550,85 @@ func opencodeTelemetryFixture() error {
 	return run("go", "test", "-race", "./internal/telemetry/...", "./internal/db", "./internal/cli", "-run", pattern, "-count=1", "-timeout=30s")
 }
 
+// ClaudePluginCheck generates the Claude Code plugins with build/ktx into a
+// disposable data folder, runs `claude plugin validate --strict` on the
+// marketplace and each plugin, and runs `claude plugin test` on the ktx-stats
+// mod with its tests copied in. It is opt-in, never part of check or test, and
+// skips when claude is not on PATH. It never adds or installs a marketplace.
+func ClaudePluginCheck() error {
+	claude, err := exec.LookPath("claude")
+	if err != nil {
+		fmt.Println("claude not found on PATH; skipping Claude Code plugin checks")
+		return nil
+	}
+	if err := Build(); err != nil {
+		return err
+	}
+	binary, err := filepath.Abs(binaryPath())
+	if err != nil {
+		return err
+	}
+	root, err := os.MkdirTemp("", "ktx-claude-plugin-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(root)
+	values := map[string]string{}
+	for _, name := range applicationRootVariables {
+		values[name] = filepath.Join(root, strings.ToLower(name))
+		if err := os.MkdirAll(values[name], 0o700); err != nil {
+			return err
+		}
+	}
+	environment := verificationEnvironment(os.Environ(), values)
+	isolated := func(name string, args ...string) error {
+		command := exec.Command(name, args...)
+		command.Env = environment
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		return command.Run()
+	}
+
+	if err := isolated(binary, "init", "claude-code", "--format", "text"); err != nil {
+		return fmt.Errorf("generate Claude Code plugins: %w", err)
+	}
+	marketplace := filepath.Join(values["XDG_DATA_HOME"], "ktx", "claude-code", "marketplace")
+	mod := filepath.Join(marketplace, "plugins", "ktx-stats")
+	if err := copyDirectory(filepath.Join("internal", "cli", "claudecode", "plugins", "ktx-stats", "tests"), filepath.Join(mod, "tests")); err != nil {
+		return fmt.Errorf("copy ktx-stats tests: %w", err)
+	}
+	for _, folder := range []string{marketplace, filepath.Join(marketplace, "plugins", "ktx"), mod} {
+		if err := isolated(claude, "plugin", "validate", "--strict", folder); err != nil {
+			return fmt.Errorf("claude plugin validate %s: %w", folder, err)
+		}
+	}
+	if err := isolated(claude, "plugin", "test", mod); err != nil {
+		return fmt.Errorf("claude plugin test %s: %w", mod, err)
+	}
+	return nil
+}
+
+func copyDirectory(source, target string) error {
+	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		destination := filepath.Join(target, relative)
+		if entry.IsDir() {
+			return os.MkdirAll(destination, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(destination, data, 0o644)
+	})
+}
+
 func Vet() error {
 	return run("go", "vet", "./...")
 }

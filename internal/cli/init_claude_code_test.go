@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jgabor/ktx/internal/cli/claudecode"
 )
 
 // setupClaudeCode isolates HOME and XDG_DATA_HOME, pins an executable file at
@@ -216,8 +218,74 @@ func TestInitClaudeCodeUnusualPaths(t *testing.T) {
 	if inner["command"] != exe {
 		t.Fatalf("command = %q, want %q", inner["command"], exe)
 	}
+	if got := pinnedStatsExecutable(t, root); got != exe {
+		t.Fatalf("ktx-stats pins %q, want %q", got, exe)
+	}
 	if code, stdout, _ := runClaudeCodeInit(t, FormatJSON, "--show"); code != ExitOK || decodeJSONObject(t, stdout)["stale"] != false {
 		t.Fatalf("show = %d %s", code, stdout)
+	}
+}
+
+// pinnedStatsExecutable reads back the executable literal generated into the
+// ktx-stats hooks module.
+func pinnedStatsExecutable(t *testing.T, root string) string {
+	t.Helper()
+	source, err := os.ReadFile(filepath.Join(root, "plugins", "ktx-stats", "hooks", "register.tsx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const prefix = "const KTX_EXECUTABLE: string = "
+	matches := 0
+	var literal string
+	for _, line := range strings.Split(string(source), "\n") {
+		if strings.HasPrefix(line, prefix) {
+			matches++
+			literal = strings.TrimSuffix(strings.TrimPrefix(line, prefix), ";")
+		}
+	}
+	if matches != 1 {
+		t.Fatalf("register.tsx has %d executable lines", matches)
+	}
+	var path string
+	if err := json.Unmarshal([]byte(literal), &path); err != nil {
+		t.Fatalf("executable literal %s: %v", literal, err)
+	}
+	return path
+}
+
+func TestInitClaudeCodeGeneratesStatsMod(t *testing.T) {
+	base := t.TempDir()
+	exe := filepath.Join(base, "bin", "ktx")
+	root := setupClaudeCode(t, filepath.Join(base, "data"), exe)
+	code, stdout, stderr := runClaudeCodeInit(t, FormatText)
+	if code != ExitOK {
+		t.Fatalf("install: %s", stderr)
+	}
+	if !strings.Contains(stdout, "claude plugin install ktx-stats@ktx-local") {
+		t.Fatalf("install output lacks the ktx-stats step:\n%s", stdout)
+	}
+	if got := pinnedStatsExecutable(t, root); got != exe {
+		t.Fatalf("ktx-stats pins %q, want %q", got, exe)
+	}
+	mod := filepath.Join(root, "plugins", "ktx-stats")
+	if hooks := readJSONFile(t, filepath.Join(mod, "hooks", "hooks.json")); !reflect.DeepEqual(hooks, map[string]any{"modules": []any{"./register.tsx"}}) {
+		t.Fatalf("ktx-stats hooks.json = %v", hooks)
+	}
+	if manifest := readJSONFile(t, filepath.Join(mod, ".claude-plugin", "plugin.json")); manifest["types"] != "./types/index.d.ts" {
+		t.Fatalf("ktx-stats manifest = %v", manifest)
+	}
+	for _, name := range []string{"hooks/stats.ts", "types/index.d.ts"} {
+		want, err := claudecode.Files.ReadFile("plugins/ktx-stats/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(filepath.Join(mod, filepath.FromSlash(name)))
+		if err != nil || !bytes.Equal(got, want) {
+			t.Fatalf("%s differs from its source: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(mod, "tests")); !os.IsNotExist(err) {
+		t.Fatalf("test files were generated: %v", err)
 	}
 }
 

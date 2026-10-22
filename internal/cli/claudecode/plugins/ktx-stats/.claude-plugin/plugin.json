@@ -1,0 +1,11 @@
+{
+  "name": "ktx-stats",
+  "version": "1.0.0",
+  "description": "Shows ktx compression stats in a status line and a /ktx pane.",
+  "author": {
+    "name": "Jonathan Gabor"
+  },
+  "homepage": "https://github.com/jgabor/ktx",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

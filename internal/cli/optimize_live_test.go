@@ -340,8 +340,10 @@ func TestOptimizeLiveFailureCancellationAndTamper(t *testing.T) {
 			switch kind {
 			case "quality":
 				fake.wrongAnswer = true
+				args.maxAttempts = 14
 			case "tokens":
 				fake.missingReasoning = true
+				args.maxAttempts = 14
 			case "no-improvement":
 				fake.noImprovement = true
 			case "cancel":

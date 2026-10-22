@@ -20,9 +20,3 @@ record:
       severity: normal
       status: open
       order: 20
-    create_batch:
-      effect_sha256: be881b0b502482fc7dd99a8218b09ce81dbb6c96f38ac29db2d268b2ab86444f
-      input_sha256: 9a45fee4be42e0e39617e26fc810db57d7fc425f2f0175311ca6e0aad9e2f256
-      local_refs:
-        claude-code-more-tools: fcdbvqmrpt
-        stats-session-filter: jlmwvmstlx

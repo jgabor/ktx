@@ -1,0 +1,39 @@
+id: wljbjnqufk
+artifact: todo
+record:
+  kind: discussion
+  target_version: null
+  title: "Native distribution for OpenCode and Codex — Run a structured discussion and record how ktx is installed through each runtime's own plugin system: the channel per runtime, how the plugin finds the ktx executable, what `ktx init opencode` and `ktx init codex` become, how benchmarks keep an exact plugin identity, and whether the opencode-ktx sidebar moves into this repository. → [Question](ARCHITECTURE.md#native-distribution-for-opencode-and-codex)"
+  requirements:
+    - Decide the distribution channel for OpenCode (npm packages loaded from `opencode.json` and `tui.json`) and for Codex (a repository marketplace for `codex plugin add`), or record why a runtime keeps generated adapters.
+    - Decide how each plugin finds ktx, given that the Codex hook pins a canonical path today and the OpenCode plugin pins the ktx it finds on PATH at startup, and how plugin and binary versions stay compatible.
+    - Decide what `ktx init opencode` and `ktx init codex` do afterwards, and how benchmarks that require the generated OpenCode plugin to match the binary keep that identity.
+    - Decide whether the opencode-ktx TUI sidebar moves into this repository, and how Codex shows ktx statistics without a panel API.
+    - Account for Codex reading the repository's Claude Code marketplace files.
+  acceptance:
+    - The user concludes the discussion; the choice is recorded as a decision, the architectural question is removed, and only the selected follow-up work is added.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: discuss
+    reason: Native plugin systems in OpenCode and Codex could replace generated adapters, which changes recorded adapter decisions.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 35
+    order_reason: TODO.md architectural-discussion order after immediate work.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[discussion] Native distribution for OpenCode and Codex — Run a structured discussion and record how ktx is installed through each runtime's own plugin system: the channel per runtime, how the plugin finds the ktx executable, what `ktx init opencode` and `ktx init codex` become, how benchmarks keep an exact plugin identity, and whether the opencode-ktx sidebar moves into this repository. → [Question](ARCHITECTURE.md#native-distribution-for-opencode-and-codex)"
+      severity: normal
+      status: open
+      order: 22
+    create_batch:
+      effect_sha256: 669ee080e0724495105fc814283bc396ba4e025bd4c5e1eee4b7d4375e47220b
+      input_sha256: 4cc36b3fe085ee6250a36f9cc85ea149f3aa284bbd0676ab4e643bf1018ed12e
+      local_refs:
+        native-distribution: wljbjnqufk

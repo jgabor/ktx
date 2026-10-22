@@ -33,6 +33,7 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [ ] [id:guiiezgezj] [discussion] Claude Code model telemetry — Run a structured discussion and record whether and how ktx collects per-model-step token and cost telemetry from Claude Code, and how it relates to the pinned-runtime telemetry and cache-share contracts. → [Question](ARCHITECTURE.md#claude-code-model-telemetry)
 - [ ] [id:fcdbvqmrpt] [feature] Record Claude Code tools beyond Bash and failed calls
 - [ ] [id:jlmwvmstlx] [feature] Filter `ktx stats summary` to one session
+- [ ] [id:wljbjnqufk] [discussion] Native distribution for OpenCode and Codex — Run a structured discussion and record how ktx is installed through each runtime's own plugin system: the channel per runtime, how the plugin finds the ktx executable, what `ktx init opencode` and `ktx init codex` become, how benchmarks keep an exact plugin identity, and whether the opencode-ktx sidebar moves into this repository. → [Question](ARCHITECTURE.md#native-distribution-for-opencode-and-codex)
 
 ## ✓ Resolved
 

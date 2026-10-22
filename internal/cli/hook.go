@@ -52,10 +52,38 @@ type codexHookOutput struct {
 	Reason   string `json:"reason,omitempty"`
 }
 
-func writeTrustedHookOutput(stdout io.Writer, isCodex bool, result evidence.Result, output, runtimeSessionID, runtimeCallID string, recoveryCue bool) error {
+// hookIngress names the input contract a hook payload arrived through. It
+// selects extraction, the response shape, and diagnostic labels; it does not
+// imply trusted provenance, which the native schema checks decide.
+type hookIngress uint8
+
+const (
+	ingressFlat hookIngress = iota
+	ingressOpenCode
+	ingressCodex
+	ingressClaudeCode
+)
+
+// adapter reports whether the payload arrived through a recognized runtime
+// adapter contract rather than flat sidecar input.
+func (i hookIngress) adapter() bool { return i != ingressFlat }
+
+// agent is the session agent label recorded for an eligible adapter source.
+func (i hookIngress) agent() string {
+	switch i {
+	case ingressCodex:
+		return "codex"
+	case ingressClaudeCode:
+		return "claude-code"
+	default:
+		return "opencode"
+	}
+}
+
+func writeTrustedHookOutput(stdout io.Writer, ingress hookIngress, result evidence.Result, output, runtimeSessionID, runtimeCallID string, recoveryCue bool) error {
 	enc := json.NewEncoder(stdout)
 	enc.SetEscapeHTML(false)
-	if isCodex {
+	if ingress == ingressCodex {
 		var response codexHookOutput
 		if result.Transformed {
 			response = codexHookOutput{Decision: "block", Reason: output}
@@ -389,7 +417,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		return nil, usageError("ktx hook: parse JSON: %v", err)
 	}
 
-	var isCodex, isOpenCode bool
+	ingress := ingressFlat
 	var runtimeSessionID, runtimeCallID string
 	var src correlation.Source
 	if peek.HookEventName != nil && *peek.HookEventName != "" {
@@ -415,7 +443,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 				},
 			}
 		}
-		isCodex = true
+		ingress = ingressCodex
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(body, &raw); err != nil {
 			return nil, usageError("ktx hook: parse JSON: %v", err)
@@ -455,7 +483,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		rt := "codex"
 		tc.Runtime = &rt
 	} else if peek.Runtime != nil && *peek.Runtime == "opencode" {
-		isOpenCode = true
+		ingress = ingressOpenCode
 		var raw map[string]json.RawMessage
 		if err := json.Unmarshal(body, &raw); err != nil {
 			return nil, usageError("ktx hook: parse JSON: %v", err)
@@ -534,7 +562,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	db.PrepareToolCall(&tc)
 
 	sourceID := tc.ID
-	trusted := isCodex || isOpenCode
+	trusted := ingress.adapter()
 	var preflight hookRetryPreflight
 	preflightStarted := time.Now()
 	err = dbpkg.AttributeDatabaseUnavailable(dbpkg.OperationSource, preflightStarted, db.WithHookPreflight(func() error {
@@ -543,7 +571,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		return err
 	}))
 	if err != nil {
-		return nil, hookSourceError(err, isOpenCode, sourceID)
+		return nil, hookSourceError(err, ingress, sourceID)
 	}
 	if preflight.sourceExists {
 		tc.SessionID = preflight.sessionID
@@ -575,10 +603,10 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 		if pipelineErr != nil {
 			return nil, pipelineErr
 		}
-		if err := retainRecoveryAttempt(db, collectionID, isOpenCode && src.Eligible, &tc); err != nil {
+		if err := retainRecoveryAttempt(db, collectionID, ingress == ingressOpenCode && src.Eligible, &tc); err != nil {
 			return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
 		}
-		return nil, writeHookResult(stdout, isCodex, trusted, preflight.result, tc.Output, execution, runtimeSessionID, runtimeCallID)
+		return nil, writeHookResult(stdout, ingress, preflight.result, tc.Output, execution, runtimeSessionID, runtimeCallID)
 	}
 
 	var candidate *dbpkg.Compressed
@@ -605,11 +633,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 			}
 		}
 		if src.Eligible {
-			runtime := "opencode"
-			if isCodex {
-				runtime = "codex"
-			}
-			if err := writer.IdentifySession(tc.SessionID, runtime); err != nil {
+			if err := writer.IdentifySession(tc.SessionID, ingress.agent()); err != nil {
 				return err
 			}
 		}
@@ -639,7 +663,7 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	}))
 	if err != nil {
 		if errors.Is(err, dbpkg.ErrToolCallConflict) {
-			return nil, hookSourceError(err, isOpenCode, sourceID)
+			return nil, hookSourceError(err, ingress, sourceID)
 		}
 		if pipelineErr != nil && errors.Is(err, pipelineErr) {
 			return nil, pipelineErr
@@ -648,17 +672,17 @@ func hookLogicObserved(stdin io.Reader, db *dbpkg.DB, stdout, stderr io.Writer, 
 	}
 	if configErr != nil {
 		if result.Transformed {
-			if err := retainRecoveryAttempt(db, collectionID, isOpenCode && src.Eligible, &tc); err != nil {
+			if err := retainRecoveryAttempt(db, collectionID, ingress == ingressOpenCode && src.Eligible, &tc); err != nil {
 				return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
 			}
-			return nil, writeHookResult(stdout, isCodex, trusted, result, tc.Output, pipelineExecution{}, runtimeSessionID, runtimeCallID)
+			return nil, writeHookResult(stdout, ingress, result, tc.Output, pipelineExecution{}, runtimeSessionID, runtimeCallID)
 		}
 		return nil, usageError("%v", configErr)
 	}
-	if err := retainRecoveryAttempt(db, collectionID, isOpenCode && src.Eligible, &tc); err != nil {
+	if err := retainRecoveryAttempt(db, collectionID, ingress == ingressOpenCode && src.Eligible, &tc); err != nil {
 		return nil, conflictError("ktx hook: retain recovery attempt: %v", err)
 	}
-	return nil, writeHookResult(stdout, isCodex, trusted, result, tc.Output, execution, runtimeSessionID, runtimeCallID)
+	return nil, writeHookResult(stdout, ingress, result, tc.Output, execution, runtimeSessionID, runtimeCallID)
 }
 
 func retainRecoveryAttempt(db *dbpkg.DB, collectionID string, trustedOpenCode bool, tc *dbpkg.ToolCall) error {
@@ -799,25 +823,30 @@ func preflightHookRetry(database *dbpkg.DB, trusted bool, tc *dbpkg.ToolCall) (h
 	return state, nil
 }
 
-func hookSourceError(err error, isOpenCode bool, sourceID string) error {
+func hookSourceError(err error, ingress hookIngress, sourceID string) error {
 	if !errors.Is(err, dbpkg.ErrToolCallConflict) {
 		return internalError("ktx hook: inspect tool_call: %v", err)
 	}
+	// Flat input shares the Codex label for conflicts it reaches while
+	// persisting a caller-supplied id.
 	label := "Codex"
-	if isOpenCode {
+	switch ingress {
+	case ingressOpenCode:
 		label = "OpenCode"
+	case ingressClaudeCode:
+		label = "Claude Code"
 	}
 	return conflictError("ktx hook: %s retry conflicts with the evidence already stored for source %q", label, sourceID)
 }
 
-func writeHookResult(stdout io.Writer, isCodex, trusted bool, result evidence.Result, original string, execution pipelineExecution, runtimeSessionID, runtimeCallID string) error {
+func writeHookResult(stdout io.Writer, ingress hookIngress, result evidence.Result, original string, execution pipelineExecution, runtimeSessionID, runtimeCallID string) error {
 	structuredFallback, _ := pipeline.StructuredFallbackFromRecord(result.ArtifactPipeline)
 	output := result.Output
 	if result.Transformed && execution.recoverFooter && !structuredFallback {
 		output, _ = recoveryCueOutput(result.SourceID, original, result.Output)
 	}
-	if trusted {
-		return writeTrustedHookOutput(stdout, isCodex, result, output, runtimeSessionID, runtimeCallID, result.Transformed && execution.recoverFooter && strings.Contains(output, "`ktx read "+result.SourceID+"`"))
+	if ingress.adapter() {
+		return writeTrustedHookOutput(stdout, ingress, result, output, runtimeSessionID, runtimeCallID, result.Transformed && execution.recoverFooter && strings.Contains(output, "`ktx read "+result.SourceID+"`"))
 	}
 	var compressedID *string
 	if result.CompressedID != "" {

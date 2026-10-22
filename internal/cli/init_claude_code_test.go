@@ -1,4 +1,4 @@
-// Tests for `ktx init claude-code` (internal/cli/init_claude_code.go).
+// Tests for `ktx init claude` (internal/cli/init_claude_code.go).
 //
 // Each test points HOME and XDG_DATA_HOME at per-test temporary folders and
 // replaces the executable resolver, so no test reads the real data folder or
@@ -43,7 +43,7 @@ func setupClaudeCode(t *testing.T, dataHome, exePath string) string {
 func runClaudeCodeInit(t *testing.T, format string, args ...string) (int, string, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := runInitWith(append([]string{"claude-code"}, args...), Options{Format: format}, &stdout, &stderr)
+	code := runInitWith(append([]string{"claude"}, args...), Options{Format: format}, &stdout, &stderr)
 	return code, stdout.String(), stderr.String()
 }
 
@@ -529,14 +529,14 @@ func TestInitHelpListsClaudeCode(t *testing.T) {
 	if code := runInitWith([]string{"--help"}, Options{Format: FormatText}, &stdout, &stderr); code != ExitOK {
 		t.Fatalf("help exit = %d", code)
 	}
-	for _, want := range []string{"claude-code", "hook --runtime claude-code", "/reload-plugins", "ktx init claude-code --show"} {
+	for _, want := range []string{"claude-code", "hook --runtime claude-code", "/reload-plugins", "ktx init claude --show"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("help lacks %q", want)
 		}
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := runInitWith([]string{"bogus"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitUsage || !strings.Contains(stderr.String(), "claude-code") {
+	if code := runInitWith([]string{"bogus"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitUsage || !strings.Contains(stderr.String(), "opencode, codex, claude\"") {
 		t.Fatalf("unknown runtime = %d %q", code, stderr.String())
 	}
 }

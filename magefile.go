@@ -113,7 +113,7 @@ type installRunner func(string, ...string) (string, string, error)
 
 func discoverInstalledAdapters(binary string, runner installRunner) (adapterScopes, error) {
 	var scopes adapterScopes
-	for _, runtimeName := range []string{"opencode", "codex", "claude-code"} {
+	for _, runtimeName := range []string{"opencode", "codex", "claude"} {
 		stdout, stderr, err := runner(binary, "--format", "json", "init", runtimeName, "--show")
 		if err != nil {
 			var exitErr interface{ ExitCode() int }
@@ -139,7 +139,7 @@ func discoverInstalledAdapters(binary string, runner installRunner) (adapterScop
 				scopes.opencodeGlobal = scopes.opencodeGlobal || path == report.CandidateLocations["global"]
 				scopes.opencodeProject = scopes.opencodeProject || path == report.CandidateLocations["project"]
 			}
-		case "claude-code":
+		case "claude":
 			scopes.claudeCode = report.Installed
 		default:
 			for _, scope := range report.Scopes {
@@ -184,7 +184,7 @@ func refreshInstalledAdapters(binary string, scopes adapterScopes, runner instal
 	}{
 		{scopes.opencodeGlobal, refresh{"opencode", false}}, {scopes.opencodeProject, refresh{"opencode", true}},
 		{scopes.codexGlobal, refresh{"codex", false}}, {scopes.codexProject, refresh{"codex", true}},
-		{scopes.claudeCode, refresh{"claude-code", false}},
+		{scopes.claudeCode, refresh{"claude", false}},
 	} {
 		if item.enabled {
 			refreshes = append(refreshes, item.value)
@@ -598,7 +598,7 @@ func ClaudePluginCheck() error {
 		return command.Run()
 	}
 
-	if err := isolated(binary, "init", "claude-code", "--format", "text"); err != nil {
+	if err := isolated(binary, "init", "claude", "--format", "text"); err != nil {
 		return fmt.Errorf("generate Claude Code plugins: %w", err)
 	}
 	marketplace := filepath.Join(values["XDG_DATA_HOME"], "ktx", "claude-code", "marketplace")

@@ -190,9 +190,9 @@ guaranteed by this file-sync protocol.
 ### Claude Code
 
 ```bash
-ktx init claude-code
-ktx init claude-code --show
-ktx init claude-code --uninstall
+ktx init claude
+ktx init claude --show
+ktx init claude --uninstall
 ```
 
 Install generates a local plugin marketplace named `ktx-local` with two

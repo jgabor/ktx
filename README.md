@@ -95,7 +95,7 @@ ktx init opencode
 # or
 ktx init codex
 # or
-ktx init claude-code
+ktx init claude
 ```
 
 For Claude Code, the install output also prints the `claude plugin` commands

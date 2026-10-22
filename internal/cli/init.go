@@ -780,7 +780,7 @@ func executeInit(f initFlags, runtime, format string, stdout, stderr io.Writer) 
 	}
 
 	if runtime == "" {
-		return nil, usageError("ktx init: missing runtime name; usage: ktx init <runtime> [flags] (supported: opencode, codex, claude-code)")
+		return nil, usageError("ktx init: missing runtime name; usage: ktx init <runtime> [flags] (supported: opencode, codex, claude)")
 	}
 
 	// At most one action flag is meaningful; mixing --uninstall/--show with
@@ -795,10 +795,10 @@ func executeInit(f initFlags, runtime, format string, stdout, stderr io.Writer) 
 		return nil, initOpencodeLogic(&f, format, stdout, stderr)
 	case "codex":
 		return nil, initCodexLogic(&f, format, stdout, stderr)
-	case "claude-code":
+	case "claude":
 		return nil, initClaudeCodeLogic(&f, format, stdout, stderr)
 	default:
-		return nil, usageError("ktx init: unknown runtime %q; supported: opencode, codex, claude-code", runtime)
+		return nil, usageError("ktx init: unknown runtime %q; supported: opencode, codex, claude", runtime)
 	}
 }
 
@@ -1139,8 +1139,8 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "             (a standalone ktx.ts file at $XDG_CONFIG_HOME/opencode/plugins/)")
 	fmt.Fprintln(w, "  codex      merge a PostToolUse hook into ~/.codex/hooks.json or ./.codex/hooks.json")
 	fmt.Fprintln(w, "             (shared hooks file; other Codex hooks are preserved on install/uninstall)")
-	fmt.Fprintln(w, "  claude-code  generate a local plugin marketplace at $XDG_DATA_HOME/ktx/claude-code/marketplace")
-	fmt.Fprintln(w, "             (a ktx PostToolUse hook plugin and a ktx-stats status mod; no --project)")
+	fmt.Fprintln(w, "  claude     generate a Claude Code plugin marketplace at $XDG_DATA_HOME/ktx/claude-code/marketplace")
+	fmt.Fprintln(w, "             (a ktx PostToolUse hook plugin and a ktx-stats mod; no --project)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --project      install to project scope")
@@ -1197,9 +1197,9 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintln(w, "  ktx init codex --project       # merge into ./.codex/hooks.json")
 	fmt.Fprintln(w, "  ktx init codex --show          # check both global and project scopes")
 	fmt.Fprintln(w, "  ktx init codex --uninstall     # remove ktx entry from global hooks.json")
-	fmt.Fprintln(w, "  ktx init claude-code           # generate the Claude Code plugin marketplace")
-	fmt.Fprintln(w, "  ktx init claude-code --show    # check the generated plugins")
-	fmt.Fprintln(w, "  ktx init claude-code --uninstall  # remove the generated plugins")
+	fmt.Fprintln(w, "  ktx init claude           # generate the Claude Code plugin marketplace")
+	fmt.Fprintln(w, "  ktx init claude --show    # check the generated plugins")
+	fmt.Fprintln(w, "  ktx init claude --uninstall  # remove the generated plugins")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'ktx --help' for the top-level command list.")
 }

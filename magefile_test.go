@@ -26,7 +26,7 @@ func TestDiscoverInstalledAdapters(t *testing.T) {
 		switch runtimeName {
 		case "opencode":
 			return `{"installed":true,"path":"/project/ktx.ts","candidate_locations":{"global":"/global/ktx.ts","project":"/project/ktx.ts"}}`, "", nil
-		case "claude-code":
+		case "claude":
 			return `{"installed":true,"path":"/data/ktx/claude-code/marketplace","stale":true}`, "", nil
 		}
 		return `{"installed":true,"scopes":["global","project"]}`, "", nil
@@ -42,15 +42,15 @@ func TestDiscoverInstalledAdapters(t *testing.T) {
 	var inspected []string
 	got, err = discoverInstalledAdapters("./build/ktx", func(_ string, args ...string) (string, string, error) {
 		inspected = append(inspected, strings.Join(args, " "))
-		if args[3] == "claude-code" {
+		if args[3] == "claude" {
 			return `{"installed":true}`, "", nil
 		}
 		return "", "not installed", testExitError(2)
 	})
 	if err != nil || got != (adapterScopes{claudeCode: true}) {
-		t.Fatalf("claude-code only scopes = %+v, error = %v", got, err)
+		t.Fatalf("claude only scopes = %+v, error = %v", got, err)
 	}
-	if want := "--format json init claude-code --show"; inspected[len(inspected)-1] != want {
+	if want := "--format json init claude --show"; inspected[len(inspected)-1] != want {
 		t.Fatalf("inspected = %q, want last %q", inspected, want)
 	}
 
@@ -82,7 +82,7 @@ func TestRefreshInstalledAdapters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := strings.Join(calls, "\n"), "/bin/ktx init opencode\n/bin/ktx init codex --project\n/bin/ktx init claude-code"; got != want {
+	if got, want := strings.Join(calls, "\n"), "/bin/ktx init opencode\n/bin/ktx init codex --project\n/bin/ktx init claude"; got != want {
 		t.Fatalf("calls = %q, want %q", got, want)
 	}
 	for _, required := range []string{"Restart OpenCode", "Restart Codex", "/hooks", "Run /reload-plugins in Claude Code (or restart it)."} {

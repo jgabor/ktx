@@ -1,5 +1,5 @@
 // Package claudecode holds the static sources of the Claude Code plugins that
-// `ktx init claude-code` generates. Paths in Files mirror the generated
+// `ktx init claude` generates. Paths in Files mirror the generated
 // marketplace tree below its plugins directory.
 package claudecode
 

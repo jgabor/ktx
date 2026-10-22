@@ -1,5 +1,5 @@
 // Runs the ktx-stats mod's pure helpers (hooks/stats.ts) under Node with type
-// stripping, against the embedded source that `ktx init claude-code` ships.
+// stripping, against the embedded source that `ktx init claude` ships.
 package cli
 
 import (

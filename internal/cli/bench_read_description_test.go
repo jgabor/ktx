@@ -32,7 +32,7 @@ func TestReadDescriptionGeneratedHook(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "ast.json"), ast, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	plugin := strings.ReplaceAll(ktxOpencodePluginTemplate, benchcontract.ReadDescriptionDir, filepath.ToSlash(dir)) + "\nexport { benchmarkReadDescription }\n"
+	plugin := strings.ReplaceAll(testjs.OpenCodeServer(t), benchcontract.ReadDescriptionDir, filepath.ToSlash(dir)) + "\nexport { benchmarkReadDescription }\n"
 	if err := os.WriteFile(filepath.Join(dir, "plugin.ts"), []byte(plugin), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -90,16 +90,7 @@ func TestReadDescriptionSameSessionLaunch(t *testing.T) {
 			t.Setenv("HOME", root)
 			t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 			t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
-			pluginPath, err := opencodeGlobalPluginPath()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.MkdirAll(filepath.Dir(pluginPath), 0o700); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(pluginPath, []byte(ktxOpencodePluginTemplate), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			simulateInstalledBenchPlugin(t, true)
 			script := `#!/bin/sh
 if [ "$1" = '--version' ]; then printf '1.18.5\n'; exit; fi
 printf '%s\n' "$@" >> "$HOME/argv"
@@ -115,7 +106,7 @@ printf '%s\n' '{"type":"text","sessionID":"ses_synthetic","part":{"text":"synthe
 				t.Setenv("FAIL_FIRST", "")
 			}
 			var out, diagnostics bytes.Buffer
-			err = runReadDescriptionTurns([]string{"run", "--format", "json", "-m", "openai/gpt-6-luna", "--variant", "high", "first"}, "second", root, &out, &diagnostics)
+			err := runReadDescriptionTurns([]string{"run", "--format", "json", "-m", "openai/gpt-6-luna", "--variant", "high", "first"}, "second", root, &out, &diagnostics)
 			if (err != nil) != failFirst {
 				t.Fatalf("err=%v", err)
 			}
@@ -131,5 +122,37 @@ printf '%s\n' '{"type":"text","sessionID":"ses_synthetic","part":{"text":"synthe
 				t.Fatalf("second turn after failure: %v", secondErr)
 			}
 		})
+	}
+}
+
+// simulateInstalledBenchPlugin makes the read-description runner see an image
+// whose only plugin is, or is not, the package from the binary's commit.
+func simulateInstalledBenchPlugin(t *testing.T, sameCommit bool) {
+	t.Helper()
+	commit := strings.Repeat("d", 40)
+	identity := benchPluginIdentity{KTXCommit: commit, PluginCommit: commit, PluginPackage: benchcontract.PluginPackage, PluginSHA256: strings.Repeat("c", 64), Plugins: []string{benchcontract.PluginSpec}}
+	if !sameCommit {
+		identity.PluginCommit = strings.Repeat("e", 40)
+	}
+	previous := readInstalledBenchPlugin
+	readInstalledBenchPlugin = func() (benchPluginIdentity, error) { return identity, nil }
+	t.Cleanup(func() { readInstalledBenchPlugin = previous })
+}
+
+func TestReadDescriptionRequiresSameCommitPlugin(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := os.WriteFile(filepath.Join(root, "opencode"), []byte("#!/bin/sh\nif [ \"$1\" = '--version' ]; then printf '1.18.5\\n'; exit; fi\ntouch \"$HOME/launched\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	simulateInstalledBenchPlugin(t, false)
+	var out, diagnostics bytes.Buffer
+	err := runReadDescriptionTurns([]string{"run", "first"}, "", root, &out, &diagnostics)
+	if err == nil || !strings.Contains(err.Error(), "only plugin") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "launched")); !os.IsNotExist(err) {
+		t.Fatalf("OpenCode launched with a plugin from another commit: %v", err)
 	}
 }

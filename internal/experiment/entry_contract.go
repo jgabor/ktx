@@ -33,6 +33,9 @@ func loadExperimentEvidence(a *archive) (Manifest, []Attempt, []ProjectionDiverg
 	if err := a.validateRuntimeConfig(manifest); err != nil {
 		return manifest, nil, nil, err
 	}
+	if err := a.validateOpenCodePlugin(manifest); err != nil {
+		return manifest, nil, nil, err
+	}
 	if err := a.validateReadDescription(manifest); err != nil {
 		return manifest, nil, nil, err
 	}
@@ -223,7 +226,16 @@ func validateManifestContract(manifest Manifest) error {
 	if err := validateExecutionControlManifest(manifest); err != nil {
 		return err
 	}
-	if manifest.SchemaVersion != 1 {
+	switch manifest.SchemaVersion {
+	case historicalManifestSchemaVersion:
+		if manifest.OpenCodePlugin != nil {
+			return fmt.Errorf("manifest schema_version %d has unclaimed opencode_plugin identity", manifest.SchemaVersion)
+		}
+	case currentManifestSchemaVersion:
+		if err := validateOpenCodePluginIdentity(manifest); err != nil {
+			return err
+		}
+	default:
 		return fmt.Errorf("manifest has missing or unsupported schema_version %d", manifest.SchemaVersion)
 	}
 	if err := validateMethodologyVersion(manifest.Methodology.Version); err != nil {

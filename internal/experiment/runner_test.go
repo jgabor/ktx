@@ -58,6 +58,9 @@ type fakeExecutor struct {
 	fullStepUsage        bool
 	extraModelStep       bool
 	candidateInput       int
+	pluginSHA256         string
+	imageCommit          string
+	imagePluginSHA256    string
 }
 
 func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult, error) {
@@ -72,7 +75,12 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 		if command.Args[len(command.Args)-2] == "--short" {
 			write(command.Stdout, "abc123\n")
 		} else if command.Args[len(command.Args)-1] == "HEAD" {
-			write(command.Stdout, strings.Repeat("a", 40)+"\n")
+			digest, err := writeTestPluginSource(command.Args[2])
+			if err != nil {
+				return CommandResult{}, err
+			}
+			fake.pluginSHA256 = digest
+			write(command.Stdout, testCommit+"\n")
 		}
 		return CommandResult{}, nil
 	}
@@ -98,7 +106,14 @@ func (fake *fakeExecutor) Run(_ context.Context, command Command) (CommandResult
 			if contract == "" {
 				contract = benchcontract.ContractVersion
 			}
-			write(command.Stdout, fmt.Sprintf(`{"ktx_version":"test","opencode_version":%q,"generated_plugin_sha256":"%s","generated_plugin_matches_binary":true,"event_collector_contract":"%s","explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"retained_duplicate_callbacks":true,"accepted_model_step_projection":true,"callback_queue_continuation":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`+"\n", identity, strings.Repeat("a", 64), contract))
+			commit, digest := testCommit, fake.pluginSHA256
+			if fake.imageCommit != "" {
+				commit = fake.imageCommit
+			}
+			if fake.imagePluginSHA256 != "" {
+				digest = fake.imagePluginSHA256
+			}
+			write(command.Stdout, fmt.Sprintf(`{"ktx_version":"test","opencode_version":%q,%s,"event_collector_contract":"%s","explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"retained_duplicate_callbacks":true,"accepted_model_step_projection":true,"callback_queue_continuation":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`+"\n", identity, testPluginCapabilities(commit, digest), contract))
 			return CommandResult{}, nil
 		}
 		if len(command.Args) > 1 && command.Args[1] == "run" {
@@ -731,8 +746,8 @@ func TestPreflightLocalSourceMismatchPreventsDockerCommands(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("Dockerfile.benchmark", "ARG OPENCODE_VERSION="+benchcontract.RuntimeVersion+"\nRUN ktx init opencode\nENTRYPOINT [\"/usr/local/bin/ktx\", \"bench\", \"agent\"]\n")
-	write(filepath.Join("internal", "cli", "init.go"), `["telemetry", "collector-open"] ["telemetry", "event-record"] eventQueue.then next.catch(() => undefined)`)
+	write("Dockerfile.benchmark", "ARG OPENCODE_VERSION="+benchcontract.RuntimeVersion+"\nARG KTX_COMMIT\nRUN go build -ldflags=-X=github.com/jgabor/ktx/internal/version.Commit=x\nRUN --network=none opencode plugin --global "+benchcontract.PluginSpec+" </dev/null\nENTRYPOINT [\"/usr/local/bin/ktx\", \"bench\", \"agent\"]\n")
+	write(filepath.Join("plugins", "opencode", "server.ts"), `["telemetry", "collector-open"] ["telemetry", "event-record"] eventQueue.then next.catch(() => undefined)`)
 	write(filepath.Join("internal", "db", "schema.go"), "runtime_event_intervals runtime_events model_step_classification contradiction_count")
 	write(filepath.Join("internal", "benchcontract", "contract.go"), `const (
 	ContractVersion = "wrong"

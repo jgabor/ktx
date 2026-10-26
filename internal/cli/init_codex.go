@@ -1,31 +1,28 @@
-// `ktx init codex` adapter — merges a PostToolUse command hook into
-// Codex's shared hooks.json file.
+// `ktx init codex` installs the ktx Codex plugin through the codex CLI.
 //
-// Unlike OpenCode, where `ktx init opencode` writes a standalone
-// TypeScript plugin file that ktx owns entirely, Codex loads all of
-// its hooks from a single shared JSON document (~/.codex/hooks.json
-// at the global scope or ./.codex/hooks.json at the project scope).
-// Other sources may have already written SessionStart, PreToolUse,
-// or PostToolUse entries the user depends on. Install therefore
-// parses the existing file, appends ktx's PostToolUse entry only
-// when it is not already present, and writes the merged document
-// back. Uninstall removes only generated ktx command entries
-// and leaves the rest of the file alone.
+// The plugin is served as ktx@ktx from the marketplace in .agents/plugins of
+// the jgabor/ktx repository. Its PostToolUse hook runs `ktx hook` and its
+// ktx:stats skill runs `ktx stats summary`, both found on PATH. ktx never edits
+// Codex configuration: install runs `codex plugin marketplace add` and
+// `codex plugin add`, --uninstall runs `codex plugin remove` and
+// `codex plugin marketplace remove`, and --show reads `codex plugin list` and
+// `codex plugin marketplace list`. A marketplace named ktx that already exists
+// is kept, whatever its source. Without codex on PATH, install prints the
+// commands instead.
 //
-// Identification accepts the current pinned command, or the exact generated
-// shell-word grammar with ktx's command type and status message after relocation.
-// It never runs a command or probes an old executable to establish ownership.
+// Trust model: Codex does not run a plugin hook until the user has reviewed
+// and trusted it in /hooks, so every install report says so. A fresh install
+// that records nothing is the expected state before that step.
 //
-// Trust model: Codex does not execute a hook until the user has
-// reviewed and trusted it via the /hooks command inside the Codex
-// session. The install output reminds the user to complete that
-// step — silently firing hooks would be surprising, and a freshly
-// installed hook that "does nothing" looks like a bug.
+// Earlier ktx versions merged a PostToolUse hook into ~/.codex/hooks.json or
+// ./.codex/hooks.json instead. Install and uninstall remove those entries, and
+// only those, so the plugin hook is the one ktx hook Codex runs; other hooks
+// in the files stay as they are. Identification accepts only the exact shapes
+// earlier versions generated (see isKtxCodexHook). It never runs a command or
+// probes an executable to establish ownership.
 //
-// Exit codes follow the rest of the init subcommand: 0 on success
-// (install, idempotent install, uninstall of a present entry, show
-// found), 2 on not-found (--show saw no ktx hook, --uninstall had
-// no ktx entry to remove), 1 on usage error, 4 on internal error.
+// Exit codes follow the rest of `ktx init`: 0 on success, 1 on usage error,
+// 2 when nothing is installed (--show, --uninstall), 4 on internal error.
 package cli
 
 import (
@@ -34,269 +31,557 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/jgabor/ktx/internal/version"
 )
 
-// codexHooksFileName is the on-disk file Codex reads its hooks from.
-// Codex's loader expects exactly this name; renaming the file makes
-// the hooks invisible to the runtime.
+const (
+	codexMarketplaceName   = "ktx"
+	codexMarketplaceSource = "jgabor/ktx"
+	codexPluginID          = "ktx@ktx"
+	codexTrustNote         = "start a new Codex session, run /hooks and trust the ktx hook; Codex does not run a hook until it is trusted"
+	codexTroubleshooting   = "docs/guides/codex.md#troubleshooting"
+)
+
+// codexHooksFileName is the hooks file earlier ktx versions merged their
+// hook into, globally under ~/.codex and per project under ./.codex.
 const codexHooksFileName = "hooks.json"
 
-// ktxHookCommand is the older unpinned command and the stable logical command
-// shown in reports. New installations write a pinned absolute command.
+// ktxHookCommand is the command the plugin hook runs, and the bare command
+// the earliest ktx versions merged into hooks.json.
 const ktxHookCommand = "ktx hook"
 
-// ktxHookStatusMessage is the inline status Codex surfaces while the
-// hook is running. It documents the side-effect (ktx recording the
-// tool call) so users running Codex interactively can attribute the
-// brief execution delay.
+// ktxHookStatusMessage is the status Codex shows while the hook runs. Every
+// generated hook carried it, so it is part of the legacy identification.
 const ktxHookStatusMessage = "ktx: recording tool call"
 
-// codexPostToolUseKey is the JSON object key under "hooks" where the
-// ktx PostToolUse entry is stored. Held as a constant because both
-// the install writer and the detect/remove readers must agree on it.
+// codexPostToolUseKey is the "hooks" key that holds PostToolUse entries.
 const codexPostToolUseKey = "PostToolUse"
 
-// codexTrustReviewNote is appended to the install report. Codex will
-// not fire the hook until the user runs /hooks and trusts it, so a
-// fresh install that "does nothing" is the expected pre-trust state
-// and needs to be called out.
-const codexTrustReviewNote = "run /hooks in Codex and trust the ktx hook before it fires — untrusted hooks do not execute"
+// codexMarketplace is one entry of `codex plugin marketplace list --json`.
+type codexMarketplace struct {
+	Name   string `json:"name"`
+	Source struct {
+		SourceType string `json:"sourceType"`
+		Source     string `json:"source"`
+	} `json:"marketplaceSource"`
+}
 
-// initCodexLogic routes to the install/uninstall/show handler for the
-// Codex adapter. It resolves the candidate hooks.json paths once and
-// passes them down so the handlers do not repeat path logic.
-//
-// Scope rules match the rest of `ktx init`:
-//   - install: --project scopes to the project file; otherwise global.
-//   - uninstall: --project scopes to the project file; otherwise
-//     global. Unlike the OpenCode uninstall (which removes from both
-//     scopes in one invocation), Codex uninstall is scoped so a
-//     global cleanup does not silently wipe a project-local entry
-//     the user might be experimenting with.
-//   - show: always inspects both scopes so the user gets the full
-//     picture regardless of where they are scoped.
-//
-// Returns the typed error to surface (nil on success).
-func initCodexLogic(f *initFlags, format string, stdout, stderr io.Writer) error {
-	globalPath, err := codexGlobalHooksPath()
-	if err != nil {
-		return internalError("ktx init codex: resolve global hooks path: %v", err)
+// codexInstalledPlugin is one entry of `codex plugin list --json`.
+type codexInstalledPlugin struct {
+	PluginID string `json:"pluginId"`
+	Enabled  bool   `json:"enabled"`
+	Source   struct {
+		Path string `json:"path"`
+	} `json:"source"`
+}
+
+// codexState is what Codex reports about the ktx marketplace and plugin; nil
+// means absent.
+type codexState struct {
+	marketplace *codexMarketplace
+	plugin      *codexInstalledPlugin
+}
+
+// codexLegacyHooks counts the ktx entries an earlier ktx left in one hooks file.
+type codexLegacyHooks struct {
+	Path    string `json:"path"`
+	Entries int    `json:"entries"`
+}
+
+// codexInstallSteps are the commands install runs, printed when ktx cannot
+// run them itself.
+func codexInstallSteps() []string {
+	return []string{
+		"codex plugin marketplace add " + codexMarketplaceSource,
+		"codex plugin add " + codexPluginID,
 	}
-	projectPath := codexProjectHooksPath()
+}
 
+// initCodexLogic routes to the install, uninstall, or show handler.
+func initCodexLogic(f *initFlags, format string, stdout, _ io.Writer) error {
+	if f.project {
+		return usageError("ktx init codex: --project is not supported; the plugin is installed for the user through Codex")
+	}
+	files, err := codexLegacyHookFiles()
+	if err != nil {
+		return internalError("ktx init codex: %v", err)
+	}
 	switch {
 	case f.show:
-		return initCodexShow(globalPath, projectPath, format, stdout, stderr)
+		return initCodexShow(files, format, stdout)
 	case f.uninstall:
-		target := globalPath
-		if f.project {
-			target = projectPath
-		}
-		return initCodexUninstall(target, format, stdout, stderr)
+		return initCodexUninstall(files, format, stdout)
 	default:
-		target := globalPath
-		if f.project {
-			target = projectPath
+		return initCodexInstall(files, format, stdout)
+	}
+}
+
+// runCodex runs the codex CLI without a shell and returns its stdout. Codex
+// writes warnings to stderr, so only stdout is parsed. A non-zero exit is an
+// error that carries stderr.
+func runCodex(codex string, args ...string) ([]byte, error) {
+	command := exec.Command(codex, args...)
+	var stdout, stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		if text := strings.TrimSpace(stderr.String()); text != "" {
+			return nil, fmt.Errorf("codex %s: %v: %s", strings.Join(args, " "), err, text)
 		}
-		return initCodexInstall(target, format, stdout)
+		return nil, fmt.Errorf("codex %s: %v", strings.Join(args, " "), err)
 	}
+	return stdout.Bytes(), nil
 }
 
-// codexGlobalHooksPath returns ~/.codex/hooks.json. ~ is resolved via
-// os.UserHomeDir rather than $HOME so the lookup behaves correctly on
-// systems where $HOME is unset but the user database is populated.
-// Codex's home config layout predates XDG, so there is no
-// XDG_CONFIG_HOME fallback to honor.
-func codexGlobalHooksPath() (string, error) {
-	home, err := os.UserHomeDir()
+// readCodexState reads the ktx marketplace and plugin from Codex.
+func readCodexState(codex string) (codexState, error) {
+	var state codexState
+	raw, err := runCodex(codex, "plugin", "marketplace", "list", "--json")
 	if err != nil {
-		return "", fmt.Errorf("resolve user home directory: %w", err)
+		return state, err
 	}
-	return filepath.Join(home, ".codex", codexHooksFileName), nil
+	var marketplaces struct {
+		Marketplaces []codexMarketplace `json:"marketplaces"`
+	}
+	if err := json.Unmarshal(raw, &marketplaces); err != nil {
+		return state, fmt.Errorf("parse codex plugin marketplace list: %w", err)
+	}
+	for _, marketplace := range marketplaces.Marketplaces {
+		if marketplace.Name == codexMarketplaceName {
+			state.marketplace = &marketplace
+			break
+		}
+	}
+	raw, err = runCodex(codex, "plugin", "list", "--json")
+	if err != nil {
+		return state, err
+	}
+	var plugins struct {
+		Installed []codexInstalledPlugin `json:"installed"`
+	}
+	if err := json.Unmarshal(raw, &plugins); err != nil {
+		return state, fmt.Errorf("parse codex plugin list: %w", err)
+	}
+	for _, plugin := range plugins.Installed {
+		if plugin.PluginID == codexPluginID {
+			state.plugin = &plugin
+			break
+		}
+	}
+	return state, nil
 }
 
-// codexProjectHooksPath returns the project-scoped hooks.json path,
-// always relative to the current working directory. The CWD is
-// captured at call time rather than process start so a test or script
-// that changes directories between calls sees the new location.
-func codexProjectHooksPath() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return filepath.Join(".", ".codex", codexHooksFileName)
+// describeCodexMarketplace names where a marketplace reads its plugins.
+func describeCodexMarketplace(marketplace *codexMarketplace) string {
+	if marketplace == nil {
+		return "not added"
 	}
-	return filepath.Join(cwd, ".codex", codexHooksFileName)
+	return strings.TrimSpace(marketplace.Source.SourceType + " " + marketplace.Source.Source)
 }
 
-// initCodexInstall merges ktx's PostToolUse entry into the hooks.json
-// at target. When the file does not exist, a fresh document is
-// created. When the file exists and already contains an entry whose
-// inner hooks include the exact current pinned command, install is idempotent:
-// the file is left untouched on disk and the report is marked
-// already-installed so the caller can distinguish a no-op from a
-// fresh write.
-//
-// The merge is deliberately additive: only the PostToolUse array is
-// appended to. SessionStart, PreToolUse, and any other Codex hook
-// categories the user has configured are preserved verbatim. Because
-// Go's json.Marshal sorts map keys alphabetically, the on-disk key
-// order of pre-existing entries may shift on a fresh write — but the
-// content is preserved and Codex reads by key, not by position.
-//
-// Mutations hold a directory lease across read, merge and checked publication.
-// Existing permissions are retained; new documents use 0644.
-func initCodexInstall(target, format string, stdout io.Writer) error {
-	command, err := codexPinnedHookCommand()
-	if err != nil {
-		return err
-	}
-	mutation, err := beginCodexMutation(target, true)
-	if err != nil {
-		return internalError("ktx init codex: prepare %q: %v", target, err)
-	}
-	defer mutation.close()
-	doc, exists, err := decodeCodexHooks(mutation.raw, mutation.info != nil)
-	if err != nil {
-		return internalError("ktx init codex: read %q: %v", target, err)
-	}
-	if !exists {
-		doc = map[string]any{}
-	}
-
-	hooksMap := codexHooksObject(doc)
-	postToolUse := codexPostToolUseArray(hooksMap)
-
-	filtered, removed := filterKtxEntries(postToolUse)
-	if removed == 1 && codexArrayHasCommand(postToolUse, command) {
-		writeCodexInstallReport(stdout, target, format, true)
+// codexMarketplaceReport is the JSON form of a marketplace, or nil.
+func codexMarketplaceReport(marketplace *codexMarketplace) any {
+	if marketplace == nil {
 		return nil
 	}
+	return map[string]any{
+		"name":        marketplace.Name,
+		"source_type": marketplace.Source.SourceType,
+		"source":      marketplace.Source.Source,
+	}
+}
 
-	postToolUse = filtered
-	postToolUse = append(postToolUse, ktxCodexPostToolUseEntry(command))
-	hooksMap[codexPostToolUseKey] = postToolUse
-	doc["hooks"] = hooksMap
+// codexPluginLayoutWarning reports when Codex installed ktx@ktx from a folder
+// other than plugins/codex. Codex falls back to the Claude Code plugin layout
+// when a marketplace has no Codex marketplace file, and that plugin's hook
+// does not speak the Codex hook contract.
+func codexPluginLayoutWarning(plugin *codexInstalledPlugin) string {
+	if plugin == nil || plugin.Source.Path == "" {
+		return ""
+	}
+	folder := filepath.Clean(plugin.Source.Path)
+	if filepath.Base(folder) == "codex" && filepath.Base(filepath.Dir(folder)) == "plugins" {
+		return ""
+	}
+	return fmt.Sprintf("Codex installed %s from %s, not from the Codex plugin folder plugins/codex; the marketplace has no Codex plugin, so remove it with `ktx init codex --uninstall` and point it at a ktx source that has one", codexPluginID, plugin.Source.Path)
+}
 
-	out, err := json.MarshalIndent(doc, "", "  ")
+// initCodexInstall adds the ktx marketplace and installs ktx@ktx unless Codex
+// already has them, then removes ktx hooks an earlier ktx merged into hooks
+// files. The hooks files are read before anything changes, so a malformed
+// file stops install with Codex untouched.
+func initCodexInstall(files []string, format string, stdout io.Writer) error {
+	legacy, err := findCodexLegacyHooks(files)
 	if err != nil {
-		return internalError("ktx init codex: marshal %q: %v", target, err)
+		return internalError("ktx init codex: %v", err)
 	}
-	out = append(out, '\n')
-	if err := mutation.publish(out); err != nil {
-		return internalError("ktx init codex: write %q: %v", target, err)
+	codex, err := exec.LookPath("codex")
+	if err != nil {
+		removed, err := removeCodexLegacyHooks(legacy)
+		if err != nil {
+			return internalError("ktx init codex: %v", err)
+		}
+		writeCodexManualInstall(stdout, format, removed)
+		return nil
 	}
+	state, err := readCodexState(codex)
+	if err != nil {
+		return internalError("ktx init codex: %v", err)
+	}
+	addedMarketplace := state.marketplace == nil
+	if addedMarketplace {
+		if _, err := runCodex(codex, "plugin", "marketplace", "add", codexMarketplaceSource); err != nil {
+			return internalError("ktx init codex: %v", err)
+		}
+	}
+	installedPlugin := state.plugin == nil
+	if installedPlugin {
+		if _, err := runCodex(codex, "plugin", "add", codexPluginID); err != nil {
+			return internalError("ktx init codex: %v", err)
+		}
+	}
+	changed := addedMarketplace || installedPlugin
+	if changed {
+		if state, err = readCodexState(codex); err != nil {
+			return internalError("ktx init codex: %v", err)
+		}
+	}
+	// Without the plugin in Codex's list, or with a plugin from another
+	// layout, nothing replaces the earlier hook, so stop before removing it.
+	if state.plugin == nil {
+		return internalError("ktx init codex: `codex plugin list` does not show %s after install; earlier ktx hooks are kept. Run `codex plugin list` to check, then run `ktx init codex` again", codexPluginID)
+	}
+	warning := codexPluginLayoutWarning(state.plugin)
+	if warning != "" {
+		return internalError("ktx init codex: %s", warning)
+	}
+	removed, err := removeCodexLegacyHooks(legacy)
+	if err != nil {
+		// Both hooks run once the plugin hook is trusted, so say what to remove.
+		return internalError("ktx init codex: %s is installed, but %v; remove that ktx entry by hand so ktx does not run twice per tool call", codexPluginID, err)
+	}
+	enabled := state.plugin != nil && state.plugin.Enabled
+	ktxPath := ktxOnPath()
 
-	writeCodexInstallReport(stdout, target, format, false)
+	if format == FormatText {
+		if changed {
+			fmt.Fprintf(stdout, "ktx Codex plugin installed: %s\n", codexPluginID)
+		} else {
+			fmt.Fprintf(stdout, "ktx Codex plugin already installed: %s (no change)\n", codexPluginID)
+		}
+		fmt.Fprintf(stdout, "marketplace: %s (%s)\n", codexMarketplaceName, describeCodexMarketplace(state.marketplace))
+		if state.plugin != nil && !enabled {
+			fmt.Fprintf(stdout, "plugin is disabled; set enabled = true under [plugins.%q] in Codex's config.toml\n", codexPluginID)
+		}
+		writeCodexLegacyRemoval(stdout, removed)
+		writeCodexKtxPath(stdout, ktxPath)
+		fmt.Fprintf(stdout, "Note: %s\n", codexTrustNote)
+		fmt.Fprintf(stdout, "troubleshooting: %s\n", codexTroubleshooting)
+		return nil
+	}
+	payload := map[string]any{
+		"installed":            true,
+		"plugin":               codexPluginID,
+		"enabled":              enabled,
+		"marketplace":          codexMarketplaceReport(state.marketplace),
+		"added_marketplace":    addedMarketplace,
+		"installed_plugin":     installedPlugin,
+		"removed_legacy_hooks": removed,
+		"ktx_on_path":          ktxPath,
+		"ktx_version":          version.Version,
+		"note":                 codexTrustNote,
+		"troubleshooting":      codexTroubleshooting,
+		"runtime_activation":   "not_verified",
+	}
+	if !changed {
+		payload["already_installed"] = true
+	}
+	_ = json.NewEncoder(stdout).Encode(payload)
 	return nil
 }
 
-// initCodexUninstall removes ktx's inner PostToolUse hooks from the
-// hooks.json at target. Install and uninstall use the same command
-// predicate, so they agree on identity without removing sibling hooks
-// that share the same matcher entry.
+// writeCodexManualInstall prints the install commands when codex is not on
+// PATH.
+func writeCodexManualInstall(w io.Writer, format string, removed []codexLegacyHooks) {
+	steps := codexInstallSteps()
+	if format == FormatText {
+		fmt.Fprintln(w, "codex not found on PATH; install the ktx plugin from Codex with:")
+		for _, step := range steps {
+			fmt.Fprintf(w, "  %s\n", step)
+		}
+		fmt.Fprintf(w, "Then %s.\n", codexTrustNote)
+		writeCodexLegacyRemoval(w, removed)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"installed":            false,
+		"reason":               "codex not found on PATH",
+		"plugin":               codexPluginID,
+		"next_steps":           steps,
+		"note":                 codexTrustNote,
+		"removed_legacy_hooks": removed,
+	})
+}
+
+func writeCodexKtxPath(w io.Writer, path string) {
+	if path == "" {
+		fmt.Fprintln(w, "ktx on PATH: not found; the plugin runs the ktx on PATH, so add it before using Codex")
+		return
+	}
+	fmt.Fprintf(w, "ktx on PATH: %s\n", path)
+}
+
+func writeCodexLegacyRemoval(w io.Writer, removed []codexLegacyHooks) {
+	for _, file := range removed {
+		fmt.Fprintf(w, "removed the earlier ktx hook from %s (%d %s)\n", file.Path, file.Entries, pluralEntry(file.Entries))
+	}
+}
+
+// initCodexShow reports the ktx plugin as Codex lists it, and any hook an
+// earlier ktx left in a hooks file. It exits 2 when ktx@ktx is not installed
+// or codex is not on PATH.
+func initCodexShow(files []string, format string, stdout io.Writer) error {
+	legacy, err := findCodexLegacyHooks(files)
+	if err != nil {
+		return internalError("ktx init codex: %v", err)
+	}
+	codex, err := exec.LookPath("codex")
+	if err != nil {
+		return notFoundError("ktx init codex: codex not found on PATH; cannot inspect the ktx plugin%s", codexLegacyHint(legacy))
+	}
+	state, err := readCodexState(codex)
+	if err != nil {
+		return internalError("ktx init codex: %v", err)
+	}
+	if state.plugin == nil {
+		return notFoundError("ktx init codex: %s is not installed; run `ktx init codex`%s", codexPluginID, codexLegacyHint(legacy))
+	}
+	warning := codexPluginLayoutWarning(state.plugin)
+	ktxPath := ktxOnPath()
+	if format == FormatText {
+		fmt.Fprintf(stdout, "ktx Codex plugin: %s\n", codexPluginID)
+		fmt.Fprintf(stdout, "enabled: %t\n", state.plugin.Enabled)
+		fmt.Fprintf(stdout, "marketplace: %s (%s)\n", codexMarketplaceName, describeCodexMarketplace(state.marketplace))
+		if warning != "" {
+			fmt.Fprintf(stdout, "warning: %s\n", warning)
+		}
+		for _, file := range legacy {
+			fmt.Fprintf(stdout, "earlier ktx hook: %s (%d %s); run `ktx init codex` to remove it\n", file.Path, file.Entries, pluralEntry(file.Entries))
+		}
+		writeCodexKtxPath(stdout, ktxPath)
+		fmt.Fprintf(stdout, "this ktx: %s\n", version.Version)
+		return nil
+	}
+	payload := map[string]any{
+		"installed":          true,
+		"plugin":             codexPluginID,
+		"enabled":            state.plugin.Enabled,
+		"marketplace":        codexMarketplaceReport(state.marketplace),
+		"legacy_hooks":       legacy,
+		"ktx_on_path":        ktxPath,
+		"ktx_version":        version.Version,
+		"runtime_activation": "not_verified",
+	}
+	if warning != "" {
+		payload["warning"] = warning
+	}
+	_ = json.NewEncoder(stdout).Encode(payload)
+	return nil
+}
+
+// codexLegacyHint names hooks files that still hold an earlier ktx hook, for
+// not-found messages.
+func codexLegacyHint(legacy []codexLegacyHooks) string {
+	if len(legacy) == 0 {
+		return ""
+	}
+	paths := make([]string, 0, len(legacy))
+	for _, file := range legacy {
+		paths = append(paths, file.Path)
+	}
+	return "; an earlier ktx hook is still merged into " + strings.Join(paths, " and ")
+}
+
+// initCodexUninstall removes ktx@ktx, the ktx marketplace, and hooks an
+// earlier ktx merged into hooks files, whichever exist. It exits 2 when none
+// does. Without codex on PATH it removes only the earlier hooks.
+func initCodexUninstall(files []string, format string, stdout io.Writer) error {
+	legacy, err := findCodexLegacyHooks(files)
+	if err != nil {
+		return internalError("ktx init codex: %v", err)
+	}
+	var state codexState
+	codex, lookErr := exec.LookPath("codex")
+	if lookErr == nil {
+		if state, err = readCodexState(codex); err != nil {
+			return internalError("ktx init codex: %v", err)
+		}
+	}
+	manual := fmt.Sprintf("remove the plugin from Codex with `codex plugin remove %s` and `codex plugin marketplace remove %s`", codexPluginID, codexMarketplaceName)
+	if state.plugin == nil && state.marketplace == nil && len(legacy) == 0 {
+		if lookErr != nil {
+			return notFoundError("ktx init codex: codex not found on PATH; %s", manual)
+		}
+		return notFoundError("ktx init codex: neither %s, the %s marketplace, nor an earlier ktx hook is installed", codexPluginID, codexMarketplaceName)
+	}
+	if state.plugin != nil {
+		if _, err := runCodex(codex, "plugin", "remove", codexPluginID); err != nil {
+			return internalError("ktx init codex: %v", err)
+		}
+	}
+	if state.marketplace != nil {
+		if _, err := runCodex(codex, "plugin", "marketplace", "remove", codexMarketplaceName); err != nil {
+			return internalError("ktx init codex: %v", err)
+		}
+	}
+	removed, err := removeCodexLegacyHooks(legacy)
+	if err != nil {
+		return internalError("ktx init codex: %v", err)
+	}
+	if format == FormatText {
+		if state.plugin != nil {
+			fmt.Fprintf(stdout, "ktx Codex plugin removed: %s\n", codexPluginID)
+		}
+		if state.marketplace != nil {
+			fmt.Fprintf(stdout, "marketplace removed: %s\n", codexMarketplaceName)
+		}
+		writeCodexLegacyRemoval(stdout, removed)
+		if lookErr != nil {
+			fmt.Fprintf(stdout, "codex not found on PATH; %s\n", manual)
+		}
+		return nil
+	}
+	payload := map[string]any{
+		"uninstalled":          true,
+		"plugin":               codexPluginID,
+		"removed_plugin":       state.plugin != nil,
+		"removed_marketplace":  state.marketplace != nil,
+		"removed_legacy_hooks": removed,
+	}
+	if lookErr != nil {
+		payload["note"] = "codex not found on PATH; " + manual
+	}
+	_ = json.NewEncoder(stdout).Encode(payload)
+	return nil
+}
+
+// codexLegacyHookFiles returns the hooks files earlier ktx versions wrote:
+// ~/.codex/hooks.json and ./.codex/hooks.json. ~ is resolved through
+// os.UserHomeDir because that is where those versions wrote, whatever
+// CODEX_HOME says.
+func codexLegacyHookFiles() ([]string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolve user home directory: %w", err)
+	}
+	files := []string{filepath.Join(home, ".codex", codexHooksFileName)}
+	if cwd, err := os.Getwd(); err == nil {
+		if project := filepath.Join(cwd, ".codex", codexHooksFileName); project != files[0] {
+			files = append(files, project)
+		}
+	}
+	return files, nil
+}
+
+// findCodexLegacyHooks reads each hooks file and counts its ktx entries.
+// Missing files are skipped; unreadable or malformed ones are errors, so
+// callers stop before changing anything.
+func findCodexLegacyHooks(files []string) ([]codexLegacyHooks, error) {
+	found := []codexLegacyHooks{}
+	for _, path := range files {
+		doc, exists, err := loadCodexHooks(path)
+		if err != nil {
+			return nil, fmt.Errorf("inspect %q: %w", path, err)
+		}
+		if !exists {
+			continue
+		}
+		if _, count := filterKtxEntries(codexPostToolUseArray(codexHooksObject(doc))); count > 0 {
+			found = append(found, codexLegacyHooks{Path: path, Entries: count})
+		}
+	}
+	return found, nil
+}
+
+// removeCodexLegacyHooks removes the ktx entries from each file in legacy
+// and returns what it removed.
+func removeCodexLegacyHooks(legacy []codexLegacyHooks) ([]codexLegacyHooks, error) {
+	removed := []codexLegacyHooks{}
+	for _, file := range legacy {
+		count, err := removeCodexLegacyHook(file.Path)
+		if err != nil {
+			return removed, fmt.Errorf("remove the earlier ktx hook from %q: %w", file.Path, err)
+		}
+		if count > 0 {
+			removed = append(removed, codexLegacyHooks{Path: file.Path, Entries: count})
+		}
+	}
+	return removed, nil
+}
+
+// removeCodexLegacyHook removes ktx's inner PostToolUse hooks from the hooks
+// file at target and returns how many it removed. Sibling hooks that share a
+// matcher entry stay.
 //
-// When removing ktx entries empties the PostToolUse array, the
-// PostToolUse key is dropped from the hooks object so the file does
-// not carry a dangling empty array. When the hooks object itself
-// becomes empty (no other hook categories present), the file is
-// deleted entirely — an empty hooks.json is dead weight and a fresh
-// install will recreate it on demand. Non-empty hooks objects are
-// written back with the remaining entries preserved.
+// When removal empties the PostToolUse array, the key is dropped; when the
+// hooks object becomes empty, it is dropped; and when nothing is left in the
+// document, the file is deleted.
 //
-// Exit codes: 0 when at least one ktx entry was removed; 2 when the
-// file does not exist or contained no ktx entry (nothing to do).
-func initCodexUninstall(target, format string, stdout, stderr io.Writer) error {
+// The mutation holds a directory lease across read, filter and checked
+// publication, and keeps the file's permissions.
+func removeCodexLegacyHook(target string) (int, error) {
 	mutation, err := beginCodexMutation(target, false)
 	if os.IsNotExist(err) {
-		return notFoundError("ktx init codex: no ktx hook in %q (file not found)", target)
+		return 0, nil
 	}
 	if err != nil {
-		return internalError("ktx init codex: prepare %q: %v", target, err)
+		return 0, fmt.Errorf("prepare: %w", err)
 	}
 	defer mutation.close()
 	doc, exists, err := decodeCodexHooks(mutation.raw, mutation.info != nil)
-	if err != nil {
-		return internalError("ktx init codex: read %q: %v", target, err)
+	if err != nil || !exists {
+		return 0, err
 	}
-	if !exists {
-		printError(stderr, notFoundError("ktx init codex: no ktx hook in %q (file not found)", target), format)
-		return notFoundError("ktx init codex: no ktx hook in %q (file not found)", target)
-	}
-
 	hooksMap := codexHooksObject(doc)
-	postToolUse := codexPostToolUseArray(hooksMap)
-
-	filtered, removed := filterKtxEntries(postToolUse)
+	filtered, removed := filterKtxEntries(codexPostToolUseArray(hooksMap))
 	if removed == 0 {
-		printError(stderr, notFoundError("ktx init codex: no ktx hook entry in %q", target), format)
-		return notFoundError("ktx init codex: no ktx hook entry in %q", target)
+		return 0, nil
 	}
-
 	if len(filtered) == 0 {
 		delete(hooksMap, codexPostToolUseKey)
 	} else {
 		hooksMap[codexPostToolUseKey] = filtered
 	}
-
 	if len(hooksMap) == 0 {
 		delete(doc, "hooks")
 	}
-
 	if len(doc) == 0 {
 		if err := mutation.remove(); err != nil {
-			return internalError("ktx init codex: remove empty %q: %v", target, err)
+			return 0, fmt.Errorf("remove empty file: %w", err)
 		}
-		writeCodexUninstallReport(stdout, target, format, removed)
-		return nil
+		return removed, nil
 	}
-
-	out, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return internalError("ktx init codex: marshal %q: %v", target, err)
+	// Other tools' shell commands stay readable: no \u0026 for & and the like.
+	var out bytes.Buffer
+	encoder := json.NewEncoder(&out)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(doc); err != nil {
+		return 0, fmt.Errorf("marshal: %w", err)
 	}
-	out = append(out, '\n')
-	if err := mutation.publish(out); err != nil {
-		return internalError("ktx init codex: write %q: %v", target, err)
+	if err := mutation.publish(out.Bytes()); err != nil {
+		return 0, fmt.Errorf("write: %w", err)
 	}
-
-	writeCodexUninstallReport(stdout, target, format, removed)
-	return nil
+	return removed, nil
 }
 
-// initCodexShow reports whether ktx's PostToolUse entry is present in
-// the global hooks.json, the project hooks.json, or both. Both files
-// are always inspected regardless of --project so the user sees the
-// complete installed state in one command.
-//
-// Exit codes: 0 when at least one scope has ktx's entry; 2 when
-// neither has it. The 2 exit code is the standard "not-found" class
-// so scripts can branch on it. A scope whose file exists but lacks
-// ktx's entry counts as not-found for that scope.
-func initCodexShow(globalPath, projectPath, format string, stdout, stderr io.Writer) error {
-	hasGlobal, err := codexFileHasKtxHook(globalPath)
-	if err != nil {
-		return internalError("ktx init codex: inspect %q: %v", globalPath, err)
-	}
-	hasProject, err := codexFileHasKtxHook(projectPath)
-	if err != nil {
-		return internalError("ktx init codex: inspect %q: %v", projectPath, err)
-	}
-
-	if !hasGlobal && !hasProject {
-		return notFoundError("ktx init codex: ktx hook not installed (checked global %q and project %q)", globalPath, projectPath)
-	}
-
-	writeCodexShowReport(stdout, globalPath, projectPath, hasGlobal, hasProject, format)
-	return nil
-}
-
-// loadCodexHooks reads and parses the hooks.json at path into a
-// generic map (the on-disk shape is intentionally loose so unrelated
-// Codex hook categories the user may have added are preserved without
-// schema changes here). The exists flag is false when the file is
-// absent so callers can distinguish "not installed" from "empty file"
-// — an empty file is treated as an existing (if unusual) hooks.json.
+// loadCodexHooks reads and parses the hooks file at path into a generic map,
+// so unrelated hook categories survive without schema changes here. exists is
+// false when the file is absent.
 func loadCodexHooks(path string) (map[string]any, bool, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -338,155 +623,89 @@ func decodeCodexHooks(raw []byte, exists bool) (map[string]any, bool, error) {
 	return doc, true, nil
 }
 
-// codexHooksObject returns the "hooks" object from doc, initializing
-// an empty map when absent so callers can append without nil checks.
-// The document reader rejects a present non-object value before mutation.
+// codexHooksObject returns the "hooks" object from doc, or an empty map when
+// absent. The document reader rejects a present non-object value.
 func codexHooksObject(doc map[string]any) map[string]any {
-	v, ok := doc["hooks"]
-	if !ok || v == nil {
-		return map[string]any{}
-	}
-	m, ok := v.(map[string]any)
+	m, ok := doc["hooks"].(map[string]any)
 	if !ok {
 		return map[string]any{}
 	}
 	return m
 }
 
-// codexPostToolUseArray returns the existing PostToolUse array from
-// hooksMap, or nil when absent. Callers treat nil as "empty, will be
-// created on append".
+// codexPostToolUseArray returns the PostToolUse array from hooksMap, or nil.
 func codexPostToolUseArray(hooksMap map[string]any) []any {
-	v, ok := hooksMap[codexPostToolUseKey]
-	if !ok || v == nil {
-		return nil
-	}
-	arr, ok := v.([]any)
-	if !ok {
-		return nil
-	}
+	arr, _ := hooksMap[codexPostToolUseKey].([]any)
 	return arr
 }
 
-// codexArrayHasKtx reports whether any entry in arr is ktx's, per the
-// generated-hook predicate. Non-map entries and missing fields are
-// skipped rather than treated as errors — a malformed sibling entry
-// from another source should not block install or removal.
-func codexArrayHasKtx(arr []any) bool {
-	for _, entry := range arr {
-		if codexEntryIsKtx(entry) {
-			return true
-		}
-	}
-	return false
-}
-
-func codexArrayHasCommand(arr []any, command string) bool {
-	for _, entry := range arr {
-		m, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		inner, _ := m["hooks"].([]any)
-		for _, hook := range inner {
-			hookMap, ok := hook.(map[string]any)
-			if ok && hookMap["command"] == command {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// codexEntryIsKtx reports whether a single PostToolUse entry is ktx's.
-// The entry is expected to be a map with a "hooks" array of inner
-// hook objects, but the function defensively handles non-map entries
-// and missing keys so a malformed sibling entry does not interfere
-// with detection.
-func codexEntryIsKtx(entry any) bool {
-	m, ok := entry.(map[string]any)
-	if !ok {
-		return false
-	}
-	inner, ok := m["hooks"].([]any)
-	if !ok {
-		return false
-	}
-	for _, h := range inner {
-		hm, ok := h.(map[string]any)
-		if !ok {
-			continue
-		}
-		if isKtxCodexHook(hm) {
-			return true
-		}
-	}
-	return false
-}
-
-func isKtxHookCommand(command string) bool {
-	expected, err := codexPinnedHookCommand()
-	return err == nil && command == expected
-}
-
+// isKtxCodexHook reports whether an inner hook object is one an earlier
+// `ktx init codex` generated. Each version wrote a command hook with ktx's
+// status message and one of three commands:
+//
+//   - the bare `ktx hook`, with a timeout in the first versions;
+//   - a shell-quoted canonical absolute path followed by
+//     ` --expect-runtime-sha256 <digest> hook`;
+//   - a shell-quoted canonical absolute path followed by ` hook`.
+//
+// Any other field, or any other command, is user-owned and stays.
 func isKtxCodexHook(hook map[string]any) bool {
+	if hook["type"] != "command" || hook["statusMessage"] != ktxHookStatusMessage {
+		return false
+	}
 	command, _ := hook["command"].(string)
-	if isKtxHookCommand(command) {
+	switch len(hook) {
+	case 3:
+	case 4:
+		if _, ok := hook["timeout"].(json.Number); !ok || command != ktxHookCommand {
+			return false
+		}
+	default:
+		return false
+	}
+	if command == ktxHookCommand {
 		return true
 	}
-	// Relocation is recognized only for an otherwise unmodified generated
-	// inner hook. Extra fields may change execution semantics and are user-owned.
-	if len(hook) != 3 || hook["type"] != "command" || hook["statusMessage"] != ktxHookStatusMessage {
+	rest, ok := strings.CutSuffix(command, " hook")
+	if !ok {
 		return false
 	}
-	if !strings.HasPrefix(command, "'") || !strings.HasSuffix(command, "' hook") {
+	if quoted, digest, found := strings.Cut(rest, " --expect-runtime-sha256 "); found {
+		if !isSHA256Hex(digest) {
+			return false
+		}
+		rest = quoted
+	}
+	if !strings.HasPrefix(rest, "'") || !strings.HasSuffix(rest, "'") || len(rest) < 2 {
 		return false
 	}
-	path := strings.TrimSuffix(strings.TrimPrefix(command, "'"), "' hook")
-	path = strings.ReplaceAll(path, `'"'"'`, `'`)
+	path := strings.ReplaceAll(rest[1:len(rest)-1], `'"'"'`, `'`)
 	return filepath.IsAbs(path) && filepath.Clean(path) == path &&
-		!strings.ContainsRune(path, 0) && quoteCodexHookPath(path) == command
+		!strings.ContainsRune(path, 0) && quoteCodexHookPath(path) == rest
 }
 
+// quoteCodexHookPath single-quotes path for a POSIX shell, as earlier
+// versions did when they pinned the hook to an executable.
 func quoteCodexHookPath(path string) string {
-	return `'` + strings.ReplaceAll(path, `'`, `'"'"'`) + `' hook`
+	return `'` + strings.ReplaceAll(path, `'`, `'"'"'`) + `'`
 }
 
-func codexPinnedHookCommand() (string, error) {
-	path, err := os.Executable()
-	if err != nil {
-		return "", internalError("ktx init codex: resolve executable path: %v", err)
+func isSHA256Hex(value string) bool {
+	if len(value) != 64 {
+		return false
 	}
-	path, err = filepath.EvalSymlinks(path)
-	if err != nil {
-		return "", internalError("ktx init codex: canonicalize executable path: %v", err)
+	for _, character := range value {
+		if !strings.ContainsRune("0123456789abcdef", character) {
+			return false
+		}
 	}
-	path, err = filepath.Abs(path)
-	if err != nil {
-		return "", internalError("ktx init codex: make executable path absolute: %v", err)
-	}
-	return quoteCodexHookPath(filepath.Clean(path)), nil
-}
-
-// codexFileHasKtxHook reports whether the hooks.json at path exists
-// and contains ktx's PostToolUse entry. Missing files are absent; read
-// and parse failures are returned so callers do not replace the binary
-// after an incomplete inspection.
-func codexFileHasKtxHook(path string) (bool, error) {
-	doc, exists, err := loadCodexHooks(path)
-	if err != nil {
-		return false, err
-	}
-	if !exists {
-		return false, nil
-	}
-	hooksMap := codexHooksObject(doc)
-	return codexArrayHasKtx(codexPostToolUseArray(hooksMap)), nil
+	return true
 }
 
 // filterKtxEntries returns a copy of arr with ktx's inner hook objects
 // removed, along with the count removed. An outer matcher entry is kept
-// when it still contains another hook and removed only when no hooks remain.
+// when it still contains another hook and removed only when no hooks remain
+// and it carries nothing but ktx's matcher.
 func filterKtxEntries(arr []any) ([]any, int) {
 	if len(arr) == 0 {
 		return nil, 0
@@ -532,118 +751,7 @@ func filterKtxEntries(arr []any) ([]any, int) {
 	return out, removed
 }
 
-// ktxCodexPostToolUseEntry builds the ktx PostToolUse entry to append
-// to the hooks.json array. The shape mirrors Codex's documented
-// PostToolUse schema:
-//
-//	{
-//	  "matcher": ".*",
-//	  "hooks": [
-//	    {"type":"command","command":"'<canonical ktx path>' hook",
-//	     "statusMessage":"ktx: recording tool call"}
-//	  ]
-//	}
-//
-// The matcher ".*" runs the hook on every tool call; ktx's noop guard
-// inside `ktx hook` decides whether to persist. Returned as
-// map[string]any so json.MarshalIndent produces the same key order as
-// a hand-written entry would (alphabetical, since Go sorts map keys).
-func ktxCodexPostToolUseEntry(command string) map[string]any {
-	return map[string]any{
-		"matcher": ".*",
-		"hooks": []any{
-			map[string]any{
-				"type":          "command",
-				"command":       command,
-				"statusMessage": ktxHookStatusMessage,
-			},
-		},
-	}
-}
-
-// writeCodexInstallReport emits the install confirmation in the
-// requested format. The trust-review note is always included: Codex
-// will not fire the hook until the user has trusted it via /hooks,
-// so a user who skips that step will see "installed" but no events
-// recorded — calling that out at install time prevents a confusing
-// follow-up bug report.
-//
-// When alreadyInstalled is true, the file was not rewritten (the
-// entry was already present). The report distinguishes this from a
-// fresh install so scripts that diff stdout can tell whether the
-// install actually wrote.
-func writeCodexInstallReport(w io.Writer, target, format string, alreadyInstalled bool) {
-	if format == FormatText {
-		if alreadyInstalled {
-			fmt.Fprintf(w, "ktx codex hook already installed at %s (no change)\n", target)
-		} else {
-			fmt.Fprintf(w, "ktx codex hook installed at %s\n", target)
-		}
-		fmt.Fprintf(w, "  Note: %s\n", codexTrustReviewNote)
-		return
-	}
-	payload := map[string]any{
-		"installed": true,
-		"path":      target,
-		"note":      codexTrustReviewNote,
-	}
-	if alreadyInstalled {
-		payload["already_installed"] = true
-	}
-	_ = json.NewEncoder(w).Encode(payload)
-}
-
-// writeCodexUninstallReport emits the uninstall confirmation. removed
-// is the count of ktx entries stripped from the PostToolUse array;
-// under normal use it is 1, but a user who hand-edited the file could
-// have duplicates, and the count surfaces that without failing.
-func writeCodexUninstallReport(w io.Writer, target, format string, removed int) {
-	if format == FormatText {
-		fmt.Fprintf(w, "ktx codex hook removed from %s (%d entr%s)\n", target, removed, pluralEntry(removed))
-		return
-	}
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"uninstalled": true,
-		"path":        target,
-		"removed":     removed,
-	})
-}
-
-// writeCodexShowReport emits the --show result. Both scopes are
-// reported independently so the user can see the full installed
-// state; the primary path (global by default, falling back to
-// project) is listed first.
-func writeCodexShowReport(w io.Writer, globalPath, projectPath string, hasGlobal, hasProject bool, format string) {
-	if format == FormatText {
-		if hasGlobal {
-			fmt.Fprintf(w, "ktx codex hook installed at %s (global), command: %s\n", globalPath, ktxHookCommand)
-		}
-		if hasProject {
-			fmt.Fprintf(w, "ktx codex hook installed at %s (project), command: %s\n", projectPath, ktxHookCommand)
-		}
-		return
-	}
-	payload := map[string]any{
-		"installed": true,
-		"command":   ktxHookCommand,
-		"scopes":    []string{},
-	}
-	scopes := []string{}
-	if hasGlobal {
-		scopes = append(scopes, "global")
-		payload["global_path"] = globalPath
-	}
-	if hasProject {
-		scopes = append(scopes, "project")
-		payload["project_path"] = projectPath
-	}
-	payload["scopes"] = scopes
-	_ = json.NewEncoder(w).Encode(payload)
-}
-
 // pluralEntry returns "entry" when n == 1, "entries" otherwise.
-// Trivial helper kept local so the uninstall report's pluralization
-// stays consistent without a wider utility.
 func pluralEntry(n int) string {
 	if n == 1 {
 		return "entry"

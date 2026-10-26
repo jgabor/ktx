@@ -25,6 +25,10 @@ jobs:
         with:
           node-version: 24
       - uses: oven-sh/setup-bun@v2
+        with:
+          # Matches the Bun that wrote plugins/opencode/bun.lock, which the
+          # OpenCode package build installs with --frozen-lockfile.
+          bun-version: 1.4.4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -35,7 +39,140 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
       - name: Verify repository
         # mage verify allocates and audits its own disposable application root;
-        # includes Go race tests (generated-plugin tests run on Node), Python
-        # verifier tests, and the Bun generated-adapter gate.
+        # includes Go race tests (OpenCode plugin tests run on Node), Python
+        # verifier tests, the Bun generated-adapter gate, and the OpenCode
+        # package build (Bun) and tests (Node and Bun).
         # docs/reference/database-safety.md is the canonical contract.
         run: mage verify
+
+  opencode-package:
+    # Packs the OpenCode package (plugins/opencode) on every run and checks its
+    # contents. A pushed release tag vX.Y.Z packs it as @jgabor/ktx@X.Y.Z for
+    # the publish job; every other run packs a prerelease derived from the
+    # latest release tag and runs a publish dry run. This job gets no OIDC
+    # token, so it cannot publish.
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # git describe needs the release tags and the history back to them.
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Install Mage
+        run: go install github.com/magefile/mage@v1.15.0
+      - name: Choose the package version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          if [[ $REF == refs/tags/v* ]]; then
+            if [[ $EVENT != push || ! $REF =~ ^refs/tags/v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "::error::only a pushed release tag vX.Y.Z publishes the OpenCode package; got $EVENT of ${REF#refs/tags/}"
+              exit 1
+            fi
+            version=${BASH_REMATCH[1]}
+            release=true
+          else
+            # --long keeps the commit count and hash even on a tagged commit,
+            # so the version is always a prerelease no release can collide with.
+            if described=$(git describe --tags --long --match 'v[0-9]*' 2>/dev/null); then
+              version=${described#v}
+            else
+              version=0.0.0-ci.g$(git rev-parse --short HEAD)
+            fi
+            release=false
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "OpenCode package version $version (release: $release)"
+      - name: Build the package
+        run: mage opencodePackage
+      - name: Set the package version
+        working-directory: plugins/opencode
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: npm pkg set "version=$VERSION"
+      - name: Check the package contents
+        run: mage opencodePackageContents
+      - name: Publish the package (dry run)
+        if: steps.version.outputs.release != 'true'
+        working-directory: plugins/opencode
+        # A prerelease publishes only under a dist-tag other than latest.
+        run: npm publish --dry-run --ignore-scripts --tag ci
+      - name: Pack the release
+        if: steps.version.outputs.release == 'true'
+        working-directory: plugins/opencode
+        run: |
+          mkdir -p "$RUNNER_TEMP/opencode-package"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/opencode-package"
+      - name: Keep the release tarball for the publish job
+        if: steps.version.outputs.release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-package
+          path: ${{ runner.temp }}/opencode-package/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-opencode-package:
+    # Publishes the tarball the opencode-package job built and checked on the
+    # tagged commit, the commit `go install ...@vX.Y.Z` builds ktx from, through
+    # npm trusted publishing: npm exchanges this job's GitHub OIDC token, so no
+    # npm token is stored, and adds a provenance attestation. Only this job
+    # gets an OIDC token, only for a pushed v* tag, and only in the
+    # npm-publish environment, which admits v* tags alone and is the
+    # environment npm's trusted publisher names.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: opencode-package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Require npm with trusted publishing
+        run: |
+          version=$(npm --version)
+          if [[ $(printf '%s\n' 11.5.1 "$version" | sort -V | head -n 1) != 11.5.1 ]]; then
+            echo "::error::npm $version is too old for trusted publishing; it needs 11.5.1 or newer"
+            exit 1
+          fi
+          echo "npm $version"
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencode-package
+          path: opencode-package
+      - name: Publish the package
+        env:
+          VERSION: ${{ needs.opencode-package.outputs.version }}
+        run: |
+          # The ./ keeps npm from reading the path as a GitHub owner/repo.
+          tarball=./opencode-package/jgabor-ktx-$VERSION.tgz
+          if [[ ! -f $tarball ]]; then
+            echo "::error::the opencode-package job left no $tarball"
+            exit 1
+          fi
+          if published=$(npm view "@jgabor/ktx@$VERSION" version 2>/dev/null) && [[ $published == "$VERSION" ]]; then
+            echo "::notice::@jgabor/ktx@$VERSION is already on npm; nothing to publish"
+            exit 0
+          fi
+          npm publish "$tarball"

@@ -326,6 +326,10 @@ func normalizeRuntimeEvent(raw json.RawMessage) (dbpkg.RuntimeEventInput, *telem
 	return input, nil, nil
 }
 
+// telemetryAckSchema versions the acknowledgement that `ktx telemetry record
+// --ack` prints and the OpenCode plugin requires before it retires a delivery.
+const telemetryAckSchema = "ktx.telemetry-ack.v1"
+
 type telemetryRecordAck struct {
 	Schema      string                 `json:"schema"`
 	OK          bool                   `json:"ok"`
@@ -400,7 +404,7 @@ func recordTelemetry(args []string, stdin io.Reader, db *dbpkg.DB, stdout, stder
 		}
 	}
 	if *acknowledge {
-		ack := telemetryRecordAck{Schema: "ktx.telemetry-ack.v1", OK: err == nil, Durable: err == nil}
+		ack := telemetryRecordAck{Schema: telemetryAckSchema, OK: err == nil, Durable: err == nil}
 		if err == nil {
 			ack.Observation = observation
 		}

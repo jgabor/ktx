@@ -20,11 +20,10 @@
 //     The fixture constructs such a schema by opening a fresh
 //     sql.Open("sqlite", ":memory:") with base and cost columns but no
 //     bench_runs table — exactly the pre-condition.
-//   - ktx init opencode --project writes the plugin to
-//     <cwd>/.opencode/plugins/ktx.ts; without --project, the
-//     install lands at $XDG_CONFIG_HOME/opencode/plugins/ktx.ts
-//     (the XDG Base Directory spec path; the fallback when
-//     XDG_CONFIG_HOME is unset is $HOME/.config/...).
+//   - ktx init opencode --project installs the OpenCode package into
+//     <cwd>/.opencode through `opencode plugin`; without --project, it
+//     installs into $XDG_CONFIG_HOME/opencode (the XDG Base Directory spec
+//     path; the fallback when XDG_CONFIG_HOME is unset is $HOME/.config/...).
 //
 // Fail companions prove the positive assertion is wired
 // (asserts on a value that must NOT be present after the verb
@@ -585,143 +584,63 @@ func buildDoctorReportForDB(t *testing.T, d *dbpkg.DB) *doctorReport {
 	return report
 }
 
-// TestRunWith_InitDispatched covers: `ktx init opencode` with
-// and without --project writes the plugin to the right path under
-// the XDG-aware path resolution. With --project: <cwd>/.opencode/
-// plugins/ktx.ts. Without --project: $XDG_CONFIG_HOME/opencode/
-// plugins/ktx.ts (XDG Base Directory spec default; falls back to
-// $HOME/.config/... when XDG_CONFIG_HOME is unset).
-//
-// Fail companions assert that the wrong-scope path is NOT
-// produced (i.e., project install must NOT write to the global
-// path, and vice versa).
+// TestRunWith_InitDispatched covers `ktx init opencode` through the
+// production entry point: --project runs `opencode plugin` for the current
+// project, and the default scope runs it for the global config under
+// $XDG_CONFIG_HOME. Fail companions assert that the other scope is NOT
+// touched.
 func TestRunWith_InitDispatched(t *testing.T) {
-	t.Run("--project writes plugin to <cwd>/.opencode/plugins/ktx.ts", func(t *testing.T) {
-		// Isolate HOME so we can detect any accidental writes
-		// to the global path.
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", "")
-		// XDG_DATA_HOME/RUNTIME_DIR must be set so the
-		// dispatcher's pre-conditions are clean.
+	t.Run("--project installs into <cwd>/.opencode", func(t *testing.T) {
+		fake := setupFakeOpencode(t, true, "v0.2.0")
 		testutil.WithTempXDG(t)
-
-		projectRoot := t.TempDir()
-		restoreCwd := chdir(t, projectRoot)
-		defer restoreCwd()
 
 		var stdout, stderr bytes.Buffer
 		code := runWith([]string{"init", "opencode", "--project"}, &stdout, &stderr)
 		if code != ExitOK {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 		}
-
-		wantPath := filepath.Join(projectRoot, ".opencode", "plugins", ktxPluginFileName)
-		if _, err := os.Stat(wantPath); err != nil {
-			t.Errorf("plugin file %q not present: %v (project install)", wantPath, err)
+		if got := fake.calls(t); len(got) != 1 || got[0] != "plugin @jgabor/ktx@0.2.0" {
+			t.Fatalf("opencode calls = %q", got)
 		}
-		// Verify the JSON envelope confirms the project path.
 		var env map[string]any
 		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 			t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
 		}
-		if env["installed"] != true {
-			t.Errorf("installed = %v, want true", env["installed"])
-		}
-		if env["path"] != wantPath {
-			t.Errorf("path = %v, want %v", env["path"], wantPath)
-		}
-
-		// Belt-and-braces: the global path must NOT have been
-		// written. --project scopes to <cwd>; the
-		// global path is reserved for the default scope.
-		globalPath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
-		if _, err := os.Stat(globalPath); !os.IsNotExist(err) {
-			t.Errorf("global path %q was written (should only happen for default scope): %v", globalPath, err)
+		if env["installed"] != true || env["config_dir"] != fake.projectConfig() {
+			t.Errorf("envelope = %#v", env)
 		}
 	})
 
-	t.Run("without --project writes to $XDG_CONFIG_HOME/opencode/...", func(t *testing.T) {
-		// The global path uses $XDG_CONFIG_HOME when set, and
-		// falls back to $HOME/.config when unset. We test both:
-		// the fallback (HOME set, XDG_CONFIG_HOME unset) — the
-		// path is $HOME/.config/opencode/plugins/ktx.ts.
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", "")
+	t.Run("without --project installs into $XDG_CONFIG_HOME/opencode", func(t *testing.T) {
+		fake := setupFakeOpencode(t, true, "v0.2.0")
 		testutil.WithTempXDG(t)
-
-		var stdout, stderr bytes.Buffer
-		code := runWith([]string{"init", "opencode"}, &stdout, &stderr)
-		if code != ExitOK {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
-		}
-
-		wantPath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
-		if _, err := os.Stat(wantPath); err != nil {
-			t.Errorf("plugin file %q not present: %v (default scope)", wantPath, err)
-		}
-		var env map[string]any
-		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
-			t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
-		}
-		if env["path"] != wantPath {
-			t.Errorf("path = %v, want %v", env["path"], wantPath)
-		}
-
-		// Belt-and-braces: the project path must NOT have been
-		// written (we didn't pass --project).
-		projectRoot, _ := os.Getwd()
-		projectPath := filepath.Join(projectRoot, ".opencode", "plugins", ktxPluginFileName)
-		if _, err := os.Stat(projectPath); !os.IsNotExist(err) {
-			t.Errorf("project path %q was written (should only happen with --project): %v", projectPath, err)
-		}
-	})
-
-	t.Run("$XDG_CONFIG_HOME set → global path uses it", func(t *testing.T) {
-		// Companion: when XDG_CONFIG_HOME is set, the global
-		// path uses it directly (no $HOME/.config fallback).
-		home := t.TempDir()
-		t.Setenv("HOME", home)
 		configHome := t.TempDir()
 		t.Setenv("XDG_CONFIG_HOME", configHome)
-		testutil.WithTempXDG(t)
 
 		var stdout, stderr bytes.Buffer
 		code := runWith([]string{"init", "opencode"}, &stdout, &stderr)
 		if code != ExitOK {
 			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
 		}
-
-		wantPath := filepath.Join(configHome, "opencode", "plugins", ktxPluginFileName)
-		if _, err := os.Stat(wantPath); err != nil {
-			t.Errorf("plugin file %q not present: %v (XDG_CONFIG_HOME path)", wantPath, err)
+		if _, err := os.Stat(filepath.Join(configHome, "opencode", "tui.json")); err != nil {
+			t.Errorf("global TUI config not written under XDG_CONFIG_HOME: %v", err)
 		}
-		// The HOME-based fallback must NOT have been written.
-		homePath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
-		if _, err := os.Stat(homePath); !os.IsNotExist(err) {
-			t.Errorf("HOME fallback path %q was written (XDG_CONFIG_HOME should win): %v", homePath, err)
+		if _, err := os.Stat(filepath.Join(os.Getenv("HOME"), ".config", "opencode")); !os.IsNotExist(err) {
+			t.Errorf("the HOME fallback was written although XDG_CONFIG_HOME is set: %v", err)
+		}
+		if _, err := os.Stat(fake.projectConfig()); !os.IsNotExist(err) {
+			t.Errorf("a global install touched the project: %v", err)
 		}
 	})
 
-	t.Run("fail companion: project install must not write to global path", func(t *testing.T) {
-		// Fail companion: prove the project-install assertion
-		// is meaningful by inverting the predicate. The
-		// project install must NOT write the global path.
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", "")
+	t.Run("fail companion: project install must not touch the global config", func(t *testing.T) {
+		fake := setupFakeOpencode(t, true, "v0.2.0")
 		testutil.WithTempXDG(t)
-		projectRoot := t.TempDir()
-		restoreCwd := chdir(t, projectRoot)
-		defer restoreCwd()
 
 		var stdout, stderr bytes.Buffer
 		_ = runWith([]string{"init", "opencode", "--project"}, &stdout, &stderr)
-
-		globalPath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
-		if _, err := os.Stat(globalPath); err == nil {
-			t.Errorf("global path %q was written during project install", globalPath)
+		if _, err := os.Stat(fake.global); err == nil {
+			t.Errorf("global config %q was written during project install", fake.global)
 		}
 	})
 

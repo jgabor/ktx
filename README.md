@@ -98,6 +98,13 @@ ktx init codex
 ktx init claude
 ```
 
+For OpenCode, `ktx init opencode` installs the `@jgabor/ktx` npm package
+(compression plus a statistics sidebar) through `opencode plugin`, pinned to
+your ktx release. After you upgrade ktx, run `ktx init opencode` again to move
+the pin to the new release; `ktx init opencode --uninstall` removes ktx's
+entries. The npm install needs a ktx release that includes the package; until
+one is published, run `mage install` from a ktx checkout instead.
+
 For Claude Code, `ktx init claude` installs the `ktx@ktx` plugin through the
 `claude` CLI, or prints the commands when `claude` isn't on `PATH`. Inside
 Claude Code you can install it in one step instead:
@@ -109,6 +116,14 @@ Claude Code you can install it in one step instead:
 See the
 [Claude Code guide](docs/guides/claude-code.md) for the stats band, the
 `/ktx` pane, and updates.
+
+For Codex, `ktx init codex` installs the `ktx@ktx` Codex plugin through the
+`codex` CLI, or prints the commands when `codex` isn't on `PATH`. Then start a
+new Codex session, run `/hooks`, and trust the `ktx` hook. This needs a ktx
+release that includes the Codex plugin; until one ships, v0.1.0 still merges a
+hook, so install from a checkout as the Codex guide describes. See the
+[Codex guide](docs/guides/codex.md) for statistics, updates, and hooks left by
+earlier ktx versions.
 
 Copy [`ktx.example.toml`](ktx.example.toml) to
 `$XDG_CONFIG_HOME/ktx/ktx.toml`, then check what is active:
@@ -133,7 +148,7 @@ never part of the stored bytes. Retrying the same tool call reuses the first
 stored copy instead of replacing it.
 
 The OpenCode plugin can also record model-step token usage. See the
-[OpenCode guide](docs/guides/opencode-telemetry.md) for plugin locations,
+[OpenCode guide](docs/guides/opencode-telemetry.md) for install scopes,
 updates, and troubleshooting.
 
 ### 3. Tune your config safely

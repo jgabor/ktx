@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2023"],
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/solid",
+    "types": ["node", "bun-types/test"],
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "tui.tsx",
+    "ktx-stats.ts",
+    "mouse.ts",
+    "test/**/*.ts",
+    "test/**/*.tsx"
+  ],
+  "exclude": ["node_modules", "server.ts", "test/server.test.ts"]
+}

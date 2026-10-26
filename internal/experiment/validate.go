@@ -86,6 +86,7 @@ func ValidateExperiment(experimentDir string) (map[string]any, error) {
 		"summary_byte_match": summaryMatches, "target_met": targetMet,
 		"valid_counts": counts, "attempt_checks": checks,
 		"projection_divergences": divergences,
+		"plugin_identity":        pluginIdentityLabel(manifest),
 	}
 	if !targetMet {
 		report["target_reason"] = "target_valid_per_pipeline_unmet"

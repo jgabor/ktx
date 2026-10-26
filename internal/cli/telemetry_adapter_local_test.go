@@ -321,12 +321,10 @@ func localTelemetryAdapter(t *testing.T, required bool) (root, binary, node, plu
 	if err := d.Close(); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(binary, "init", "opencode")
-	cmd.Dir = root
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("local install: %v: %s", err, out)
+	plugin = filepath.Join(root, "ktx.ts")
+	if err := os.WriteFile(plugin, []byte(testjs.OpenCodeServer(t)), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	plugin = filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "opencode", "plugins", "ktx.ts")
 	return
 }
 

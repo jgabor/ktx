@@ -1,596 +1,516 @@
 // Tests for `ktx init codex` (internal/cli/init_codex.go).
 //
-// Coverage mirrors the OpenCode tests: install to global, install to
-// project, --show found, --show not-found (exit 2), --uninstall
-// removes the entry, and unknown/missing runtime handling. The
-// Codex-specific cases exercise the merge behavior:
-//
-//   - install into a hooks.json that already has a SessionStart hook
-//     preserves that hook (merge, not overwrite)
-//   - re-running install is idempotent (file mtime+content unchanged)
-//   - uninstall removes only ktx's entry and preserves other hooks
-//   - the install output mentions the /hooks trust-review step
-//
-// The global install path is HOME-relative (~/.codex/hooks.json), so
-// each test points HOME at a per-test temp dir via t.Setenv. Project
-// installs use t.Chdir-equivalent chdir helper to scope ./.codex/.
+// Each test puts a fake codex on a PATH of its own, points HOME at a temporary
+// folder and works in a temporary project folder. The fake records every call
+// and keeps the marketplace and plugin listings in files, so no test reaches
+// the real Codex configuration.
 package cli
 
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-// TestRunInitWith_CodexInstall covers the install/show/uninstall flow
-// for the Codex adapter. The global install uses ~/.codex/hooks.json;
-// the project install uses <cwd>/.codex/hooks.json. Both are
-// exercised below, along with the merge and idempotency contracts.
-func TestRunInitWith_CodexInstall(t *testing.T) {
-	t.Run("install to global scope creates hooks.json with PostToolUse ktx entry", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
+const fakeCodexScript = `#!/bin/sh
+PATH=/usr/bin:/bin
+dir="$FAKE_CODEX_DIR"
+echo "WARNING: proceeding, even though we could not create PATH aliases" >&2
+printf '%s\n' "$*" >> "$dir/calls"
+case "$*" in
+"plugin marketplace list --json") cat "$dir/marketplaces.json"; exit 0 ;;
+"plugin list --json") cat "$dir/plugins.json"; exit 0 ;;
+esac
+if [ -f "$dir/fail" ]; then
+  echo "network unreachable" >&2
+  exit 1
+fi
+if [ -f "$dir/unlisted" ] && [ "$*" = "plugin add ktx@ktx" ]; then exit 0; fi
+case "$*" in
+"plugin marketplace add jgabor/ktx") echo '{"marketplaces":[{"name":"ktx","marketplaceSource":{"sourceType":"git","source":"https://github.com/jgabor/ktx.git"}}]}' > "$dir/marketplaces.json" ;;
+"plugin add ktx@ktx") echo '{"installed":[{"pluginId":"ktx@ktx","enabled":true,"source":{"source":"local","path":"/cache/ktx/plugins/codex"}}],"available":[]}' > "$dir/plugins.json" ;;
+"plugin remove ktx@ktx") echo '{"installed":[],"available":[]}' > "$dir/plugins.json" ;;
+"plugin marketplace remove ktx") echo '{"marketplaces":[]}' > "$dir/marketplaces.json" ;;
+*) echo "unexpected call: $*" >&2; exit 2 ;;
+esac
+`
 
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitOK {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
-		}
+const (
+	codexNoMarketplaces = `{"marketplaces":[{"name":"other","marketplaceSource":{"sourceType":"git","source":"https://github.com/someone/other.git"}}]}`
+	codexGitMarketplace = `{"marketplaces":[{"name":"other","marketplaceSource":{"sourceType":"git","source":"https://github.com/someone/other.git"}},{"name":"ktx","marketplaceSource":{"sourceType":"git","source":"https://github.com/jgabor/ktx.git"}}]}`
+	codexNoPlugins      = `{"installed":[{"pluginId":"other@other","enabled":true,"source":{"path":"/cache/other"}}],"available":[]}`
+	codexKtxInstalled   = `{"installed":[{"pluginId":"other@other","enabled":true,"source":{"path":"/cache/other"}},{"pluginId":"ktx@ktx","enabled":true,"source":{"source":"local","path":"/cache/ktx/plugins/codex"}}],"available":[]}`
+)
 
-		var env map[string]any
-		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
-			t.Fatalf("stdout is not valid JSON: %v\nstdout=%q", err, stdout.String())
-		}
-		if env["installed"] != true {
-			t.Errorf("installed = %v, want true", env["installed"])
-		}
-		wantPath := filepath.Join(home, ".codex", "hooks.json")
-		if env["path"] != wantPath {
-			t.Errorf("path = %v, want %v", env["path"], wantPath)
-		}
-
-		data, err := os.ReadFile(wantPath)
-		if err != nil {
-			t.Fatalf("read %q: %v", wantPath, err)
-		}
-		var doc map[string]any
-		if err := json.Unmarshal(data, &doc); err != nil {
-			t.Fatalf("hooks.json is not valid JSON: %v", err)
-		}
-		hooks, ok := doc["hooks"].(map[string]any)
-		if !ok {
-			t.Fatalf("hooks.json missing hooks object: %s", data)
-		}
-		arr, ok := hooks["PostToolUse"].([]any)
-		if !ok || len(arr) != 1 {
-			t.Fatalf("PostToolUse not a 1-element array: %v", hooks["PostToolUse"])
-		}
-		entry, ok := arr[0].(map[string]any)
-		if !ok {
-			t.Fatalf("PostToolUse entry not an object: %v", arr[0])
-		}
-		if entry["matcher"] != ".*" {
-			t.Errorf("matcher = %v, want .*", entry["matcher"])
-		}
-		inner, ok := entry["hooks"].([]any)
-		if !ok || len(inner) != 1 {
-			t.Fatalf("inner hooks not a 1-element array: %v", entry["hooks"])
-		}
-		h, ok := inner[0].(map[string]any)
-		if !ok {
-			t.Fatalf("inner hook[0] not an object: %v", inner[0])
-		}
-		wantCommand, err := codexPinnedHookCommand()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if h["command"] != wantCommand {
-			t.Errorf("command = %v, want %q", h["command"], wantCommand)
-		}
-		if h["type"] != "command" {
-			t.Errorf("type = %v, want command", h["type"])
-		}
-		if h["statusMessage"] != "ktx: recording tool call" {
-			t.Errorf("statusMessage = %v, want ktx: recording tool call", h["statusMessage"])
-		}
-		if _, exists := h["timeout"]; exists {
-			t.Errorf("generated hook retains an outer timeout: %v", h["timeout"])
-		}
-	})
-
-	t.Run("install with existing SessionStart hook preserves other hooks", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		hooksPath := filepath.Join(home, ".codex", "hooks.json")
-		if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		// Pre-existing hooks.json with a SessionStart hook from some
-		// other source. ktx install must merge, not overwrite.
-		existing := []byte(`{
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {"type": "command", "command": "echo session started", "timeout": 5}
-        ]
-      }
-    ]
-  }
+// ktxCodexPostToolUseEntry builds a PostToolUse entry in the shape earlier ktx
+// versions merged into hooks.json, and the plugin's hooks file still uses.
+func ktxCodexPostToolUseEntry(command string) map[string]any {
+	return map[string]any{
+		"matcher": ".*",
+		"hooks": []any{
+			map[string]any{
+				"type":          "command",
+				"command":       command,
+				"statusMessage": ktxHookStatusMessage,
+			},
+		},
+	}
 }
-`)
-		if err := os.WriteFile(hooksPath, existing, 0o644); err != nil {
-			t.Fatalf("write pre-existing hooks.json: %v", err)
-		}
 
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitOK {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
-		}
-
-		data, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("read merged hooks.json: %v", err)
-		}
-		var doc map[string]any
-		if err := json.Unmarshal(data, &doc); err != nil {
-			t.Fatalf("merged hooks.json not valid JSON: %v\n%s", err, data)
-		}
-		hooks, ok := doc["hooks"].(map[string]any)
-		if !ok {
-			t.Fatalf("hooks object lost after install: %s", data)
-		}
-		// SessionStart must survive.
-		ss, ok := hooks["SessionStart"].([]any)
-		if !ok || len(ss) != 1 {
-			t.Fatalf("SessionStart hook not preserved: %v", hooks["SessionStart"])
-		}
-		// PostToolUse ktx entry must be added.
-		ptu, ok := hooks["PostToolUse"].([]any)
-		if !ok || len(ptu) != 1 {
-			t.Fatalf("PostToolUse ktx entry not added: %v", hooks["PostToolUse"])
-		}
-	})
-
-	t.Run("existing pinned hook preserves unrelated sibling", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		hooksPath := filepath.Join(home, ".codex", "hooks.json")
-		if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		pinned, err := codexPinnedHookCommand()
-		if err != nil {
-			t.Fatal(err)
-		}
-		existing := []byte(fmt.Sprintf(`{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "source": "unrelated",
-        "hooks": [
-          {"type": "command", "command": %q},
-          {"type": "command", "command": "echo keep", "timeout": 7}
-        ]
-      }
-    ]
-  }
+type fakeCodex struct {
+	dir     string
+	bin     string
+	home    string
+	project string
 }
-`, pinned))
-		if err := os.WriteFile(hooksPath, existing, 0o644); err != nil {
+
+// setupFakeCodex puts a fake codex, and a ktx when withKtx is set, on a PATH
+// of the test's own, with the given listings, a temporary HOME and a
+// temporary working directory.
+func setupFakeCodex(t *testing.T, marketplaces, plugins string, withKtx bool) fakeCodex {
+	t.Helper()
+	fake := fakeCodex{dir: t.TempDir(), bin: t.TempDir(), home: t.TempDir(), project: t.TempDir()}
+	if err := os.WriteFile(filepath.Join(fake.bin, "codex"), []byte(fakeCodexScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if withKtx {
+		if err := os.WriteFile(filepath.Join(fake.bin, "ktx"), []byte("#!/bin/sh\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-
-		var stdout, stderr bytes.Buffer
-		if code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitOK {
-			t.Fatalf("refresh exit = %d, stderr=%q", code, stderr.String())
-		}
-		data, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var doc map[string]any
-		if err := json.Unmarshal(data, &doc); err != nil {
-			t.Fatal(err)
-		}
-		postToolUse := codexPostToolUseArray(codexHooksObject(doc))
-		if len(postToolUse) != 1 {
-			t.Fatalf("PostToolUse entries = %d, want existing matcher: %s", len(postToolUse), data)
-		}
-		shared, ok := postToolUse[0].(map[string]any)
-		if !ok || shared["matcher"] != "Bash" || shared["source"] != "unrelated" {
-			t.Fatalf("shared matcher metadata changed: %v", postToolUse[0])
-		}
-		inner, ok := shared["hooks"].([]any)
-		if !ok || len(inner) != 2 {
-			t.Fatalf("shared matcher hooks = %v, want pinned and unrelated hooks", shared["hooks"])
-		}
-		hook, ok := inner[1].(map[string]any)
-		if !ok || hook["command"] != "echo keep" || hook["timeout"] != float64(7) {
-			t.Fatalf("unrelated shared hook changed: %v", inner[1])
-		}
-		if !codexEntryIsKtx(shared) {
-			t.Fatalf("pinned ktx hook missing: %v", shared)
-		}
-	})
-
-	t.Run("idempotent install: file content unchanged on re-install", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-
-		// First install.
-		var stdout1, stderr1 bytes.Buffer
-		if code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &stdout1, &stderr1); code != ExitOK {
-			t.Fatalf("first install: exit code = %d (stderr=%q)", code, stderr1.String())
-		}
-		hooksPath := filepath.Join(home, ".codex", "hooks.json")
-		afterFirst, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("read after first install: %v", err)
-		}
-
-		// Second install — must be a no-op.
-		var stdout2, stderr2 bytes.Buffer
-		if code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &stdout2, &stderr2); code != ExitOK {
-			t.Fatalf("second install: exit code = %d (stderr=%q)", code, stderr2.String())
-		}
-		afterSecond, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("read after second install: %v", err)
-		}
-
-		if string(afterFirst) != string(afterSecond) {
-			t.Errorf("hooks.json changed on re-install:\nfirst:  %s\nsecond: %s", afterFirst, afterSecond)
-		}
-		// The second install's envelope should mark already_installed.
-		var env map[string]any
-		if err := json.Unmarshal(stdout2.Bytes(), &env); err != nil {
-			t.Fatalf("second install stdout not JSON: %v", err)
-		}
-		if env["already_installed"] != true {
-			t.Errorf("second install already_installed = %v, want true", env["already_installed"])
-		}
-	})
-
-	t.Run("uninstall removes ktx entry, preserves other hooks", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		hooksPath := filepath.Join(home, ".codex", "hooks.json")
-		if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		// File with both a SessionStart hook and ktx's PostToolUse
-		// entry. Uninstall must remove only the PostToolUse ktx entry.
-		pinned, err := codexPinnedHookCommand()
-		if err != nil {
-			t.Fatal(err)
-		}
-		existing := []byte(fmt.Sprintf(`{
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {"type": "command", "command": "echo session started", "timeout": 5}
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {"type": "command", "command": %q, "timeout": 10, "statusMessage": "ktx: recording tool call"}
-        ]
-      }
-    ]
-  }
+	}
+	fake.write(t, "marketplaces.json", marketplaces)
+	fake.write(t, "plugins.json", plugins)
+	t.Setenv("FAKE_CODEX_DIR", fake.dir)
+	t.Setenv("PATH", fake.bin)
+	t.Setenv("HOME", fake.home)
+	t.Chdir(fake.project)
+	return fake
 }
-`, pinned))
-		if err := os.WriteFile(hooksPath, existing, 0o644); err != nil {
-			t.Fatalf("write pre-existing hooks.json: %v", err)
-		}
 
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--uninstall"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitOK {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
-		}
-
-		data, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("read after uninstall: %v", err)
-		}
-		var doc map[string]any
-		if err := json.Unmarshal(data, &doc); err != nil {
-			t.Fatalf("hooks.json not valid JSON after uninstall: %v\n%s", err, data)
-		}
-		hooks, ok := doc["hooks"].(map[string]any)
-		if !ok {
-			t.Fatalf("hooks object lost after uninstall: %s", data)
-		}
-		// SessionStart must survive.
-		if _, ok := hooks["SessionStart"]; !ok {
-			t.Errorf("SessionStart hook lost after uninstall: %s", data)
-		}
-		// PostToolUse must be gone (it only held ktx's entry).
-		if _, ok := hooks["PostToolUse"]; ok {
-			t.Errorf("PostToolUse key should be removed, still present: %v", hooks["PostToolUse"])
-		}
-	})
-
-	t.Run("install to project scope writes to ./.codex/hooks.json", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		projectRoot := t.TempDir()
-		restoreCwd := chdir(t, projectRoot)
-		defer restoreCwd()
-
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--project"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitOK {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
-		}
-
-		wantPath := filepath.Join(projectRoot, ".codex", "hooks.json")
-		if _, err := os.Stat(wantPath); err != nil {
-			t.Fatalf("project hooks.json not present: %v", err)
-		}
-		// Global path must NOT be written by --project install.
-		globalPath := filepath.Join(home, ".codex", "hooks.json")
-		if _, err := os.Stat(globalPath); !os.IsNotExist(err) {
-			t.Errorf("global hooks.json should not exist after --project install: %v", err)
-		}
-	})
-
-	t.Run("--show reports installed (global + project)", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		projectRoot := t.TempDir()
-		restoreCwd := chdir(t, projectRoot)
-		defer restoreCwd()
-
-		// Install to both scopes.
-		if code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &bytes.Buffer{}, &bytes.Buffer{}); code != ExitOK {
-			t.Fatalf("global install failed: code=%d", code)
-		}
-		if code := runInitWith([]string{"codex", "--project"}, Options{Format: FormatJSON}, &bytes.Buffer{}, &bytes.Buffer{}); code != ExitOK {
-			t.Fatalf("project install failed: code=%d", code)
-		}
-
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitOK {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
-		}
-		var env map[string]any
-		if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
-			t.Fatalf("stdout not JSON: %v", err)
-		}
-		if env["installed"] != true {
-			t.Errorf("installed = %v, want true", env["installed"])
-		}
-		if env["command"] != "ktx hook" {
-			t.Errorf("command = %v, want ktx hook", env["command"])
-		}
-		scopes, _ := env["scopes"].([]any)
-		if len(scopes) != 2 {
-			t.Errorf("scopes = %v, want both global and project", scopes)
-		}
-	})
-
-	t.Run("--show with no install exits 2 (not-found)", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		projectRoot := t.TempDir()
-		restoreCwd := chdir(t, projectRoot)
-		defer restoreCwd()
-
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitNotFound {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitNotFound, stderr.String())
-		}
-	})
-
-	t.Run("--show propagates malformed hooks file", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		projectRoot := t.TempDir()
-		restoreCwd := chdir(t, projectRoot)
-		defer restoreCwd()
-		hooksPath := filepath.Join(home, ".codex", "hooks.json")
-		if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(hooksPath, []byte(`{"hooks":`), 0o600); err != nil {
-			t.Fatal(err)
-		}
-
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitInternal {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
-		}
-		if !strings.Contains(stderr.String(), `"code":"internal"`) || !strings.Contains(stderr.String(), "parse hooks.json") {
-			t.Fatalf("parse failure contract = %q", stderr.String())
-		}
-	})
-
-	t.Run("--show propagates hooks file inspection failure", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		projectRoot := t.TempDir()
-		restoreCwd := chdir(t, projectRoot)
-		defer restoreCwd()
-		if err := os.WriteFile(filepath.Join(home, ".codex"), []byte("not a directory"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitInternal {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitInternal, stderr.String())
-		}
-		if !strings.Contains(stderr.String(), `"code":"internal"`) || strings.Contains(stderr.String(), `"code":"not-found"`) {
-			t.Fatalf("inspection failure contract = %q", stderr.String())
-		}
-	})
-
-	t.Run("install output includes /hooks trust review instruction", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-
-		// JSON output should include a note mentioning /hooks.
-		var jstdout, jstderr bytes.Buffer
-		if code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &jstdout, &jstderr); code != ExitOK {
-			t.Fatalf("json install failed: code=%d (stderr=%q)", code, jstderr.String())
-		}
-		var env map[string]any
-		if err := json.Unmarshal(jstdout.Bytes(), &env); err != nil {
-			t.Fatalf("json stdout not parseable: %v", err)
-		}
-		note, _ := env["note"].(string)
-		if !strings.Contains(note, "/hooks") {
-			t.Errorf("JSON note missing /hooks reference: %q", note)
-		}
-
-		// Text output should also include /hooks.
-		home2 := t.TempDir()
-		t.Setenv("HOME", home2)
-		var tstdout, tstderr bytes.Buffer
-		if code := runInitWith([]string{"codex"}, Options{Format: FormatText}, &tstdout, &tstderr); code != ExitOK {
-			t.Fatalf("text install failed: code=%d (stderr=%q)", code, tstderr.String())
-		}
-		if !strings.Contains(tstdout.String(), "/hooks") {
-			t.Errorf("text stdout missing /hooks reference: %q", tstdout.String())
-		}
-	})
-
-	t.Run("uninstall with no ktx entry exits 2 (not-found)", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		hooksPath := filepath.Join(home, ".codex", "hooks.json")
-		if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		// hooks.json exists but has no ktx entry — uninstall must
-		// report not-found rather than corrupting the file.
-		existing := []byte(`{
-  "hooks": {
-    "SessionStart": [
-      {"hooks": [{"type": "command", "command": "echo hi", "timeout": 5}]}
-    ]
-  }
+func (f fakeCodex) write(t *testing.T, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(f.dir, name), []byte(content+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
-`)
-		if err := os.WriteFile(hooksPath, existing, 0o644); err != nil {
-			t.Fatalf("write hooks.json: %v", err)
-		}
 
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--uninstall"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitNotFound {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitNotFound, stderr.String())
+// calls returns the codex invocations other than the two listings.
+func (f fakeCodex) calls(t *testing.T) []string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(f.dir, "calls"))
+	if os.IsNotExist(err) {
+		return []string{}
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	changes := []string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if !strings.HasSuffix(line, "list --json") {
+			changes = append(changes, line)
 		}
-		// File must still exist and be untouched.
-		after, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("hooks.json missing after not-found uninstall: %v", err)
+	}
+	return changes
+}
+
+func (f fakeCodex) globalHooks() string { return filepath.Join(f.home, ".codex", "hooks.json") }
+
+func (f fakeCodex) projectHooks() string { return filepath.Join(f.project, ".codex", "hooks.json") }
+
+func writeHooksFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func runCodexInit(t *testing.T, format string, args ...string) (int, string, string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	code := runInitWith(append([]string{"codex"}, args...), Options{Format: format}, &stdout, &stderr)
+	return code, stdout.String(), stderr.String()
+}
+
+// legacyGlobalHooks holds an unrelated hook in every category, a pinned ktx
+// hook beside an unrelated PostToolUse hook, and a pinned ktx hook sharing a
+// matcher entry with another program.
+const legacyGlobalHooks = `{"hooks":{
+  "SessionStart":[{"hooks":[{"type":"command","command":"orca session","timeout":10}]}],
+  "PostToolUse":[
+    {"hooks":[{"type":"command","command":"orca post && true 2>&1 >/dev/null","timeout":10}]},
+    {"hooks":[{"command":"'/home/u/go/bin/ktx' hook","statusMessage":"ktx: recording tool call","type":"command"}],"matcher":".*"},
+    {"matcher":"Bash","hooks":[{"type":"command","command":"'/old/ktx' --expect-runtime-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef hook","statusMessage":"ktx: recording tool call"},{"type":"command","command":"other-tool"}]}
+  ]},
+  "future":9007199254740993}`
+
+// legacyProjectHooks holds only a bare ktx hook from the first versions.
+const legacyProjectHooks = `{"hooks":{"PostToolUse":[{"matcher":".*","hooks":[{"type":"command","command":"ktx hook","timeout":10,"statusMessage":"ktx: recording tool call"}]}]}}`
+
+func TestInitCodexInstallsThroughCodex(t *testing.T) {
+	fake := setupFakeCodex(t, codexNoMarketplaces, codexNoPlugins, true)
+
+	code, stdout, stderr := runCodexInit(t, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr)
+	}
+	want := []string{"plugin marketplace add jgabor/ktx", "plugin add ktx@ktx"}
+	if got := fake.calls(t); !reflect.DeepEqual(got, want) {
+		t.Fatalf("calls = %v, want %v", got, want)
+	}
+	report := decodeJSONObject(t, stdout)
+	if report["installed"] != true || report["plugin"] != "ktx@ktx" || report["enabled"] != true ||
+		report["added_marketplace"] != true || report["installed_plugin"] != true ||
+		!strings.Contains(report["note"].(string), "/hooks") || report["warning"] != nil {
+		t.Fatalf("report = %v", report)
+	}
+	if _, ok := report["already_installed"]; ok {
+		t.Fatalf("first install reported already_installed: %v", report)
+	}
+	if marketplace, _ := report["marketplace"].(map[string]any); marketplace["source"] != "https://github.com/jgabor/ktx.git" || marketplace["source_type"] != "git" {
+		t.Fatalf("marketplace = %v", report["marketplace"])
+	}
+	if removed, _ := report["removed_legacy_hooks"].([]any); len(removed) != 0 {
+		t.Fatalf("removed_legacy_hooks = %v", report["removed_legacy_hooks"])
+	}
+	if report["ktx_on_path"] != filepath.Join(fake.bin, "ktx") {
+		t.Fatalf("ktx_on_path = %v", report["ktx_on_path"])
+	}
+}
+
+func TestInitCodexInstallIsIdempotent(t *testing.T) {
+	fake := setupFakeCodex(t, codexGitMarketplace, codexKtxInstalled, true)
+
+	code, stdout, _ := runCodexInit(t, FormatJSON)
+	if code != ExitOK || decodeJSONObject(t, stdout)["already_installed"] != true {
+		t.Fatalf("install = %d %s", code, stdout)
+	}
+	code, stdout, _ = runCodexInit(t, FormatText)
+	for _, want := range []string{"already installed: ktx@ktx (no change)", "marketplace: ktx (git https://github.com/jgabor/ktx.git)", "/hooks", "trust the ktx hook"} {
+		if code != ExitOK || !strings.Contains(stdout, want) {
+			t.Errorf("text install = %d, lacks %q:\n%s", code, want, stdout)
 		}
-		if !strings.Contains(string(after), "SessionStart") {
-			t.Errorf("SessionStart hook lost on not-found uninstall: %s", after)
+	}
+	if got := fake.calls(t); len(got) != 0 {
+		t.Fatalf("a re-run changed Codex: %v", got)
+	}
+}
+
+func TestInitCodexKeepsAnExistingKtxMarketplace(t *testing.T) {
+	fake := setupFakeCodex(t, `{"marketplaces":[{"name":"ktx","marketplaceSource":{"sourceType":"local","source":"/src/ktx"}}]}`, `{"installed":[],"available":[]}`, false)
+
+	code, stdout, stderr := runCodexInit(t, FormatText)
+	if code != ExitOK {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr)
+	}
+	if got, want := fake.calls(t), []string{"plugin add ktx@ktx"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("calls = %v, want %v", got, want)
+	}
+	for _, want := range []string{"installed: ktx@ktx", "marketplace: ktx (local /src/ktx)", "ktx on PATH: not found", "/hooks"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("stdout lacks %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestInitCodexFailsWhenCodexInstalledAnotherLayout(t *testing.T) {
+	fake := setupFakeCodex(t, codexGitMarketplace, `{"installed":[{"pluginId":"ktx@ktx","enabled":false,"source":{"path":"/cache/marketplaces/ktx/plugins/ktx"}}]}`, true)
+	writeHooksFile(t, fake.globalHooks(), legacyGlobalHooks)
+
+	code, stdout, stderr := runCodexInit(t, FormatText)
+	if code != ExitInternal || stdout != "" || !strings.Contains(stderr, "Codex installed ktx@ktx from /cache/marketplaces/ktx/plugins/ktx") {
+		t.Fatalf("install = %d %q %q", code, stdout, stderr)
+	}
+	// The earlier hook stays, since the installed plugin cannot replace it.
+	if got, err := os.ReadFile(fake.globalHooks()); err != nil || string(got) != legacyGlobalHooks {
+		t.Fatalf("earlier hook removed: %v", err)
+	}
+	code, stdout, _ = runCodexInit(t, FormatJSON, "--show")
+	if code != ExitOK || decodeJSONObject(t, stdout)["warning"] == nil {
+		t.Fatalf("show = %d %q", code, stdout)
+	}
+}
+
+func TestInitCodexKeepsEarlierHooksWhenThePluginIsNotListed(t *testing.T) {
+	fake := setupFakeCodex(t, codexGitMarketplace, codexNoPlugins, true)
+	fake.write(t, "unlisted", "")
+	writeHooksFile(t, fake.globalHooks(), legacyGlobalHooks)
+
+	code, stdout, stderr := runCodexInit(t, FormatText)
+	if code != ExitInternal || stdout != "" || !strings.Contains(stderr, "does not show ktx@ktx after install; earlier ktx hooks are kept") {
+		t.Fatalf("install = %d %q %q", code, stdout, stderr)
+	}
+	if got, err := os.ReadFile(fake.globalHooks()); err != nil || string(got) != legacyGlobalHooks {
+		t.Fatalf("earlier hook removed: %v", err)
+	}
+}
+
+func TestInitCodexRemovesEarlierMergedHooks(t *testing.T) {
+	fake := setupFakeCodex(t, codexNoMarketplaces, codexNoPlugins, true)
+	writeHooksFile(t, fake.globalHooks(), legacyGlobalHooks)
+	writeHooksFile(t, fake.projectHooks(), legacyProjectHooks)
+
+	code, stdout, stderr := runCodexInit(t, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr)
+	}
+	report := decodeJSONObject(t, stdout)
+	wantRemoved := []any{
+		map[string]any{"path": fake.globalHooks(), "entries": float64(2)},
+		map[string]any{"path": fake.projectHooks(), "entries": float64(1)},
+	}
+	if !reflect.DeepEqual(report["removed_legacy_hooks"], wantRemoved) {
+		t.Fatalf("removed_legacy_hooks = %v, want %v", report["removed_legacy_hooks"], wantRemoved)
+	}
+	if got := fake.calls(t); len(got) != 2 {
+		t.Fatalf("calls = %v", got)
+	}
+
+	doc, _, err := loadCodexHooks(fake.globalHooks())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, count := filterKtxEntries(codexPostToolUseArray(codexHooksObject(doc))); count != 0 {
+		t.Fatalf("ktx hooks remain: %v", doc)
+	}
+	raw, _ := json.Marshal(doc)
+	for _, want := range []string{`"orca session"`, `"orca post`, `"other-tool"`, `"matcher":"Bash"`, `9007199254740993`} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("unrelated content %s lost: %s", want, raw)
+		}
+	}
+	if written, err := os.ReadFile(fake.globalHooks()); err != nil || !bytes.Contains(written, []byte("orca post && true 2>&1 >/dev/null")) {
+		t.Errorf("other commands not kept as written: %s %v", written, err)
+	}
+	if info, err := os.Stat(fake.globalHooks()); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("permissions changed: %v %v", info, err)
+	}
+	if _, err := os.Stat(fake.projectHooks()); !os.IsNotExist(err) {
+		t.Fatalf("project file holding only the ktx hook remains: %v", err)
+	}
+
+	// A second run finds nothing left to remove.
+	code, stdout, _ = runCodexInit(t, FormatText)
+	if code != ExitOK || strings.Contains(stdout, "removed the earlier ktx hook") {
+		t.Fatalf("re-run = %d %q", code, stdout)
+	}
+}
+
+func TestInitCodexTextReportsRemovedHooks(t *testing.T) {
+	fake := setupFakeCodex(t, codexGitMarketplace, codexKtxInstalled, true)
+	writeHooksFile(t, fake.globalHooks(), legacyGlobalHooks)
+
+	code, stdout, _ := runCodexInit(t, FormatText)
+	if code != ExitOK || !strings.Contains(stdout, "removed the earlier ktx hook from "+fake.globalHooks()+" (2 entries)") {
+		t.Fatalf("install = %d %q", code, stdout)
+	}
+}
+
+func TestInitCodexMalformedHooksFileStopsBeforeChanges(t *testing.T) {
+	fake := setupFakeCodex(t, codexNoMarketplaces, codexNoPlugins, true)
+	writeHooksFile(t, fake.globalHooks(), `{"hooks":false}`)
+
+	code, stdout, stderr := runCodexInit(t, FormatJSON)
+	if code != ExitInternal || stdout != "" || !strings.Contains(stderr, "hooks must be an object") {
+		t.Fatalf("install = %d %q %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(fake.dir, "calls")); !os.IsNotExist(err) {
+		t.Fatalf("install ran codex before inspecting hooks files: %v", fake.calls(t))
+	}
+	if got, err := os.ReadFile(fake.globalHooks()); err != nil || string(got) != `{"hooks":false}` {
+		t.Fatalf("malformed file changed: %s %v", got, err)
+	}
+}
+
+func TestInitCodexFailedHookRemovalSaysWhatToRemove(t *testing.T) {
+	fake := setupFakeCodex(t, codexNoMarketplaces, codexNoPlugins, true)
+	real := filepath.Join(fake.home, "real-hooks.json")
+	writeHooksFile(t, real, legacyProjectHooks)
+	if err := os.MkdirAll(filepath.Dir(fake.globalHooks()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Removal refuses a symlinked hooks file, after the plugin is installed.
+	if err := os.Symlink(real, fake.globalHooks()); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := runCodexInit(t, FormatJSON)
+	if code != ExitInternal || stdout != "" || !strings.Contains(stderr, "ktx@ktx is installed") ||
+		!strings.Contains(stderr, fake.globalHooks()) || !strings.Contains(stderr, "does not run twice") {
+		t.Fatalf("install = %d %q %q", code, stdout, stderr)
+	}
+	if got, err := os.ReadFile(real); err != nil || string(got) != legacyProjectHooks {
+		t.Fatalf("symlink target changed: %s %v", got, err)
+	}
+}
+
+func TestInitCodexWithoutCodexPrintsTheCommands(t *testing.T) {
+	fake := setupFakeCodex(t, codexNoMarketplaces, codexNoPlugins, false)
+	t.Setenv("PATH", t.TempDir())
+
+	code, stdout, stderr := runCodexInit(t, FormatJSON)
+	if code != ExitOK {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr)
+	}
+	report := decodeJSONObject(t, stdout)
+	steps := []any{"codex plugin marketplace add jgabor/ktx", "codex plugin add ktx@ktx"}
+	if report["installed"] != false || !reflect.DeepEqual(report["next_steps"], steps) || !strings.Contains(report["note"].(string), "/hooks") {
+		t.Fatalf("report = %v", report)
+	}
+	code, stdout, _ = runCodexInit(t, FormatText)
+	if code != ExitOK || !strings.Contains(stdout, "  codex plugin marketplace add jgabor/ktx\n  codex plugin add ktx@ktx\n") {
+		t.Fatalf("text = %d %q", code, stdout)
+	}
+	for _, args := range [][]string{{"--show"}, {"--uninstall"}} {
+		if code, _, stderr := runCodexInit(t, FormatJSON, args...); code != ExitNotFound || !strings.Contains(stderr, "codex not found") {
+			t.Fatalf("%v = %d %q", args, code, stderr)
+		}
+	}
+
+	// The earlier merged hook is removed too, so the plugin hook is the only
+	// ktx hook once the printed commands run.
+	writeHooksFile(t, fake.projectHooks(), legacyProjectHooks)
+	code, stdout, _ = runCodexInit(t, FormatText)
+	if code != ExitOK || !strings.Contains(stdout, "removed the earlier ktx hook from "+fake.projectHooks()+" (1 entry)") {
+		t.Fatalf("text = %d %q", code, stdout)
+	}
+}
+
+func TestInitCodexFailingCodexIsAnInternalError(t *testing.T) {
+	fake := setupFakeCodex(t, `{"marketplaces":[]}`, `{"installed":[]}`, true)
+	fake.write(t, "fail", "")
+
+	code, stdout, stderr := runCodexInit(t, FormatJSON)
+	if code != ExitInternal || stdout != "" || !strings.Contains(stderr, "network unreachable") ||
+		!strings.Contains(stderr, "plugin marketplace add jgabor/ktx") {
+		t.Fatalf("install = %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestInitCodexShow(t *testing.T) {
+	t.Run("installed", func(t *testing.T) {
+		fake := setupFakeCodex(t, codexGitMarketplace, codexKtxInstalled, true)
+		code, stdout, _ := runCodexInit(t, FormatJSON, "--show")
+		report := decodeJSONObject(t, stdout)
+		if code != ExitOK || report["installed"] != true || report["enabled"] != true || report["ktx_version"] == "" ||
+			report["ktx_on_path"] != filepath.Join(fake.bin, "ktx") || report["runtime_activation"] != "not_verified" {
+			t.Fatalf("show = %d %v", code, report)
+		}
+		code, stdout, _ = runCodexInit(t, FormatText, "--show")
+		for _, want := range []string{"ktx Codex plugin: ktx@ktx", "enabled: true", "marketplace: ktx (git https://github.com/jgabor/ktx.git)", "ktx on PATH: " + filepath.Join(fake.bin, "ktx")} {
+			if code != ExitOK || !strings.Contains(stdout, want) {
+				t.Errorf("text show = %d, lacks %q:\n%s", code, want, stdout)
+			}
+		}
+		if got := fake.calls(t); len(got) != 0 {
+			t.Fatalf("--show changed Codex: %v", got)
 		}
 	})
 
-	t.Run("uninstall when hooks.json does not exist exits 2", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--uninstall"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitNotFound {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitNotFound, stderr.String())
+	t.Run("reports an earlier hook left behind", func(t *testing.T) {
+		fake := setupFakeCodex(t, codexGitMarketplace, codexKtxInstalled, true)
+		writeHooksFile(t, fake.globalHooks(), legacyGlobalHooks)
+		code, stdout, _ := runCodexInit(t, FormatText, "--show")
+		if code != ExitOK || !strings.Contains(stdout, "earlier ktx hook: "+fake.globalHooks()+" (2 entries)") {
+			t.Fatalf("show = %d %q", code, stdout)
+		}
+		if got, err := os.ReadFile(fake.globalHooks()); err != nil || string(got) != legacyGlobalHooks {
+			t.Fatalf("--show changed the hooks file: %v", err)
 		}
 	})
 
-	t.Run("uninstall removes file when no other hooks remain", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-
-		// Install: creates hooks.json with just the ktx PostToolUse
-		// entry. Uninstall should then delete the file entirely
-		// since no other hooks remain to preserve.
-		var stdout, stderr bytes.Buffer
-		if code := runInitWith([]string{"codex"}, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitOK {
-			t.Fatalf("install failed: code=%d (stderr=%q)", code, stderr.String())
-		}
-		hooksPath := filepath.Join(home, ".codex", "hooks.json")
-		if _, err := os.Stat(hooksPath); err != nil {
-			t.Fatalf("pre-state: hooks.json missing: %v", err)
-		}
-
-		var ustdout, ustderr bytes.Buffer
-		code := runInitWith([]string{"codex", "--uninstall"}, Options{Format: FormatJSON}, &ustdout, &ustderr)
-		if code != ExitOK {
-			t.Fatalf("uninstall exit = %d, want %d (stderr=%q)", code, ExitOK, ustderr.String())
-		}
-		if _, err := os.Stat(hooksPath); !os.IsNotExist(err) {
-			t.Errorf("hooks.json should be removed when empty, still present: %v", err)
+	t.Run("not installed exits 2", func(t *testing.T) {
+		fake := setupFakeCodex(t, codexGitMarketplace, codexNoPlugins, true)
+		writeHooksFile(t, fake.projectHooks(), legacyProjectHooks)
+		code, stdout, stderr := runCodexInit(t, FormatJSON, "--show")
+		if code != ExitNotFound || stdout != "" || !strings.Contains(stderr, "not installed") || !strings.Contains(stderr, "still merged into "+fake.projectHooks()) {
+			t.Fatalf("show = %d %q %q", code, stdout, stderr)
 		}
 	})
 }
 
-// TestRunInitWith_CodexRuntimeErrors covers the runtime-validation
-// error paths so unknown/missing-runtime surface as usage errors with
-// codex listed as a supported option.
-func TestRunInitWith_CodexRuntimeErrors(t *testing.T) {
-	t.Run("unknown runtime exits 1 with codex in supported list", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
+func TestInitCodexUninstall(t *testing.T) {
+	cases := []struct {
+		name         string
+		marketplaces string
+		plugins      string
+		want         []string
+	}{
+		{"plugin and marketplace", codexGitMarketplace, codexKtxInstalled, []string{"plugin remove ktx@ktx", "plugin marketplace remove ktx"}},
+		{"marketplace only", codexGitMarketplace, codexNoPlugins, []string{"plugin marketplace remove ktx"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := setupFakeCodex(t, c.marketplaces, c.plugins, true)
+			code, stdout, stderr := runCodexInit(t, FormatJSON, "--uninstall")
+			if code != ExitOK || decodeJSONObject(t, stdout)["uninstalled"] != true {
+				t.Fatalf("uninstall = %d %q %q", code, stdout, stderr)
+			}
+			if got := fake.calls(t); !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("calls = %v, want %v", got, c.want)
+			}
+		})
+	}
 
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"unknown-runtime"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitUsage {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitUsage, stderr.String())
+	t.Run("earlier hook only", func(t *testing.T) {
+		fake := setupFakeCodex(t, codexNoMarketplaces, codexNoPlugins, true)
+		writeHooksFile(t, fake.globalHooks(), legacyGlobalHooks)
+		code, stdout, stderr := runCodexInit(t, FormatText, "--uninstall")
+		if code != ExitOK || !strings.Contains(stdout, "removed the earlier ktx hook from "+fake.globalHooks()) {
+			t.Fatalf("uninstall = %d %q %q", code, stdout, stderr)
 		}
-		if !strings.Contains(stderr.String(), "codex") {
-			t.Errorf("supported list missing codex: %q", stderr.String())
+		if got := fake.calls(t); len(got) != 0 {
+			t.Fatalf("calls = %v", got)
 		}
 	})
 
-	t.Run("missing runtime name exits 1 with codex in usage", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"--show"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitUsage {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitUsage, stderr.String())
+	t.Run("nothing installed exits 2", func(t *testing.T) {
+		fake := setupFakeCodex(t, codexNoMarketplaces, codexNoPlugins, true)
+		if code, _, stderr := runCodexInit(t, FormatText, "--uninstall"); code != ExitNotFound || !strings.Contains(stderr, "neither") {
+			t.Fatalf("uninstall = %d %q", code, stderr)
 		}
-		if !strings.Contains(stderr.String(), "codex") {
-			t.Errorf("usage missing codex: %q", stderr.String())
+		if got := fake.calls(t); len(got) != 0 {
+			t.Fatalf("calls = %v", got)
 		}
 	})
+}
 
-	t.Run("--help mentions codex as a supported runtime", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
+func TestInitCodexRejectsProject(t *testing.T) {
+	fake := setupFakeCodex(t, codexNoMarketplaces, codexNoPlugins, true)
+	writeHooksFile(t, fake.projectHooks(), legacyProjectHooks)
+	for _, args := range [][]string{{"--project"}, {"--project", "--show"}, {"--project", "--uninstall"}} {
+		code, stdout, stderr := runCodexInit(t, FormatJSON, args...)
+		if code != ExitUsage || stdout != "" || !strings.Contains(stderr, "--project") {
+			t.Fatalf("%v = %d %q %q", args, code, stdout, stderr)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(fake.dir, "calls")); !os.IsNotExist(err) {
+		t.Fatalf("rejected --project still ran codex: %v", err)
+	}
+	if got, err := os.ReadFile(fake.projectHooks()); err != nil || string(got) != legacyProjectHooks {
+		t.Fatalf("rejected --project changed the hooks file: %v", err)
+	}
+}
 
-		var stdout, stderr bytes.Buffer
-		code := runInitWith([]string{"--help"}, Options{Format: FormatJSON}, &stdout, &stderr)
-		if code != ExitOK {
-			t.Fatalf("exit code = %d, want %d (stderr=%q)", code, ExitOK, stderr.String())
+func TestInitHelpListsCodex(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := runInitWith([]string{"--help"}, Options{Format: FormatText}, &stdout, &stderr); code != ExitOK {
+		t.Fatalf("help exit = %d", code)
+	}
+	for _, want := range []string{"ktx init codex --show", "codex plugin add ktx@ktx", "/hooks", "ktx:stats"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("help lacks %q", want)
 		}
-		if !strings.Contains(stdout.String(), "codex") {
-			t.Errorf("help missing codex: %q", stdout.String())
-		}
-		if !strings.Contains(stdout.String(), "/hooks") {
-			t.Errorf("help missing /hooks trust note: %q", stdout.String())
-		}
-	})
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := runInitWith(nil, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitUsage || !strings.Contains(stderr.String(), "codex") {
+		t.Fatalf("missing runtime = %d %q", code, stderr.String())
+	}
 }

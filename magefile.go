@@ -3,6 +3,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bufio"
 	"context"
 	"crypto/rand"
@@ -19,6 +20,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/jgabor/ktx/internal/opencodeplugin"
 )
 
 var Default = Check
@@ -85,14 +88,39 @@ func Build() error {
 	return run("go", "build", "-buildvcs=false", "-trimpath", "-ldflags", ldflags(), "-o", binaryPath(), "./cmd/ktx")
 }
 
-// Install builds ktx, installs it with go install, refreshes enabled OpenCode
-// and Codex adapters with it, and points the ktx Claude Code marketplace at
-// this checkout with ktx@ktx installed. InstallRelease undoes the pairing.
+// Install builds ktx and installs it with go install. When OpenCode is set up
+// for ktx, it builds the OpenCode package first and points OpenCode at this
+// checkout's package folder. When Codex is set up for ktx, it points the ktx
+// Codex marketplace at this checkout. It points the ktx Claude Code
+// marketplace at this checkout with ktx@ktx installed. InstallRelease undoes
+// the pairing.
 func Install() error {
 	if err := Build(); err != nil {
 		return err
 	}
-	scopes, err := discoverInstalledAdapters(binaryPath(), installExec)
+	checkout, err := filepath.Abs(".")
+	if err != nil {
+		return err
+	}
+	opencodePackage := filepath.Join(checkout, opencodePackageDir)
+	scopes, err := opencodeplugin.Scopes()
+	if err != nil {
+		return err
+	}
+	opencode, err := readOpencodeSetup(lookPath("opencode"), scopes, opencodePackage, os.Stdout)
+	if err != nil {
+		return err
+	}
+	if opencode != nil {
+		if err := OpencodePackage(); err != nil {
+			return err
+		}
+	}
+	hookFiles, err := codexLegacyHookFiles()
+	if err != nil {
+		return err
+	}
+	codex, err := readCodexSetup(lookPath("codex"), hookFiles, installExec, os.Stdout)
 	if err != nil {
 		return err
 	}
@@ -103,36 +131,109 @@ func Install() error {
 	if _, stderr, err := installExec("go", "install", "-buildvcs=false", "-trimpath", "-ldflags", ldflags(), "./cmd/ktx"); err != nil {
 		return fmt.Errorf("install development binary: %w: %s", err, strings.TrimSpace(stderr))
 	}
-	if err := refreshInstalledAdapters(installedBinary, scopes, installExec, os.Stdout); err != nil {
-		return err
+	fmt.Printf("ktx installed at %s\n", installedBinary)
+	if opencode != nil {
+		if err := useOpencodePlugin(*opencode, opencodePackage, installExec, os.Stdout); err != nil {
+			return err
+		}
 	}
-	checkout, err := filepath.Abs(".")
-	if err != nil {
-		return err
+	if codex != nil {
+		if err := useCodexMarketplace(*codex, installedBinary, checkout, func(m codexMarketplace) bool {
+			return m.Source.SourceType == "local" && filepath.Clean(m.Source.Source) == checkout
+		}, installExec, os.Stdout); err != nil {
+			return err
+		}
 	}
 	return installClaudePlugin(checkout, func(m claudeMarketplace) bool {
 		return m.Source == "directory" && filepath.Clean(m.Path) == checkout
 	})
 }
 
-// InstallRelease installs the latest ktx release with go install, refreshes
-// enabled OpenCode and Codex adapters with it, and points the ktx Claude Code
-// marketplace at jgabor/ktx on GitHub with ktx@ktx installed. It undoes the
-// development pairing that Install makes.
+// InstallRelease installs the latest ktx release with go install. When
+// OpenCode is set up for ktx, it points OpenCode at the npm package pinned to
+// that release. When Codex is set up for ktx, it points the ktx Codex
+// marketplace at jgabor/ktx on GitHub. It points the ktx Claude Code
+// marketplace there with ktx@ktx installed. It undoes the development pairing
+// that Install makes. When OpenCode or Codex is set up and the latest release
+// has no plugin for it, it stops before installing anything.
 func InstallRelease() error {
-	installedBinary, err := goInstalledBinary(installExec)
+	hookFiles, err := codexLegacyHookFiles()
 	if err != nil {
 		return err
 	}
-	if _, stderr, err := installExec("go", "install", releaseModule+"/cmd/ktx@latest"); err != nil {
+	scopes, err := opencodeplugin.Scopes()
+	if err != nil {
+		return err
+	}
+	checkout, err := filepath.Abs(".")
+	if err != nil {
+		return err
+	}
+	return installRelease(installExec, releaseRuntimes{
+		codex: lookPath("codex"), codexHookFiles: hookFiles,
+		opencode: lookPath("opencode"), opencodeScopes: scopes, opencodePackage: filepath.Join(checkout, opencodePackageDir),
+	}, os.Stdout)
+}
+
+// releaseRuntimes is where installRelease finds the runtime CLIs and the
+// files that tell whether each runtime is set up for ktx.
+type releaseRuntimes struct {
+	codex           string
+	codexHookFiles  []string
+	opencode        string
+	opencodeScopes  []opencodeplugin.Scope
+	opencodePackage string
+}
+
+func installRelease(runner installRunner, runtimes releaseRuntimes, stdout io.Writer) error {
+	codex, err := readCodexSetup(runtimes.codex, runtimes.codexHookFiles, runner, stdout)
+	if err != nil {
+		return err
+	}
+	opencode, err := readOpencodeSetup(runtimes.opencode, runtimes.opencodeScopes, runtimes.opencodePackage, stdout)
+	if err != nil {
+		return err
+	}
+	version, opencodeSpec := "latest", ""
+	if codex != nil || opencode != nil {
+		release, err := latestRelease(runner)
+		if err != nil {
+			return err
+		}
+		if codex != nil {
+			if err := requireReleasePlugin(release, "Codex", ".agents/plugins/marketplace.json", "plugins/codex/.codex-plugin/plugin.json"); err != nil {
+				return err
+			}
+		}
+		if opencode != nil {
+			if err := requireReleasePlugin(release, "OpenCode", "plugins/opencode/package.json"); err != nil {
+				return err
+			}
+			if opencodeSpec, err = requireOpencodePackageOnNPM(runner, release.Version); err != nil {
+				return err
+			}
+		}
+		version = release.Version
+	}
+	installedBinary, err := goInstalledBinary(runner)
+	if err != nil {
+		return err
+	}
+	if _, stderr, err := runner("go", "install", releaseModule+"/cmd/ktx@"+version); err != nil {
 		return fmt.Errorf("install released binary: %w: %s", err, strings.TrimSpace(stderr))
 	}
-	scopes, err := discoverInstalledAdapters(installedBinary, installExec)
-	if err != nil {
-		return err
+	fmt.Fprintf(stdout, "ktx %s installed at %s\n", version, installedBinary)
+	if opencode != nil {
+		if err := useOpencodePlugin(*opencode, opencodeSpec, runner, stdout); err != nil {
+			return err
+		}
 	}
-	if err := refreshInstalledAdapters(installedBinary, scopes, installExec, os.Stdout); err != nil {
-		return err
+	if codex != nil {
+		if err := useCodexMarketplace(*codex, installedBinary, codexReleaseSource, func(m codexMarketplace) bool {
+			return m.Source.SourceType == "git" && m.Source.Source == codexReleaseURL
+		}, runner, stdout); err != nil {
+			return err
+		}
 	}
 	return installClaudePlugin(claudeReleaseSource, func(m claudeMarketplace) bool {
 		return m.Source == "github" && m.Repo == claudeReleaseSource
@@ -144,6 +245,11 @@ const (
 	claudeReleaseSource = "jgabor/ktx"
 	claudeMarketplaceID = "ktx"
 	claudePluginID      = "ktx@ktx"
+	codexReleaseSource  = "jgabor/ktx"
+	codexReleaseURL     = "https://github.com/jgabor/ktx.git"
+	codexMarketplaceID  = "ktx"
+	codexPluginID       = "ktx@ktx"
+	codexHookStatus     = "ktx: recording tool call"
 )
 
 // claudeMarketplace is one entry of `claude plugin marketplace list --json`.
@@ -251,50 +357,266 @@ func useClaudeMarketplace(claude, source string, matches func(claudeMarketplace)
 	return nil
 }
 
-type adapterScopes struct {
-	opencodeGlobal, opencodeProject bool
-	codexGlobal, codexProject       bool
+// codexMarketplace is one entry of `codex plugin marketplace list --json`.
+type codexMarketplace struct {
+	Name   string `json:"name"`
+	Source struct {
+		SourceType string `json:"sourceType"`
+		Source     string `json:"source"`
+	} `json:"marketplaceSource"`
 }
 
-type installRunner func(string, ...string) (string, string, error)
+// codexSetup is what Codex has of ktx: the ktx marketplace, whether ktx@ktx
+// is installed, and the hooks files an earlier ktx merged a hook into.
+type codexSetup struct {
+	codex       string
+	marketplace *codexMarketplace
+	installed   bool
+	legacy      []string
+}
 
-func discoverInstalledAdapters(binary string, runner installRunner) (adapterScopes, error) {
-	var scopes adapterScopes
-	for _, runtimeName := range []string{"opencode", "codex"} {
-		stdout, stderr, err := runner(binary, "--format", "json", "init", runtimeName, "--show")
+// lookPath returns the named program on PATH, or "" when there is none.
+func lookPath(name string) string {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
+// codexLegacyHookFiles are the hooks files earlier ktx versions merged their
+// Codex hook into: the global one and this checkout's.
+func codexLegacyHookFiles() ([]string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	checkout, err := filepath.Abs(".")
+	if err != nil {
+		return nil, err
+	}
+	return []string{filepath.Join(home, ".codex", "hooks.json"), filepath.Join(checkout, ".codex", "hooks.json")}, nil
+}
+
+// readCodexSetup reads what Codex has of ktx. It returns nil, after a note,
+// when codex is not on PATH or Codex has neither the ktx marketplace, nor
+// ktx@ktx, nor an earlier merged ktx hook: the targets switch Codex only where
+// ktx is already set up. It changes nothing.
+func readCodexSetup(codex string, hookFiles []string, runner installRunner, stdout io.Writer) (*codexSetup, error) {
+	if codex == "" {
+		fmt.Fprintln(stdout, "codex not found on PATH; skipping the Codex plugin")
+		return nil, nil
+	}
+	setup := codexSetup{codex: codex}
+	read := func(target any, args ...string) error {
+		out, stderr, err := runner(codex, args...)
 		if err != nil {
-			var exitErr interface{ ExitCode() int }
-			if errors.As(err, &exitErr) && exitErr.ExitCode() == 2 {
-				continue
-			}
-			return scopes, fmt.Errorf("inspect existing %s adapters before install: %w: %s", runtimeName, err, strings.TrimSpace(stderr))
+			return fmt.Errorf("read Codex plugins: codex %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr))
 		}
-		var report struct {
-			Installed          bool              `json:"installed"`
-			Path               string            `json:"path"`
-			Also               []string          `json:"also"`
-			CandidateLocations map[string]string `json:"candidate_locations"`
-			Scopes             []string          `json:"scopes"`
+		if err := json.Unmarshal([]byte(out), target); err != nil {
+			return fmt.Errorf("read Codex plugins: parse codex %s: %w", strings.Join(args, " "), err)
 		}
-		if err := json.Unmarshal([]byte(stdout), &report); err != nil {
-			return scopes, fmt.Errorf("inspect existing %s adapters before install: decode status: %w", runtimeName, err)
+		return nil
+	}
+	var marketplaces struct {
+		Marketplaces []codexMarketplace `json:"marketplaces"`
+	}
+	if err := read(&marketplaces, "plugin", "marketplace", "list", "--json"); err != nil {
+		return nil, err
+	}
+	for index := range marketplaces.Marketplaces {
+		if marketplaces.Marketplaces[index].Name == codexMarketplaceID {
+			setup.marketplace = &marketplaces.Marketplaces[index]
 		}
-		switch runtimeName {
-		case "opencode":
-			paths := append([]string{report.Path}, report.Also...)
-			for _, path := range paths {
-				scopes.opencodeGlobal = scopes.opencodeGlobal || path == report.CandidateLocations["global"]
-				scopes.opencodeProject = scopes.opencodeProject || path == report.CandidateLocations["project"]
-			}
-		default:
-			for _, scope := range report.Scopes {
-				scopes.codexGlobal = scopes.codexGlobal || scope == "global"
-				scopes.codexProject = scopes.codexProject || scope == "project"
+	}
+	var plugins struct {
+		Installed []struct {
+			PluginID string `json:"pluginId"`
+		} `json:"installed"`
+	}
+	if err := read(&plugins, "plugin", "list", "--json"); err != nil {
+		return nil, err
+	}
+	for _, plugin := range plugins.Installed {
+		setup.installed = setup.installed || plugin.PluginID == codexPluginID
+	}
+	for _, path := range hookFiles {
+		merged, err := hasMergedKtxHook(path)
+		if err != nil {
+			return nil, err
+		}
+		if merged {
+			setup.legacy = append(setup.legacy, path)
+		}
+	}
+	if setup.marketplace == nil && !setup.installed && len(setup.legacy) == 0 {
+		fmt.Fprintln(stdout, "Codex: ktx is not set up; skipping the Codex plugin (run `ktx init codex` to install it)")
+		return nil, nil
+	}
+	return &setup, nil
+}
+
+// hasMergedKtxHook reports whether a hooks file holds a PostToolUse hook that
+// looks like one an earlier ktx merged in. The check is loose on purpose: it
+// only decides whether Codex is set up for ktx, and `ktx init codex` removes
+// exactly the hooks ktx generated.
+func hasMergedKtxHook(path string) (bool, error) {
+	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read Codex hooks %s: %w", path, err)
+	}
+	var doc struct {
+		Hooks struct {
+			PostToolUse []struct {
+				Hooks []struct {
+					Command       string `json:"command"`
+					StatusMessage string `json:"statusMessage"`
+				} `json:"hooks"`
+			} `json:"PostToolUse"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return false, fmt.Errorf("read Codex hooks %s: %w", path, err)
+	}
+	for _, entry := range doc.Hooks.PostToolUse {
+		for _, hook := range entry.Hooks {
+			if hook.StatusMessage == codexHookStatus || hook.Command == "ktx hook" {
+				return true, nil
 			}
 		}
 	}
-	return scopes, nil
+	return false, nil
 }
+
+// ktxRelease is the latest ktx release as the Go module proxy reports it:
+// its version and the module zip that `go install` builds from.
+type ktxRelease struct {
+	Version string
+	Zip     string
+}
+
+// latestRelease resolves the latest ktx release through the Go module proxy,
+// so the release the plugin checks inspect is the one installed. It runs
+// outside this module, so go.mod and go.sum stay as they are.
+func latestRelease(runner installRunner) (ktxRelease, error) {
+	out, stderr, err := runner("go", "-C", os.TempDir(), "mod", "download", "-json", releaseModule+"@latest")
+	var module struct {
+		ktxRelease
+		Error string
+	}
+	jsonErr := json.Unmarshal([]byte(out), &module)
+	if err != nil || jsonErr != nil || module.Error != "" {
+		detail := module.Error
+		if detail == "" {
+			detail = strings.TrimSpace(stderr)
+		}
+		if detail == "" {
+			detail = errors.Join(err, jsonErr).Error()
+		}
+		return ktxRelease{}, fmt.Errorf("resolve the latest ktx release: %s; nothing was installed", detail)
+	}
+	return module.ktxRelease, nil
+}
+
+// requireReleasePlugin checks that the release's module zip holds a
+// runtime's plugin files.
+func requireReleasePlugin(release ktxRelease, runtimeName string, files ...string) error {
+	missing, err := missingZipFiles(release.Zip, releaseModule+"@"+release.Version+"/", files...)
+	if err != nil {
+		return fmt.Errorf("inspect ktx %s: %w; nothing was installed", release.Version, err)
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("the latest ktx release, %s, has no %s plugin (missing %s), so mage installRelease changed nothing; keep %s on this checkout with `mage install` until a release includes the plugin", release.Version, runtimeName, strings.Join(missing, ", "), runtimeName)
+	}
+	return nil
+}
+
+// missingZipFiles returns the names that the zip archive at path lacks under
+// prefix.
+func missingZipFiles(path, prefix string, names ...string) ([]string, error) {
+	archive, err := zip.OpenReader(path)
+	if err != nil {
+		return nil, err
+	}
+	defer archive.Close()
+	present := map[string]bool{}
+	for _, file := range archive.File {
+		present[file.Name] = true
+	}
+	missing := []string{}
+	for _, name := range names {
+		if !present[prefix+name] {
+			missing = append(missing, name)
+		}
+	}
+	return missing, nil
+}
+
+// useCodexMarketplace points the ktx Codex marketplace at source and installs
+// ktx@ktx again, which refreshes Codex's copy in place. matches reports
+// whether the existing ktx marketplace already reads from source; one that
+// doesn't is removed, after its plugin. A Git marketplace that already matches
+// is upgraded first. When an earlier ktx merged a hook into a hooks file,
+// binary's `ktx init codex` then removes it, after the switch, so it never
+// adds a marketplace of its own.
+func useCodexMarketplace(setup codexSetup, binary, source string, matches func(codexMarketplace) bool, runner installRunner, stdout io.Writer) error {
+	call := func(args ...string) error {
+		_, stderr, err := runner(setup.codex, args...)
+		if err != nil {
+			detail := fmt.Sprintf("codex %s: %v", strings.Join(args, " "), err)
+			if text := strings.TrimSpace(stderr); text != "" {
+				detail += ": " + text
+			}
+			return errors.New(detail)
+		}
+		return nil
+	}
+	recovery := func(err error) error {
+		return fmt.Errorf("point the ktx Codex marketplace at %s: %w\n  Recovery: run `%s`, `%s`, then `%s`", source, err,
+			recoveryCommand("codex", "plugin", "marketplace", "remove", codexMarketplaceID),
+			recoveryCommand("codex", "plugin", "marketplace", "add", source),
+			recoveryCommand("codex", "plugin", "add", codexPluginID))
+	}
+
+	current := setup.marketplace
+	if current != nil && !matches(*current) {
+		if setup.installed {
+			if err := call("plugin", "remove", codexPluginID); err != nil {
+				return recovery(err)
+			}
+		}
+		if err := call("plugin", "marketplace", "remove", codexMarketplaceID); err != nil {
+			return recovery(err)
+		}
+		current = nil
+	}
+	if current == nil {
+		if err := call("plugin", "marketplace", "add", source); err != nil {
+			return recovery(err)
+		}
+	} else if current.Source.SourceType == "git" {
+		if err := call("plugin", "marketplace", "upgrade", codexMarketplaceID); err != nil {
+			return recovery(err)
+		}
+	}
+	if err := call("plugin", "add", codexPluginID); err != nil {
+		return recovery(err)
+	}
+	if len(setup.legacy) > 0 {
+		out, stderr, err := runner(binary, "--format", "text", "init", "codex")
+		if err != nil {
+			return fmt.Errorf("remove the earlier ktx hook from %s: %w: %s\n  Recovery: run `%s`", strings.Join(setup.legacy, " and "), err, strings.TrimSpace(stderr), recoveryCommand(binary, "init", "codex"))
+		}
+		fmt.Fprint(stdout, out)
+	}
+	fmt.Fprintf(stdout, "Codex: %s refreshed from %s; start a new Codex session, and trust the ktx hook in /hooks if it is new or changed\n", codexPluginID, source)
+	return nil
+}
+
+type installRunner func(string, ...string) (string, string, error)
 
 func goInstalledBinary(runner installRunner) (string, error) {
 	gobin, _, err := runner("go", "env", "GOBIN")
@@ -314,59 +636,6 @@ func goInstalledBinary(runner installRunner) (string, error) {
 		name += ".exe"
 	}
 	return filepath.Join(directory, name), nil
-}
-
-func refreshInstalledAdapters(binary string, scopes adapterScopes, runner installRunner, stdout io.Writer) error {
-	type refresh struct {
-		runtime string
-		project bool
-	}
-	refreshes := []refresh{}
-	failures := []string{}
-	for _, item := range []struct {
-		enabled bool
-		value   refresh
-	}{
-		{scopes.opencodeGlobal, refresh{"opencode", false}}, {scopes.opencodeProject, refresh{"opencode", true}},
-		{scopes.codexGlobal, refresh{"codex", false}}, {scopes.codexProject, refresh{"codex", true}},
-	} {
-		if item.enabled {
-			refreshes = append(refreshes, item.value)
-		}
-	}
-	for _, item := range refreshes {
-		args := []string{"init", item.runtime}
-		if item.project {
-			args = append(args, "--project")
-		}
-		_, stderr, err := runner(binary, args...)
-		if err != nil {
-			scope := "global"
-			if item.project {
-				scope = "project"
-			}
-			detail := fmt.Sprintf("- %s %s: %v", item.runtime, scope, err)
-			if text := strings.TrimSpace(stderr); text != "" {
-				detail += ": " + text
-			}
-			failures = append(failures, detail+"\n  Recovery: run `"+recoveryCommand(binary, args...)+"`")
-		}
-	}
-	if len(failures) > 0 {
-		return errors.New("refresh enabled adapters:\n" + strings.Join(failures, "\n"))
-	}
-	if len(refreshes) == 0 {
-		fmt.Fprintln(stdout, "ktx installed; no managed adapters were enabled")
-		return nil
-	}
-	fmt.Fprintln(stdout, "ktx installed and enabled adapters refreshed")
-	if scopes.opencodeGlobal || scopes.opencodeProject {
-		fmt.Fprintln(stdout, "Restart OpenCode to load the refreshed plugin.")
-	}
-	if scopes.codexGlobal || scopes.codexProject {
-		fmt.Fprintln(stdout, "Restart Codex, then run /hooks and trust the refreshed ktx hook.")
-	}
-	return nil
 }
 
 func recoveryCommand(name string, args ...string) string {
@@ -693,7 +962,7 @@ func OpencodeTelemetryFixture() error {
 }
 
 func opencodeTelemetryFixture() error {
-	if err := requireJSRuntime("node", "to execute the generated OpenCode plugin fixture"); err != nil {
+	if err := requireJSRuntime("node", "to execute the OpenCode package server fixture"); err != nil {
 		return err
 	}
 	pattern := "^Test(ValidateObservationRequiresRuntimeIdentity|ValidateObservationPreservesMeasurementStates|ContractFixtures|CollectorCorrelatesDeduplicatesAndOrders|CollectorKeepsFirstObservationAuthoritative|HookAndWrapperModelStepsNormalizeWithParity|SessionTelemetryPersistsSeparatelyAndListsMeasurements|SessionTelemetryPersistsUnknownAndMalformedFields|SessionTelemetryDuplicateConcurrentAndAtomicAssociation|SessionTelemetryRuntimeQualifiedIdentityAndFirstEvidence|SessionTelemetryConcurrentConflictHasOneCompleteWinner|SessionTelemetrySchemaV6FreshAndHistorical|SessionTelemetryV4MigrationPreservesAllEvidence|SessionTelemetryV6MigrationRollsBack|TelemetryRecordAndBoundedJSONInspection|TelemetryInspectionOrdersRuntimeNamespacesAndShowsProvenance|TelemetryRecordDistinguishesUnavailableFieldsAndPreservesZeros|TelemetryExplicitStatesPreserveCrossIngressFirstEvidence|TelemetryCommandDatabaseFailuresFailOpenOnlyForRecord|TelemetryRejectsMalformedAndFailsOpenOnPersistenceError|WrapperRetainsModelStepsSeparatelyWithFirstEvidenceAuthority|OpencodeGeneratedAdapterEventAndToolIntegration)$"
@@ -781,6 +1050,7 @@ func check() error {
 		{name: "test", run: test},
 		{name: "schema-readiness-verifier", run: schemaReadinessVerifierTest},
 		{name: "generated-adapter", run: generatedAdapterGate},
+		{name: "opencode-package", run: opencodePackageTest},
 		{name: "vet", run: Vet},
 		{name: "lint", run: Lint},
 	}
@@ -793,12 +1063,124 @@ func check() error {
 	return nil
 }
 
+// opencodePackageDir is the OpenCode package folder: its server and TUI
+// targets, and the folder a checkout install points OpenCode at.
+var opencodePackageDir = filepath.Join("plugins", "opencode")
+
+// OpencodePackage installs the OpenCode package's locked dependencies and
+// builds its TUI target, so plugins/opencode holds both targets ready for a
+// folder install.
+func OpencodePackage() error {
+	if err := requireJSRuntime("bun", "to build the OpenCode package"); err != nil {
+		return err
+	}
+	bun := jsRuntimeExecutable("bun")
+	if err := runIn(opencodePackageDir, bun, "install", "--frozen-lockfile"); err != nil {
+		return fmt.Errorf("install OpenCode package dependencies: %w", err)
+	}
+	if err := runIn(opencodePackageDir, bun, filepath.Join("scripts", "build-tui.mjs")); err != nil {
+		return fmt.Errorf("build OpenCode package TUI target: %w", err)
+	}
+	return opencodePackageReady(opencodePackageDir)
+}
+
+// opencodePackageReady reports whether every target the package exports
+// exists in dir as a non-empty file.
+func opencodePackageReady(dir string) error {
+	targets, problems := opencodePackageTargets(dir)
+	for _, target := range targets {
+		info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(target.file)))
+		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			problems = append(problems, fmt.Errorf("OpenCode package target %s (%s) is missing or empty; run mage opencodePackage", target.export, target.file))
+		}
+	}
+	return errors.Join(problems...)
+}
+
+// opencodePackageTarget is a file the OpenCode package exports.
+type opencodePackageTarget struct {
+	export string
+	// file is the target's path inside the package, without a leading ./.
+	file string
+}
+
+// opencodePackageTargets reads the ./server and ./tui targets from the
+// package manifest in dir. It returns a problem for each target the manifest
+// does not name.
+func opencodePackageTargets(dir string) ([]opencodePackageTarget, []error) {
+	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return nil, []error{fmt.Errorf("read OpenCode package manifest: %w", err)}
+	}
+	var manifest struct {
+		Exports map[string]json.RawMessage `json:"exports"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, []error{fmt.Errorf("decode OpenCode package manifest: %w", err)}
+	}
+	var targets []opencodePackageTarget
+	var problems []error
+	for _, name := range []string{"./server", "./tui"} {
+		raw, ok := manifest.Exports[name]
+		if !ok {
+			problems = append(problems, fmt.Errorf("OpenCode package does not export %s", name))
+			continue
+		}
+		var target string
+		if err := json.Unmarshal(raw, &target); err != nil {
+			var conditions struct {
+				Import string `json:"import"`
+			}
+			if err := json.Unmarshal(raw, &conditions); err != nil || conditions.Import == "" {
+				problems = append(problems, fmt.Errorf("OpenCode package export %s names no file", name))
+				continue
+			}
+			target = conditions.Import
+		}
+		targets = append(targets, opencodePackageTarget{export: name, file: filepath.ToSlash(filepath.Clean(filepath.FromSlash(target)))})
+	}
+	return targets, problems
+}
+
+// opencodePackageTest builds the OpenCode package, then runs its tests with
+// the node and bun executables captured before the disposable HOME took
+// effect: data and server tests on Node, rendering tests on Bun, the runtime
+// OpenCode uses.
+func opencodePackageTest() error {
+	if err := requireJSRuntime("node", "to run the OpenCode package tests"); err != nil {
+		return err
+	}
+	if err := OpencodePackage(); err != nil {
+		return err
+	}
+	if err := opencodePackageContents(opencodePackageDir); err != nil {
+		return err
+	}
+	if err := runIn(opencodePackageDir, jsRuntimeExecutable("node"), "--disable-warning=ExperimentalWarning", "--test",
+		filepath.Join("test", "server.test.ts"), filepath.Join("test", "ktx-stats.test.ts")); err != nil {
+		return err
+	}
+	return runIn(opencodePackageDir, jsRuntimeExecutable("bun"), "test", "--conditions=browser",
+		filepath.Join("test", "mouse-interaction.test.ts"), filepath.Join("test", "sidebar-render.test.tsx"),
+		filepath.Join("test", "plugin-compat.test.tsx"), filepath.Join("test", "built-tui.test.mjs"))
+}
+
+// jsRuntimeExecutable returns the captured executable for a JavaScript
+// runtime, or its name for a PATH lookup.
+func jsRuntimeExecutable(name string) string {
+	if path := os.Getenv(jsRuntimeVariables[name]); path != "" {
+		return path
+	}
+	return name
+}
+
 func schemaReadinessVerifierTest() error {
 	return run("python3", "-m", "unittest", "-v", "tools.test_schema_readiness_evidence")
 }
 
 // GeneratedAdapterGate builds KTX and runs the required generated-adapter
-// readiness check used by the authoritative repository gate.
+// readiness check used by the authoritative repository gate: the OpenCode
+// package's server target, run under Bun against the built binary.
 func GeneratedAdapterGate() error {
 	return hermeticTarget("generatedAdapterGate", func() error {
 		if err := Build(); err != nil {
@@ -1349,6 +1731,16 @@ func strictPathWithin(root, path string) bool {
 
 func run(name string, args ...string) error {
 	command := exec.Command(name, args...)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	command.Stdin = os.Stdin
+	return command.Run()
+}
+
+// runIn is run with dir as the working directory.
+func runIn(dir, name string, args ...string) error {
+	command := exec.Command(name, args...)
+	command.Dir = dir
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	command.Stdin = os.Stdin

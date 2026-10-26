@@ -374,7 +374,7 @@ func (g *optimizeAdmission) admit(ctx context.Context, launch experiment.Attempt
 			}
 			g.result.Live.Freeze["experiments/qualification/"+relative] = hash
 		}
-		// Manifest image ID freezes the container binary, runtime and generated adapter.
+		// Manifest image ID freezes the container binary, runtime and OpenCode plugin.
 		freezeBytes, _ := json.Marshal(map[string]any{"image": m.Image, "runtime": m.Identities, "local_binary_sha256": g.result.Live.LocalBinarySHA256, "configs": map[string]string{"baseline": m.Pipelines[experiment.Baseline].SHA256, "candidate": m.Pipelines[experiment.Candidate].SHA256}, "methodology": m.Methodology, "task_sha256": optimizeHash(mustJSON(m.Task)), "pricing_sha256": m.Pricing.SHA256, "max_attempts": m.MaxAttempts})
 		fmt.Fprintf(g.diagnostics, "ktx optimize: frozen before first model launch: %s\n", freezeBytes)
 		if err := g.verify(); err != nil {

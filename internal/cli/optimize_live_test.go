@@ -33,6 +33,7 @@ type optimizeFakeExecutor struct {
 	beforeLaunch          func()
 	pendingDatabaseTamper string
 	extraCommand          string
+	pluginSHA256          string
 }
 
 func optimizeMount(args []string, target string) string {
@@ -68,7 +69,14 @@ func (f *optimizeFakeExecutor) Run(ctx context.Context, command experiment.Comma
 	}
 	args := command.Args
 	if args[0] == "git" {
-		if args[len(args)-1] == "HEAD" {
+		if args[len(args)-1] == "HEAD" && args[len(args)-2] != "--short" {
+			digest, err := writeFixturePluginSource(args[2])
+			if err != nil {
+				f.t.Fatal(err)
+			}
+			f.pluginSHA256 = digest
+			write(strings.Repeat("a", 40) + "\n")
+		} else if args[len(args)-1] == "HEAD" {
 			write(strings.Repeat("a", 40) + "\n")
 		}
 		return experiment.CommandResult{}, nil
@@ -86,7 +94,7 @@ func (f *optimizeFakeExecutor) Run(ctx context.Context, command experiment.Comma
 		if f.wrongRuntime {
 			identity = "unsupported"
 		}
-		write(fmt.Sprintf(`{"ktx_version":"test","opencode_version":%q,"generated_plugin_sha256":"%s","generated_plugin_matches_binary":true,"event_collector_contract":%q,"explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"retained_duplicate_callbacks":true,"accepted_model_step_projection":true,"callback_queue_continuation":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`+"\n", identity, strings.Repeat("a", 64), benchcontract.ContractVersion))
+		write(fmt.Sprintf(`{"ktx_version":"test","opencode_version":%q,%s,"event_collector_contract":%q,"explicit_session_ownership":true,"serialized_callbacks":true,"complete_interval_lifecycle":true,"epoch_tracking":true,"strict_acknowledgements":true,"exact_model_step_identity":true,"retained_duplicate_callbacks":true,"accepted_model_step_projection":true,"callback_queue_continuation":true,"fail_closed_interval_validation":true,"preflight_before_auth":true,"normalized_kinds":["collector_open","model_step","retry","compaction","interruption","other"]}`+"\n", identity, pluginCapabilities(strings.Repeat("a", 40), f.pluginSHA256), benchcontract.ContractVersion))
 		return experiment.CommandResult{}, nil
 	}
 	if len(args) > 1 && args[1] == "run" {

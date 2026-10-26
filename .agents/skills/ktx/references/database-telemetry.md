@@ -195,7 +195,7 @@ fields.
 
 ## OpenCode Contract
 
-The generated OpenCode plugin currently supports the reviewed OpenCode 1.18.5
+The OpenCode plugin (`@jgabor/ktx`) currently supports the reviewed OpenCode 1.18.5
 event contract. It accepts identifiable `message.part.updated` events whose part
 type is `step-finish` and retains:
 

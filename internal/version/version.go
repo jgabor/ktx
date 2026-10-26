@@ -1,4 +1,5 @@
-// Package version holds the ktx version string.
+// Package version holds the ktx version string and, for builds that stamp
+// it, the source commit.
 //
 // A build installed with `go install github.com/jgabor/ktx/cmd/ktx@vX.Y.Z`
 // reports vX.Y.Z, read from Go build info. A build without a module version,
@@ -16,6 +17,15 @@ const Dev = "dev"
 // Version is the ktx build version. An -ldflags "-X" value is set before init
 // runs and is kept; otherwise init fills it from Go build info.
 var Version = ""
+
+// Commit is the source commit a build was made from, and CommitModified is
+// "true" when that tree had changes. Only builds that stamp them with
+// -ldflags "-X", such as the benchmark image, set them; otherwise both are
+// empty.
+var (
+	Commit         = ""
+	CommitModified = ""
+)
 
 func init() {
 	Version = resolve(Version, debug.ReadBuildInfo)

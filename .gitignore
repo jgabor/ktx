@@ -9,3 +9,7 @@ docs/evidence/schema-readiness/*.attempt.failed.json
 
 # Claude Code writes type declarations into a plugin it loads from a folder.
 plugins/ktx/.claude-plugin/types/
+
+# The OpenCode package's dependencies and its built TUI target.
+plugins/opencode/node_modules/
+plugins/opencode/tui.js

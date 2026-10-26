@@ -7,6 +7,11 @@
 # or dotfiles leak into the container — only auth and a ktx.toml are
 # bind-mounted at run time.
 #
+# The ktx binary and the OpenCode package (plugins/opencode) come from the
+# same build context and commit. The binary carries the commit in its Go
+# build information; the package is registered from a local folder with
+# the network disabled, so nothing is fetched from the npm registry.
+#
 # Build:
 #   docker build -f Dockerfile.benchmark -t ktx-bench .
 #
@@ -32,11 +37,36 @@ ARG NODE_VARIANT=22-bookworm-slim
 ARG OPENCODE_VERSION=1.18.5
 
 FROM golang:${GO_VERSION}-bookworm AS ktx-build
+# The commit of the build context and whether its tree has changes.
+# `ktx bench compare --build` passes both from the checkout, so a git
+# worktree, whose .git points outside the build context, builds too. Without
+# them the build reads the context's own .git.
+ARG KTX_COMMIT=""
+ARG KTX_COMMIT_MODIFIED=""
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -trimpath -ldflags='-s -w' -o /out/ktx ./cmd/ktx
+# Stamp the commit into the binary and write it beside the package, so both
+# name the same commit. Copy only the package manifest and the server target;
+# the TUI target is a built file that a headless benchmark never loads.
+RUN set -eu; \
+  commit="$KTX_COMMIT"; \
+  if [ -z "$commit" ]; then commit="$(git rev-parse HEAD)"; fi; \
+  modified="$KTX_COMMIT_MODIFIED"; \
+  if [ -z "$modified" ]; then \
+    status="$(git status --porcelain)"; \
+    if [ -n "$status" ]; then modified=true; else modified=false; fi; \
+  fi; \
+  case "$commit" in *[!0-9a-f]*) echo "invalid commit: $commit" >&2; exit 1;; esac; \
+  if [ "${#commit}" -ne 40 ]; then echo "invalid commit: $commit" >&2; exit 1; fi; \
+  case "$modified" in true|false) ;; *) echo "invalid KTX_COMMIT_MODIFIED: $modified" >&2; exit 1;; esac; \
+  go build -buildvcs=false -trimpath \
+    -ldflags="-s -w -X github.com/jgabor/ktx/internal/version.Commit=$commit -X github.com/jgabor/ktx/internal/version.CommitModified=$modified" \
+    -o /out/ktx ./cmd/ktx; \
+  mkdir -p /out/opencode-plugin; \
+  cp plugins/opencode/package.json plugins/opencode/server.ts /out/opencode-plugin/; \
+  printf '%s\n' "$commit" > /out/opencode-plugin.commit
 
 FROM node:${NODE_VARIANT}
 ARG OPENCODE_VERSION
@@ -45,15 +75,17 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 RUN npm install -g opencode-ai@${OPENCODE_VERSION}
 COPY --from=ktx-build /out/ktx /usr/local/bin/ktx
+COPY --from=ktx-build /out/opencode-plugin /opt/ktx/opencode-plugin
+COPY --from=ktx-build /out/opencode-plugin.commit /opt/ktx/opencode-plugin.commit
 RUN mkdir -p \
       /home/node/.local/share/opencode \
       /home/node/.local/share/ktx \
       /home/node/.config/ktx \
-      /home/node/.config/opencode/plugins \
+      /home/node/.config/opencode \
   && chown -R node:node /home/node/.local /home/node/.config
-# Install the ktx OpenCode plugin into the container's plugin dir.
+# Register the ktx OpenCode package from its folder in the global config.
 # This is the ONLY plugin — no host plugins leak in.
 USER node
-RUN ktx init opencode
+RUN --network=none opencode plugin --global file:///opt/ktx/opencode-plugin </dev/null
 WORKDIR /work
 ENTRYPOINT ["/usr/local/bin/ktx", "bench", "agent"]

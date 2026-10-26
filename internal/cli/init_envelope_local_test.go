@@ -39,12 +39,10 @@ func TestOpencodeEnvelopeLocalCLI(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(config, "ktx.toml"), []byte("[pipeline.default]\nstages = [\"json-compact\"]\nrecover_footer = false\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			cmd := exec.Command(binary, "init", "opencode")
-			cmd.Dir = root
-			if out, err := cmd.CombinedOutput(); err != nil {
-				t.Fatalf("install: %v: %s", err, out)
+			plugin := filepath.Join(root, "ktx.ts")
+			if err := os.WriteFile(plugin, []byte(testjs.OpenCodeServer(t)), 0o600); err != nil {
+				t.Fatal(err)
 			}
-			plugin := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "opencode", "plugins", "ktx.ts")
 			want := input
 			if input != "" && input != "unchanged" {
 				want = `{"hello":"world"}`
@@ -60,7 +58,7 @@ console.log("delivery verified")
 			if err := os.WriteFile(path, []byte(driver), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			cmd = exec.Command(node, testjs.DisableExperimentalWarning, path)
+			cmd := exec.Command(node, testjs.DisableExperimentalWarning, path)
 			cmd.Dir = root
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &stdout, &stderr

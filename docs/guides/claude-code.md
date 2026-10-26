@@ -156,8 +156,10 @@ Each target removes a `ktx` marketplace that points elsewhere, after
 uninstalling `ktx@ktx`, then adds its own and installs the plugin. With your
 checkout as the marketplace, Claude Code loads `plugins/ktx` in place, so your
 edits apply after `/reload-plugins`. Without `claude` on `PATH`, both targets
-skip the plugin. Both also refresh installed OpenCode and Codex adapters with
-the binary they install.
+skip the plugin. When OpenCode is set up for ktx, `mage install` points it at
+the checkout's `plugins/opencode` folder and `mage installRelease` at
+`@jgabor/ktx` pinned to the installed release. Both switch Codex the same way when it is set up for ktx (see the
+[Codex guide](codex.md#developing-the-plugin)).
 
 ## Troubleshooting
 

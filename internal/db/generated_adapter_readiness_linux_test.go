@@ -50,7 +50,7 @@ type generatedAdapterFixture struct {
 func TestGeneratedOpenCodeAdapterReadinessOverlap(t *testing.T) {
 	binary := builtKTXBinary(t)
 	// Bun is OpenCode's plugin runtime, so this gate keeps executing the
-	// generated adapter under Bun.
+	// OpenCode package's server target under Bun.
 	bun := testjs.Runtime(t, "bun", os.Getenv("KTX_TEST_REQUIRE_GENERATED_ADAPTER") == "1")
 
 	t.Run("query owner hands readiness to generated hook and telemetry", func(t *testing.T) {
@@ -184,15 +184,12 @@ func newGeneratedAdapterFixture(t *testing.T, binary, bun string) generatedAdapt
 		"PATH="+filepath.Dir(binary)+string(os.PathListSeparator)+os.Getenv("PATH"),
 	)
 	project := filepath.Join(root, "project")
-	initCommand := exec.Command(binary, "init", "opencode", "--project")
-	initCommand.Dir = project
-	initCommand.Env = env
-	if output, err := initCommand.CombinedOutput(); err != nil {
-		t.Fatalf("generate OpenCode adapter: %v\n%s", err, output)
-	}
 	plugin := filepath.Join(project, ".opencode", "plugins", "ktx.ts")
-	if _, err := os.Stat(plugin); err != nil {
-		t.Fatalf("generated adapter: %v", err)
+	if err := os.MkdirAll(filepath.Dir(plugin), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plugin, []byte(testjs.OpenCodeServer(t)), 0o600); err != nil {
+		t.Fatalf("write the OpenCode server plugin: %v", err)
 	}
 	binaryBytes, err := os.ReadFile(binary)
 	if err != nil {

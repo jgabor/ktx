@@ -437,7 +437,7 @@ Outcome authority depends on ingress:
 - The OpenCode 1.18.5 wrapper applies this precedence: a terminal error is
   failure; otherwise a supported shell exit decides success or failure;
   otherwise a completed tool result is success; otherwise the outcome is
-  unknown. Error text is retained. The generated OpenCode hook has only the
+  unknown. Error text is retained. The OpenCode plugin's hook has only the
   supported shell-exit signal; absent, malformed, or unsupported exit evidence
   is unknown.
 - A trusted, schema-conforming Codex 0.144.4 `PostToolUse` occurrence is success.
@@ -1665,9 +1665,66 @@ current validation. The supported experiment contracts are:
 
 | Registered spec               | Methodology                      | Manifest | Attempt | Summary |
 | ----------------------------- | -------------------------------- | -------- | ------- | ------- |
-| `exact-match`                 | `v8-exact-match`                 | 1        | 3       | 8       |
-| `prompt-cache-token-hit-rate` | `v6-prompt-cache-token-hit-rate` | 1        | 3       | 5       |
-| `recovery-aware-comparison`   | `v7-recovery-aware-comparison`   | 1        | 3       | 7       |
+| `exact-match`                 | `v8-exact-match`                 | 2        | 3       | 8       |
+| `prompt-cache-token-hit-rate` | `v6-prompt-cache-token-hit-rate` | 2        | 3       | 5       |
+| `recovery-aware-comparison`   | `v7-recovery-aware-comparison`   | 2        | 3       | 7       |
+
+Manifest schema 2 adds the plugin identity described in
+[Benchmark plugin identity](#benchmark-plugin-identity); methodology, attempt
+and summary versions did not change. Manifest schema 1 archives of the same
+methodologies still validate exactly as before and are reported as
+`plugin_identity: historical_generated_plugin`.
+
+### Benchmark plugin identity
+
+The benchmark image (`Dockerfile.benchmark`) builds the ktx binary and copies
+the `@jgabor/ktx` OpenCode package from one build context, so both come from the
+same commit. `ktx bench compare --build` reads the checkout's `git rev-parse
+HEAD` and whether `git status --porcelain` lists changes, and passes both as
+the `KTX_COMMIT` and `KTX_COMMIT_MODIFIED` build arguments. The build stamps
+them into the binary and writes the same commit beside the package, so a git
+worktree, whose `.git` points outside the build context, builds too. A plain
+`docker build` without those arguments reads them from the context's `.git`
+and fails when that is unavailable. The image copies only the package's `package.json` and `server.ts` (the
+`./server` target) to `/opt/ktx/opencode-plugin`, writes the commit beside it,
+and registers the folder with `opencode plugin --global
+file:///opt/ktx/opencode-plugin` while the network is disabled, so the package
+never comes from the npm registry. The TUI target is a built file that a
+headless benchmark never starts; OpenCode's `tui.json` entry for the folder is
+inert. `ktx init opencode` no longer runs in the image, and no generated plugin
+file is written. OpenCode still installs its own plugin runtime dependencies
+into its configuration folder when it starts; that is unchanged.
+
+The package content hash is the SHA-256 of a `sha256sum`-style listing of the
+package files: one line per file, in byte order of the relative path, holding
+the file's lowercase hex SHA-256, two spaces, the path and a newline. For the
+image's files it equals `sha256sum package.json server.ts | sha256sum` run in
+`plugins/opencode`. The image hashes every file in the installed folder, so an
+extra file changes the hash.
+
+`bench agent --capabilities` reports `ktx_commit`, `ktx_commit_modified`,
+`opencode_plugin_package`, `opencode_plugin_commit`, `opencode_plugin_sha256`,
+and `opencode_plugins`, the plugins OpenCode would load from the global server
+and TUI configuration and plugin folders. Preflight first hashes the checkout's
+`plugins/opencode` files and reads its `git rev-parse HEAD`, failing with
+`plugin_source_unavailable` when either is missing. It then rejects an image
+without these fields (`binary_or_plugin_identity_missing`), with any plugin
+besides the one folder (`plugin_not_unique`), or whose package commit differs
+from the binary's commit (`plugin_binary_commit_mismatch`), and names each
+difference from the checkout: `plugin_commit_mismatch` and
+`plugin_hash_mismatch`. A dirty tree is allowed:
+the commit names the base and the content hash pins the package bytes;
+`ktx_commit_modified` and the manifest's `repository.dirty` record the state.
+
+A schema 2 manifest's `opencode_plugin` block records the package, spec,
+commit, modified flag, content hash and the retained file list. The package
+files are copied into `opencode-plugin/` in the archive and must hash to the
+image's value before any attempt runs. Validation requires the commit to equal
+`repository.commit` and recomputes the hash from the retained files.
+
+The earlier check that the image's generated plugin matched the plugin
+embedded in the binary is retired. It remains the plugin attestation of
+manifest schema 1 archives, which are historical evidence.
 
 Compare, rank's pair producer, and inline-task runner use the same retained-source
 contract. Registered input snapshots and execution configuration/image identities
@@ -1761,7 +1818,7 @@ accepts older archives without `runtime_config`. Keep archives private: model
 registration is retained verbatim. This option is limited to `bench compare`,
 not `bench rank`, and cannot be combined with isolated cache configuration;
 use `--cache-control observed` for cache-aware comparisons. It does not replace
-the existing generated collector plugin or relax runtime/model attestation.
+the image's collector plugin or relax runtime/model attestation.
 Before an explicit-config comparison creates an archive or launches attempts,
 auth entries of type `wellknown` are rejected because they load unretained remote
 configuration. API and OAuth auth remain supported; both arms use a checked,
@@ -1773,10 +1830,10 @@ frozen public-source read-description experiment. It requires `--spec exact-matc
 `--baseline passthrough --candidate passthrough`, a corpus-only task without a
 skill, `--model openai/gpt-6-luna --variant high`, `--runtime-config`, pinned
 pricing, `--cache-control observed`, `--target-valid 1 --max-attempts 2`, and no
-warmup. The generated collector plugin applies only the three frozen bullet
+warmup. The collector plugin's server target applies only the three frozen bullet
 deletions to the candidate's `read` description at `tool.definition`; ordinary
 adapter use has no such hook. Both arms retain exact original/candidate bytes,
-source and transform identities, binary/plugin attestations, launch arguments,
+source and transform identities, binary and plugin commit/hash attestations, launch arguments,
 and owned per-invocation hook evidence. Other descriptions and parameter
 identities must agree across the retained attempts. The parameter AST snapshot
 is a hook observation, not serialized validator code or a provider request.
@@ -1855,7 +1912,7 @@ results and limits. These receipts do not replace case-specific scorer checks
 or establish campaign readiness; the [approved conclusion](../reports/normalization/normalization-conclusion.md)
 is no normalizer now, with no adoption justified by the failed live gates.
 
-Generic preflight checks the generated hook's advertised capability, not live
+Generic preflight checks the plugin hook's advertised capability, not live
 model semantics. The real-tool offline gate can be run after `mage build` using
 `KTX_READ_DESCRIPTION_PROBE_IMAGE=<pinned-image-id> go test ./internal/experiment
 -run '^TestReadDescriptionRuntimeBoundary$' -count=1 -v` in a disposable
@@ -1867,7 +1924,7 @@ completions do not qualify live Luna semantics or provider behavior.
 
 Each fresh attempt database starts with exactly one `agent=opencode` owner and
 one open event interval. The container receives that owner, interval, contract,
-and required-collector mode explicitly. The generated plugin opens a random
+and required-collector mode explicitly. The collector plugin opens a random
 collector epoch before exposing callbacks, serializes callback commands, and
 waits for valid acknowledgements. The supervisor alone seals a complete or
 incomplete interval and closes the owner. An open, incomplete, replaced, or

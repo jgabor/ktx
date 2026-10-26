@@ -93,7 +93,7 @@ compressed row per generated timestamp without changing its physical schema.
 The current-schema probe ran `ktx list --format json`. The baseline migration
 probe ran `ktx db --path <copy> migrate` against a fresh disposable copy for
 each sample and verified schema 16 afterward. The release probe instead uses a
-normal `ktx list` readiness operation while a production-generated OpenCode
+normal `ktx list` readiness operation while the OpenCode package's production
 hook and telemetry callback wait on the same schema-15 copy. The existing
 generated-adapter lifecycle helper releases all three participants only after
 it observes their overlap. `strace -ttt -e trace=fcntl,flock` measures each

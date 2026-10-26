@@ -133,7 +133,7 @@ Schema 14 adds future-only `runtime_source_observations`,
 explicit collection and wrapper session to an existing OpenCode source owned by
 the hook, and retain runtime timing plus delivered byte count separately from
 the append-only source row. Cue delivery is acknowledged only after the
-generated adapter assigns a
+OpenCode plugin assigns a
 lossy hook envelope carrying a recovery cue. Recovery attempts link exact
 supported `ktx read <source-id>` shell calls with authoritative outcomes to that
 delivery and retain byte-exactness for successful reads. Repeated attempts stay
@@ -226,7 +226,7 @@ with code `schema-incompatible` before writes. The diagnostic includes:
 Recover by installing a binary that supports schema `Y` or newer. Never lower
 `PRAGMA user_version`.
 
-The generated OpenCode plugin emits the first matching schema-incompatible
+The OpenCode plugin emits the first matching schema-incompatible
 diagnostic in one loaded plugin instance. It suppresses repeated ordinary
 callbacks only while the pinned executable path and a bounded metadata fingerprint
 of the database, WAL, and SHM files remain unchanged. Required benchmark
@@ -267,9 +267,11 @@ and `golangci-lint`, with Node, Bun, and Python 3 on `PATH` (`python3` must
 resolve). Node must be 22.18 or newer, or 23.6 or newer on the 23 line, so it
 runs TypeScript without flags. `mage check` runs the Python schema-readiness
 verifier unit tests as well as the Go suite and required Bun generated-adapter
-gate. The Go suite runs the generated OpenCode plugin tests on Node; the gate
-runs the plugin on Bun, the runtime OpenCode uses. That gate currently
-requires Linux. `mage verify` adds the retained replay fixture and
+gate. The Go suite runs the OpenCode plugin tests on Node against the package's
+server target, `plugins/opencode/server.ts`; the gate runs that file on Bun, the
+runtime OpenCode uses. `mage check` also builds
+the OpenCode package in `plugins/opencode` with Bun (`mage opencodePackage`
+alone) and runs its tests on Node and Bun. That gate currently requires Linux. `mage verify` adds the retained replay fixture and
 `govulncheck`, which must also be on `PATH`.
 CI explicitly installs these prerequisites. The Python unit tests are offline;
 they do not run the production-scale schema release gate.

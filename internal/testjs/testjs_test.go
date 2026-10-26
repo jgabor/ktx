@@ -66,3 +66,21 @@ func TestSupportedNode(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenCodeServerReadsThePackageFromTheModuleRoot(t *testing.T) {
+	fromPackage := OpenCodeServer(t)
+	if !strings.Contains(fromPackage, "tool.execute.after") {
+		t.Fatal("the OpenCode package server target lacks its tool hook")
+	}
+	// A compiled test binary may run from the repository root, or from a
+	// directory outside the repository.
+	for _, directory := range []string{filepath.Join("..", ".."), t.TempDir()} {
+		t.Chdir(directory)
+		if got := OpenCodeServer(t); got != fromPackage {
+			t.Fatalf("the server target read from %s differs", directory)
+		}
+	}
+	if _, err := moduleRoot(t.TempDir()); err == nil {
+		t.Fatal("a directory outside the module found a module root")
+	}
+}

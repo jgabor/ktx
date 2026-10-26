@@ -9,6 +9,7 @@ import (
 
 	dbpkg "github.com/jgabor/ktx/internal/db"
 	"github.com/jgabor/ktx/internal/pipeline"
+	"github.com/jgabor/ktx/internal/testjs"
 )
 
 func TestBuildRecoveryFooter_ContainsSourceID(t *testing.T) {
@@ -696,17 +697,17 @@ recover_footer = true
 	}
 }
 
-// The OpenCode plugin template must set output.output = envelope.output
-// verbatim — the footer propagates through envelope.Output without any
-// plugin-side footer logic. This guards against accidental footer wiring
-// leaking into the template.
+// The OpenCode plugin must set output.output = envelope.output verbatim — the
+// footer propagates through envelope.Output without any plugin-side footer
+// logic. This guards against accidental footer wiring leaking into the plugin.
 func TestPluginTemplate_PropagatesEnvelopeUnchanged(t *testing.T) {
-	if !strings.Contains(ktxOpencodePluginTemplate, "output.output = envelope.output") {
-		t.Errorf("plugin template must set output.output = envelope.output to propagate the footer-bearing envelope verbatim")
+	plugin := testjs.OpenCodeServer(t)
+	if !strings.Contains(plugin, "output.output = envelope.output") {
+		t.Errorf("OpenCode plugin must set output.output = envelope.output to propagate the footer-bearing envelope verbatim")
 	}
 	for _, probe := range []string{"footer", "output compressed:", "get full output with", "buildRecoveryFooter", "recover_footer"} {
-		if strings.Contains(ktxOpencodePluginTemplate, probe) {
-			t.Errorf("plugin template must not contain footer logic (%q found); the footer lives only in envelope.Output", probe)
+		if strings.Contains(plugin, probe) {
+			t.Errorf("OpenCode plugin must not contain footer logic (%q found); the footer lives only in envelope.Output", probe)
 		}
 	}
 }

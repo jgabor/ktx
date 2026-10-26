@@ -146,7 +146,7 @@ func TestPreflightResponseSizeError(t *testing.T) {
 				}
 				return fake.Run(ctx, command)
 			})}
-			report, _, err := runner.preflightPrepared(context.Background(), CompareOptions{DockerBin: "docker", Image: "fake"})
+			report, _, err := runner.preflightPrepared(context.Background(), CompareOptions{RepoRoot: t.TempDir(), DockerBin: "docker", Image: "fake"})
 			if report.Eligible || err == nil || !strings.Contains(err.Error(), "response exceeds 65536-byte maximum") {
 				t.Fatalf("preflight hid response-size failure: report=%+v err=%v", report, err)
 			}

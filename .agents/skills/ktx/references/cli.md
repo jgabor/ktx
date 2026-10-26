@@ -67,10 +67,9 @@ repeat a committed observation; duplicate tool-call IDs remain rejected.
 | Database                | `$XDG_DATA_HOME/ktx/ktx.db`, falling back under `~/.local/share` |
 | Pipeline config         | `$XDG_CONFIG_HOME/ktx/ktx.toml`                                  |
 | Price cache             | `$XDG_DATA_HOME/ktx/prices.json`                                 |
-| OpenCode global plugin  | `$XDG_CONFIG_HOME/opencode/plugins/ktx.ts`                       |
-| OpenCode project plugin | `./.opencode/plugins/ktx.ts`                                     |
-| Codex global hooks      | `~/.codex/hooks.json`                                            |
-| Codex project hooks     | `./.codex/hooks.json`                                            |
+| OpenCode global plugin  | `@jgabor/ktx` in `$XDG_CONFIG_HOME/opencode` plugin config       |
+| OpenCode project plugin | `@jgabor/ktx` in `./.opencode` plugin config                     |
+| Codex plugin            | `ktx@ktx`, managed by Codex (`codex plugin list`)                |
 | Claude Code plugin      | `ktx@ktx`, managed by Claude Code (`claude plugin list`)         |
 
 Database path precedence is:
@@ -129,63 +128,101 @@ ktx init opencode --show
 ktx init opencode --uninstall
 ```
 
-`--project` scopes installation. OpenCode uninstall checks both global and
-project plugin candidates regardless of `--project` and removes generated ktx
-plugins from both locations when present.
+Install runs `opencode plugin -g @jgabor/ktx@<version>` (`--project`: `opencode
+plugin @jgabor/ktx@<version>` in the current folder), pinned to the running ktx
+release; re-run it after a ktx upgrade to replace the older pin. A re-run
+without an upgrade changes nothing. A ktx without a release number (`dev`, a
+pseudo-version) installs the unpinned `@jgabor/ktx` and says so, replacing a
+release pin; it keeps only an existing checkout folder entry from
+`mage install`. Remove the old separate `opencode-ktx` sidebar from `tui.json`,
+or OpenCode shows two ktx panels. The npm
+install needs a ktx release that includes the package; until then use
+`mage install` from a checkout. If `opencode plugin` fails, every config file
+is put back as it was. Without `opencode` on `PATH`, install changes nothing
+and prints the commands; a scope that already has the right entry is reported
+as installed.
 
-The generated plugin has two hooks:
+ktx removes only its own entries from OpenCode's server and TUI plugin lists,
+before it adds a different one and for `--uninstall`; other entries and
+comments stay. Install also deletes the `plugins/ktx.ts` earlier ktx versions
+generated, globally and in the current project. `--show` reports ktx's entries,
+whether they match this ktx and the `ktx` on `PATH`; `--show` and
+`--uninstall` cover both scopes, or the project only with `--project`, and exit
+2 when there is nothing. A malformed config stops every action unchanged.
+
+The package's server target has two hooks:
 
 - `tool.execute.after` invokes `ktx hook` for persistence/compression.
 - `event` invokes `ktx telemetry record` for accepted model steps.
 
 Each callback invokes the pinned binary and adds no outer timeout.
 
-Restart OpenCode after installation. Regenerate the plugin and restart OpenCode
-only to pick up generated source changes. The plugin pins one canonical absolute
+Restart OpenCode after installation. The plugin pins one canonical absolute
 binary path for its lifetime. OpenCode telemetry
 is currently contracted against OpenCode 1.18.5; later event contracts require
 review before making equivalent claims.
 
-When `KTX_SESSION_ID` is present, generated hooks no-op and the `ktx run`
+When `KTX_SESSION_ID` is present, the plugin hooks no-op and the `ktx run`
 wrapper remains the single evidence path.
 
 ### Codex
 
 ```bash
 ktx init codex
-ktx init codex --project
 ktx init codex --show
 ktx init codex --uninstall
 ```
 
-Install merges one `PostToolUse` entry and preserves unrelated hooks. After
-install, run `/hooks` in Codex to trust the hook. Codex uninstall honors the
-selected scope: global by default or project with `--project`.
-The generated command pins the installing executable's canonical absolute path
-and omits Codex's optional timeout. Regenerate it only to pick up generated
-source changes or to update the pin after moving the executable. Show and
-uninstall also recognize relocated, unmodified generated inner hooks: exactly
-the command type, ktx status message, and a single shell-quoted canonical absolute
-path followed by ` hook`. Copied hooks in that exact generated form are managed
-entries, not proof of an executable's identity. Other programs without that
-generated shape, customized commands, and unrelated sibling fields remain.
+Install runs `codex plugin marketplace add jgabor/ktx` and
+`codex plugin add ktx@ktx`, skipping whichever is already present, and keeps
+an existing `ktx` marketplace whatever its source. Without `codex` on `PATH` it
+prints those commands and exits 0. ktx installs through Codex's CLI and itself
+changes only hooks files an earlier ktx wrote into. This needs a ktx release
+that includes the Codex plugin: until one ships, v0.1.0's `ktx init codex`
+still merges a hook. If Codex installs `ktx@ktx` from a marketplace without a
+Codex plugin, it falls back to the Claude Code layout; install then exits 4
+without removing earlier hooks, and `--show` warns. Install also exits 4 and
+keeps earlier hooks when `codex plugin list` does not show `ktx@ktx` after
+`codex plugin add`. The
+`ktx@ktx` plugin comes from `plugins/codex` and `.agents/plugins/marketplace.json`;
+it holds one `PostToolUse` hook (matcher `.*`) that runs `ktx hook`, and a
+`ktx:stats` skill that runs `ktx stats summary` and shows its output unchanged.
+Both run the `ktx` on `PATH`. Codex runs the hook only after the user starts a
+new session, runs `/hooks` and trusts it; a changed hook needs trust again.
+Codex reports the plugin version as `local`; the commit installed from is its
+identity. Refresh it with `codex plugin marketplace upgrade ktx` and
+`codex plugin add ktx@ktx`.
 
-On Linux, install and uninstall hold an exclusive `flock` on the resolved parent
-directory across read, merge, and publication (five-second acquisition limit).
-Participating editors must hold the same directory lock for their entire update;
-do not lock the replaceable `hooks.json` inode. Ktx stages and syncs a complete
-replacement, preserves existing permission bits, and rejects malformed documents
-and symlink document targets rather than overwriting them. A symlinked parent
-directory is resolved and checked for replacement. Show remains read-only and
-does not acquire a mutation lock or create directories.
+Install and uninstall also remove hooks that earlier ktx versions merged into
+`~/.codex/hooks.json` or `./.codex/hooks.json`, and report each file. Only
+exact generated shapes match: a `command` hook with status message
+`ktx: recording tool call` running the bare `ktx hook` (optionally with a
+numeric `timeout`), or a single shell-quoted canonical absolute path followed by
+` hook` or by ` --expect-runtime-sha256 <digest> hook`. Customized hooks,
+other programs and unrelated sibling fields stay; a file left empty is deleted.
+Files are read before anything changes, so a malformed file stops install with
+Codex untouched. If removal fails after the plugin is installed, install exits
+4 and names the entry to remove by hand, so ktx does not run twice per call.
 
-Ktx checks document identity, bytes, permissions, modification time, and parent
-identity before publishing or deleting. Observed external edits abort with retry
+On Linux, removal holds an exclusive `flock` on the resolved parent directory
+across read, filter, and publication (five-second acquisition limit).
+Participating editors must hold the same directory lock for their entire
+update; do not lock the replaceable `hooks.json` inode. Ktx stages and syncs a
+complete replacement, preserves existing permission bits, and rejects malformed
+documents and symlink document targets rather than overwriting them. Ktx checks
+document identity, bytes, permissions, modification time, and parent identity
+before publishing or deleting; observed external edits abort with retry
 guidance. This is not filesystem compare-and-swap: a noncooperating editor can
-still race the final check-to-rename/remove window. Avoid simultaneous edits from
-such tools. An interrupted update leaves a complete old or new document, not a
-truncated shared file; power-loss durability of the directory entry is not
-guaranteed by this file-sync protocol.
+still race the final check-to-rename/remove window.
+
+`--project` is a usage error. Show reads `codex plugin list` and
+`codex plugin marketplace list`, reports the plugin, its marketplace source,
+the `ktx` on `PATH`, and any earlier merged hook, and exits 2 when `ktx@ktx` is
+not installed or `codex` is missing. It warns when Codex installed the plugin
+from a folder other than `plugins/codex`. Uninstall runs
+`codex plugin remove ktx@ktx` and `codex plugin marketplace remove ktx` for
+whichever is present, removes earlier merged hooks, and exits 2 when there is
+nothing to remove. See the [Codex guide](../../../../docs/guides/codex.md).
 
 ### Claude Code
 

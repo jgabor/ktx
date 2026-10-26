@@ -9,10 +9,25 @@ compression with the built-in benchmarks. For everyday use, start with the
 Build from a checkout with Mage. The binary lands in `build/ktx`:
 
 ```bash
-mage build         # build build/ktx
-mage verify        # the same checks CI runs
-mage replayFixture # quick offline check of the retained replay fixture
+mage build           # build build/ktx
+mage opencodePackage # build the OpenCode package in plugins/opencode
+mage verify          # the same checks CI runs
+mage replayFixture   # quick offline check of the retained replay fixture
 ```
+
+`mage opencodePackage` installs the OpenCode package's locked dependencies with
+Bun and builds its sidebar target, so `plugins/opencode` holds both the
+`./server` and `./tui` targets for a folder install. `mage check` runs it
+before the package's Node and Bun tests.
+
+`mage install` puts a development ktx on `PATH`. When OpenCode already loads
+ktx, globally or in the current project, it also builds the package and
+points OpenCode at this checkout's `plugins/opencode` folder.
+`mage installRelease` installs the latest release instead and points OpenCode
+at `@jgabor/ktx` pinned to that release. It stops before installing anything
+when the release has no OpenCode package or npm doesn't have it yet. Both
+targets remove only ktx's own plugin entries and leave exactly one in
+OpenCode's server and TUI config.
 
 Without Mage, use `go build -o build/ktx ./cmd/ktx`. Avoid a bare
 `go build ./cmd/ktx`, which drops the binary in the repository root.
@@ -21,13 +36,15 @@ Without Mage, use `go build -o build/ktx ./cmd/ktx`. Avoid a bare
 and the portable replay gate. CI runs this same command on every push and pull
 request. You need both `golangci-lint` and `govulncheck` installed.
 
-The checks also need Node and Bun. Tests run the generated OpenCode plugin on
-Node 22.18 or newer (23.6 or newer on the 23 line), and the generated-adapter
-gate runs it on Bun, which OpenCode uses to load plugins. Mage resolves both
+The checks also need Node and Bun. Tests run the OpenCode package's server
+target, `plugins/opencode/server.ts`, read from the checkout, on Node 22.18 or
+newer (23.6 or newer on the 23 line), and the generated-adapter gate runs it on
+Bun, which OpenCode uses to load plugins. The ktx binary carries no copy of the
+plugin; a test fails if it links a package from `plugins/`. Mage resolves both
 executables before it isolates the run and passes them on as `KTX_TEST_NODE`
 and `KTX_TEST_BUN`, so version-manager shims keep working. Set either variable
-to an absolute path to pick a specific executable. Without Node, the plugin
-tests are skipped; without Bun, `mage check` fails at the gate. If the first
+to an absolute path to pick a specific executable. Without Node or Bun,
+`mage check` fails before it runs the plugin tests or the gate. If the first
 `node` on `PATH` is older than 22.18, the plugin tests fail; set
 `KTX_TEST_NODE` to a newer executable.
 
@@ -65,6 +82,122 @@ The named report counts as a pass only after a complete run. A failed attempt
 is written to
 `docs/evidence/schema-readiness/schema-readiness-release.json.attempt.failed.json`
 and never replaces the passing report.
+
+## Releasing
+
+A release is a signed tag `vX.Y.Z` on the commit to release. ktx reports its
+version from Go build info, so `go install github.com/jgabor/ktx/cmd/ktx@vX.Y.Z`
+builds and reports that commit as `vX.Y.Z`. Pushing the tag runs CI on the
+same commit. After `mage verify` passes, the `opencode-package` job in
+`.github/workflows/ci.yml` packs the OpenCode package from that commit as
+`@jgabor/ktx@X.Y.Z`, the pin `ktx init opencode` installs for ktx `vX.Y.Z`,
+and the `publish-opencode-package` job publishes that tarball.
+`plugins/opencode/package.json` has no `version`; the pack job sets it from the
+tag. Only a pushed tag that is exactly `vX.Y.Z` reaches the publish job. Any
+other `v` tag fails the pack job, so nothing is published.
+
+On every other push and pull request, the pack job packs the package at a
+prerelease version from `git describe --long` (for example `0.1.0-5-g5c06df3`,
+or `0.1.0-0-g5c06df3` on the tagged commit itself, so it never matches a
+published release) and runs `npm publish --dry-run`. Both paths first run
+`mage opencodePackageContents`. It fails when npm would leave out the
+`./server` or `./tui` target, a file either one imports, the README or the
+license. `mage check` runs the same check, and you can run it yourself after
+`mage opencodePackage`.
+
+The publish job runs only for a pushed `v` tag, in the `npm-publish` GitHub
+environment, and is the only job that gets an OIDC token (`id-token: write`).
+It publishes through
+[npm trusted publishing](https://docs.npmjs.com/trusted-publishers): npm
+exchanges that token for a short-lived publish credential, so no npm token is
+stored in GitHub. The trusted publisher names the environment, and the
+environment admits only `v*` tags, so npm itself refuses a publish from any
+other ref. Trusted publishing needs npm 11.5.1 or newer, which the job checks.
+From a public repository it also adds a provenance attestation without
+`--provenance`. The publish job does not rebuild: it publishes the tarball the
+pack job built and checked on the tagged commit.
+
+### One-time npm setup
+
+1. Use the npm account that owns the `@jgabor` scope, with two-factor
+   authentication turned on.
+2. Create the `npm-publish` environment in the GitHub repository under
+   Settings, Environments, New environment. Under Deployment branches and
+   tags, choose Selected branches and tags and add one rule of type Tag with
+   the pattern `v*`, so only a `v` tag can run a job in it.
+3. Publish the first version by hand. npm adds a trusted publisher only to a
+   package that is already on the registry
+   ([`npm trust`](https://docs.npmjs.com/cli/v11/commands/npm-trust): "The
+   package you're configuring must already exist on the npm registry"), and
+   `@jgabor/ktx` is not there yet. Commit the changelog move from step 1 of
+   [Each release](#each-release), then publish the first release from its tag
+   before you push the tag:
+
+   ```bash
+   git tag -s vX.Y.Z -m "ktx vX.Y.Z"
+   git checkout vX.Y.Z
+   mage opencodePackage
+   mage opencodePackageContents
+   cd plugins/opencode
+   npm pkg set version=X.Y.Z
+   npm login
+   npm publish --ignore-scripts
+   git restore package.json
+   cd ../..
+   git push origin vX.Y.Z
+   ```
+
+   The tag's CI run finds `@jgabor/ktx@X.Y.Z` on npm and skips its own
+   publish. This hand-published version has no provenance attestation.
+
+4. Add the trusted publisher on npmjs.com under the package's Settings,
+   Trusted publishing, GitHub Actions:
+   - Organization or user: `jgabor`
+   - Repository: `ktx`
+   - Workflow filename: `ci.yml`
+   - Environment: `npm-publish`
+   - Allowed actions: allow `npm publish`. Configurations created after
+     September 3, 2026 allow only `npm stage publish` until you select it.
+
+   With npm 11.15.0 or newer, `npm trust github @jgabor/ktx --repo jgabor/ktx
+--file ci.yml --env npm-publish --allow-publish` does the same. Add it no more than two days
+   before you push the next release tag. A new configuration expires unless its
+   first publish succeeds within two days; delete an expired one and add it
+   again.
+
+5. After the first publish through CI succeeds, set the package's publishing
+   access to require two-factor authentication and disallow tokens, and
+   revoke any token you made for the first publish. Trusted publishing keeps
+   working.
+
+### Each release
+
+1. Move the `[Unreleased]` entries in `CHANGELOG.md` under the new version and
+   commit.
+2. Tag the commit and push the tag:
+
+   ```bash
+   git tag -s vX.Y.Z -m "ktx vX.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+3. Wait for the tag's CI run. The `opencode-package` job runs only after
+   `verify` passes, and `publish-opencode-package` only after it. Re-running
+   the publish job after a successful publish skips the publish.
+
+### Confirm the package and binary versions match
+
+```bash
+npm view @jgabor/ktx version     # X.Y.Z
+go install github.com/jgabor/ktx/cmd/ktx@vX.Y.Z
+ktx --version                    # vX.Y.Z
+ktx init opencode --show         # the entry is @jgabor/ktx@X.Y.Z and matches this ktx
+```
+
+The package page on npmjs.com shows the provenance attestation, with the
+commit and the workflow run that published it. That commit should be the
+commit `git rev-list -n 1 vX.Y.Z` prints. `mage installRelease` also checks
+that npm has the package for the latest release before it changes anything.
 
 ## Benchmarking
 

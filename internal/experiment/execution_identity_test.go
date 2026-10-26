@@ -223,6 +223,10 @@ func TestExecutionRejectsUnavailableOrInvalidImageIdentity(t *testing.T) {
 			isolateExecutionIdentityTest(t)
 			calls := 0
 			runner := Runner{Executor: responseExecutor(func(_ context.Context, command Command) (CommandResult, error) {
+				if command.Args[0] == "git" {
+					_, err := io.WriteString(command.Stdout, testCommit+"\n")
+					return CommandResult{}, err
+				}
 				calls++
 				if calls != 1 {
 					t.Error("execution continued after invalid image identity")

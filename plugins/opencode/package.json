@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@jgabor/ktx",
+  "description": "OpenCode plugin that compresses tool output, records model-step telemetry and shows ktx statistics in the sidebar, through the ktx binary on PATH.",
+  "type": "module",
+  "exports": {
+    "./server": "./server.ts",
+    "./tui": {
+      "import": "./tui.js"
+    }
+  },
+  "files": [
+    "server.ts",
+    "tui.js",
+    "ktx-stats.ts",
+    "mouse.ts"
+  ],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "opencode-tui",
+    "ktx",
+    "tokens"
+  ],
+  "author": "jgabor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jgabor/ktx.git",
+    "directory": "plugins/opencode"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "opencode": ">=1.18.5 <2"
+  },
+  "peerDependencies": {
+    "@opentui/core": "^0.4.5 || ^0.5.12",
+    "@opentui/solid": "^0.4.5 || ^0.5.12",
+    "solid-js": "^1.9.12"
+  },
+  "devDependencies": {
+    "@babel/core": "7.28.0",
+    "@babel/preset-typescript": "7.27.1",
+    "@opencode-ai/plugin": "1.18.5",
+    "@opentui/core": "0.5.12",
+    "@opentui/solid": "0.5.12",
+    "@types/bun": "^1.4.2",
+    "@types/node": "^25.0.0",
+    "babel-preset-solid": "1.9.12",
+    "solid-js": "1.9.12",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "bun run scripts/build-tui.mjs",
+    "prepack": "bun run build",
+    "typecheck": "tsc --noEmit",
+    "test": "bun run build && node --disable-warning=ExperimentalWarning --test test/server.test.ts test/ktx-stats.test.ts && bun test --conditions=browser test/mouse-interaction.test.ts test/sidebar-render.test.tsx test/plugin-compat.test.tsx test/built-tui.test.mjs"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "ktx",
+  "description": "Records and compresses tool output through ktx and shows ktx stats on request.",
+  "author": {
+    "name": "Jonathan Gabor"
+  },
+  "homepage": "https://github.com/jgabor/ktx",
+  "repository": "https://github.com/jgabor/ktx",
+  "license": "MIT",
+  "keywords": ["ktx", "compression", "tokens"],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "ktx",
+    "shortDescription": "Compress tool output and show ktx stats",
+    "category": "Productivity"
+  }
+}

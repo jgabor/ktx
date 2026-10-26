@@ -253,4 +253,17 @@ type Manifest struct {
 	ReadDescription         *ReadDescriptionMetadata    `json:"read_description,omitempty"`
 	Pricing                 *PricingSnapshotMetadata    `json:"pricing,omitempty"`
 	CacheControl            *CacheControlManifest       `json:"cache_control,omitempty"`
+	OpenCodePlugin          *OpenCodePluginMetadata     `json:"opencode_plugin,omitempty"`
+}
+
+// OpenCodePluginMetadata identifies the ktx commit and OpenCode package an
+// image ran. The package files are retained under Path.
+type OpenCodePluginMetadata struct {
+	Package  string   `json:"package"`
+	Spec     string   `json:"spec"`
+	Commit   string   `json:"commit"`
+	Modified bool     `json:"modified"`
+	SHA256   string   `json:"sha256"`
+	Path     string   `json:"path"`
+	Files    []string `json:"files"`
 }

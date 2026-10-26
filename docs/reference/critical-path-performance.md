@@ -274,7 +274,7 @@ read-only open, write open, compatible migration, source persistence, artifact
 persistence, and disposition persistence when the operation surfaces the
 availability failure.
 
-For ordinary OpenCode callbacks, the generated plugin validates those fields
+For ordinary OpenCode callbacks, the OpenCode plugin validates those fields
 against its pinned executable and database target, adds `runtime_surface` as
 `opencode-hook` or `opencode-telemetry`, and emits one sanitized diagnostic.
 It does not copy unrecognized fields from command stderr.

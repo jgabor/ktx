@@ -183,14 +183,11 @@ func printBenchAgentCapabilities(format string, stdout, stderr io.Writer) int {
 		return ExitInternal
 	}
 	opencodeVersion := strings.TrimSpace(string(output))
-	pluginPath, pathErr := opencodeGlobalPluginPath()
-	pluginBytes, readErr := os.ReadFile(pluginPath)
-	if pathErr != nil || readErr != nil {
-		printError(stderr, internalError("ktx bench agent capabilities: read generated plugin: %v", errors.Join(pathErr, readErr)), format)
+	plugin, err := installedBenchPluginIdentity()
+	if err != nil {
+		printError(stderr, internalError("ktx bench agent capabilities: read OpenCode plugin identity: %v", err), format)
 		return ExitInternal
 	}
-	digest := fmt.Sprintf("%x", sha256.Sum256(pluginBytes))
-	expectedDigest := fmt.Sprintf("%x", sha256.Sum256([]byte(ktxOpencodePluginTemplate)))
 	binaryPath, err := os.Executable()
 	if err != nil {
 		printError(stderr, internalError("ktx bench agent capabilities: %v", err), format)
@@ -208,9 +205,11 @@ func printBenchAgentCapabilities(format string, stdout, stderr io.Writer) int {
 		return ExitInternal
 	}
 	capabilities := map[string]any{
-		"ktx_version": version.Version, "opencode_version": opencodeVersion, "generated_plugin_sha256": digest,
-		"generated_plugin_matches_binary": digest == expectedDigest,
-		"event_collector_contract":        benchcontract.ContractVersion, "explicit_session_ownership": true,
+		"ktx_version": version.Version, "opencode_version": opencodeVersion,
+		"ktx_commit": plugin.KTXCommit, "ktx_commit_modified": plugin.KTXCommitModified,
+		"opencode_plugin_package": plugin.PluginPackage, "opencode_plugin_commit": plugin.PluginCommit,
+		"opencode_plugin_sha256": plugin.PluginSHA256, "opencode_plugins": plugin.Plugins,
+		"event_collector_contract": benchcontract.ContractVersion, "explicit_session_ownership": true,
 		"read_description_treatment": benchcontract.ReadDescriptionTreatment,
 		"ktx_binary_sha256":          fmt.Sprintf("%x", binaryDigest.Sum(nil)),
 		"serialized_callbacks":       true, "complete_interval_lifecycle": true, "epoch_tracking": true,
@@ -220,7 +219,7 @@ func printBenchAgentCapabilities(format string, stdout, stderr io.Writer) int {
 		"normalized_kinds": []string{"collector_open", "model_step", "retry", "compaction", "interruption", "other"},
 	}
 	if format == FormatText {
-		fmt.Fprintf(stdout, "ktx=%s opencode=%s contract=%s plugin_sha256=%s generated_plugin_matches_binary=%t explicit_session_ownership=true serialized_callbacks=true complete_interval_lifecycle=true epoch_tracking=true strict_acknowledgements=true exact_model_step_identity=true retained_duplicate_callbacks=true accepted_model_step_projection=true callback_queue_continuation=true fail_closed_interval_validation=true preflight_before_auth=true\n", version.Version, opencodeVersion, benchcontract.ContractVersion, digest, digest == expectedDigest)
+		fmt.Fprintf(stdout, "ktx=%s opencode=%s contract=%s ktx_commit=%s ktx_commit_modified=%t opencode_plugin_commit=%s opencode_plugin_sha256=%s opencode_plugins=%s explicit_session_ownership=true serialized_callbacks=true complete_interval_lifecycle=true epoch_tracking=true strict_acknowledgements=true exact_model_step_identity=true retained_duplicate_callbacks=true accepted_model_step_projection=true callback_queue_continuation=true fail_closed_interval_validation=true preflight_before_auth=true\n", version.Version, opencodeVersion, benchcontract.ContractVersion, plugin.KTXCommit, plugin.KTXCommitModified, plugin.PluginCommit, plugin.PluginSHA256, strings.Join(plugin.Plugins, ","))
 		return ExitOK
 	}
 	if err := json.NewEncoder(stdout).Encode(capabilities); err != nil {
@@ -457,7 +456,7 @@ func runBenchValidate(args []string, opts Options, stdout, stderr io.Writer) int
 		return ExitInternal
 	}
 	if format == FormatText {
-		fmt.Fprintf(stdout, "experiment=%v valid=%v summary_byte_match=%v target_met=%v\n", report["experiment_id"], report["valid"], report["summary_byte_match"], report["target_met"])
+		fmt.Fprintf(stdout, "experiment=%v valid=%v summary_byte_match=%v target_met=%v plugin_identity=%v\n", report["experiment_id"], report["valid"], report["summary_byte_match"], report["target_met"], report["plugin_identity"])
 	} else if code := encodeExperimentJSON(stdout, report); code != ExitOK {
 		return code
 	}

@@ -213,6 +213,19 @@ func TestEntryContracts(t *testing.T) {
 		}},
 		{"inputs-empty", func(_ string, m map[string]any) { m["inputs"] = []any{} }},
 		{"methodology-version-missing", func(_ string, m map[string]any) { delete(m["methodology"].(map[string]any), "version") }},
+		{"opencode-plugin-missing", func(_ string, m map[string]any) { delete(m, "opencode_plugin") }},
+		{"opencode-plugin-other-commit", func(_ string, m map[string]any) {
+			m["opencode_plugin"].(map[string]any)["commit"] = strings.Repeat("b", 40)
+		}},
+		{"opencode-plugin-other-hash", func(_ string, m map[string]any) {
+			m["opencode_plugin"].(map[string]any)["sha256"] = strings.Repeat("b", 64)
+		}},
+		{"opencode-plugin-tampered-file", func(dir string, _ map[string]any) {
+			if err := os.WriteFile(filepath.Join(dir, "opencode-plugin", "server.ts"), []byte("changed\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"opencode-plugin-on-historical-manifest", func(_ string, m map[string]any) { m["schema_version"] = 1 }},
 	}
 	for _, kind := range []string{"spec", "pipeline"} {
 		tests = append(tests, struct {

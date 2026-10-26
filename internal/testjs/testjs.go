@@ -1,5 +1,5 @@
 // Package testjs resolves the JavaScript runtimes that tests use to execute
-// generated TypeScript.
+// TypeScript, and reads the OpenCode package source those tests run.
 //
 // A runtime is resolved once per test binary, from the environment the binary
 // started with, to the absolute path of its real executable. Tests that later
@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -77,6 +78,55 @@ func WriteModulePackage(t testing.TB, dir string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"type":"module"}`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// openCodeServerPath is the server target of the OpenCode package, relative to
+// the module root.
+var openCodeServerPath = filepath.Join("plugins", "opencode", "server.ts")
+
+// OpenCodeServer returns the server target of the OpenCode package, the plugin
+// OpenCode loads, read from the repository. The repository is found from this
+// source file's compiled path, so a compiled test binary works from any
+// working directory; when that path is unavailable, as in a -trimpath build,
+// the nearest go.mod at or above the working directory is used.
+func OpenCodeServer(t testing.TB) string {
+	t.Helper()
+	root, err := repositoryRoot()
+	if err != nil {
+		t.Fatalf("locate the OpenCode package server target: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, openCodeServerPath))
+	if err != nil {
+		t.Fatalf("read the OpenCode package server target: %v", err)
+	}
+	return string(data)
+}
+
+func repositoryRoot() (string, error) {
+	if _, source, _, ok := runtime.Caller(0); ok && filepath.IsAbs(source) {
+		root := filepath.Join(filepath.Dir(source), "..", "..")
+		if info, err := os.Stat(filepath.Join(root, openCodeServerPath)); err == nil && info.Mode().IsRegular() {
+			return root, nil
+		}
+	}
+	directory, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return moduleRoot(directory)
+}
+
+func moduleRoot(directory string) (string, error) {
+	for {
+		if info, err := os.Stat(filepath.Join(directory, "go.mod")); err == nil && info.Mode().IsRegular() {
+			return directory, nil
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return "", errors.New("no go.mod at or above the working directory")
+		}
+		directory = parent
 	}
 }
 

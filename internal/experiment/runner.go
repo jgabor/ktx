@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -99,7 +100,8 @@ type PreflightReport struct {
 	Variant                string   `json:"variant,omitempty"`
 	KTXVersion             string   `json:"ktx_version,omitempty"`
 	OpenCodeVersion        string   `json:"opencode_version,omitempty"`
-	PluginSHA256           string   `json:"generated_plugin_sha256,omitempty"`
+	KTXCommit              string   `json:"ktx_commit,omitempty"`
+	PluginSHA256           string   `json:"opencode_plugin_sha256,omitempty"`
 	EventCollectorContract string   `json:"event_collector_contract,omitempty"`
 	PricingSHA256          string   `json:"pricing_sha256,omitempty"`
 	Reasons                []string `json:"reasons"`
@@ -248,6 +250,10 @@ func (runner *Runner) Compare(ctx context.Context, options CompareOptions) (stri
 	manifest.Pricing = pricing
 	manifest.Inputs = inputs
 	manifest.RuntimeConfig = runtimeConfig
+	manifest.OpenCodePlugin, err = retainPlugin(experimentDir, options.RepoRoot, runtime.Plugin)
+	if err != nil {
+		return experimentDir, nil, 2, err
+	}
 	manifest.ReadDescription, err = captureReadDescription(experimentDir, options)
 	if err != nil {
 		return experimentDir, nil, 2, err
@@ -589,8 +595,20 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 			report.Reasons = append(report.Reasons, reason)
 			return report, benchmarkRuntime{}, nil
 		}
+	}
+	source, err := runner.localPluginSource(ctx, options.RepoRoot)
+	if err != nil {
+		if ctx.Err() != nil {
+			return report, benchmarkRuntime{}, err
+		}
+		report.Reasons = append(report.Reasons, "plugin_source_unavailable")
+		return report, benchmarkRuntime{}, nil
+	}
+	if options.BuildImage {
 		diagnostics := newDiagnosticLimit(runner.diagnosticWriter())
-		result, err := runner.Executor.Run(ctx, Command{Args: []string{options.DockerBin, "build", "-f", filepath.Join(options.RepoRoot, "Dockerfile.benchmark"), "-t", options.Image, options.RepoRoot}, Stdout: diagnostics, Stderr: diagnostics, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
+		args := append([]string{options.DockerBin, "build", "-f", filepath.Join(options.RepoRoot, "Dockerfile.benchmark")}, source.buildArgs()...)
+		args = append(args, "-t", options.Image, options.RepoRoot)
+		result, err := runner.Executor.Run(ctx, Command{Args: args, Stdout: diagnostics, Stderr: diagnostics, Timeout: options.AttemptTimeout, Grace: options.TerminationGrace})
 		if err != nil {
 			return report, benchmarkRuntime{}, fmt.Errorf("build benchmark image: %w", err)
 		}
@@ -606,9 +624,14 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 		report.Reasons = append(report.Reasons, "image_capability_unavailable")
 		return report, benchmarkRuntime{}, nil
 	}
-	report.KTXVersion, report.OpenCodeVersion, report.PluginSHA256, report.EventCollectorContract = capabilities.KTXVersion, capabilities.OpenCodeVersion, capabilities.GeneratedPluginSHA256, capabilities.EventCollectorContract
+	report.KTXVersion, report.OpenCodeVersion, report.EventCollectorContract = capabilities.KTXVersion, capabilities.OpenCodeVersion, capabilities.EventCollectorContract
+	report.KTXCommit, report.PluginSHA256 = capabilities.KTXCommit, capabilities.PluginSHA256
 	if reason := validateBenchmarkCapabilities(capabilities); reason != "" {
 		report.Reasons = append(report.Reasons, reason)
+		return report, runtime, nil
+	}
+	if reasons := source.mismatches(capabilities); len(reasons) > 0 {
+		report.Reasons = append(report.Reasons, reasons...)
 		return report, runtime, nil
 	}
 	if options.ReadDescriptionTreatment != "" && (capabilities.ReadDescriptionTreatment != options.ReadDescriptionTreatment || !validSHA256(capabilities.BinarySHA256)) {
@@ -622,9 +645,9 @@ func (runner *Runner) preflightPrepared(ctx context.Context, options CompareOpti
 
 func validateLocalCollectorSource(root string) error {
 	checks := map[string][]string{
-		"Dockerfile.benchmark":                       {"ARG OPENCODE_VERSION=" + benchcontract.RuntimeVersion, "RUN ktx init opencode", `ENTRYPOINT ["/usr/local/bin/ktx", "bench", "agent"]`},
-		filepath.Join("internal", "cli", "init.go"):  {`["telemetry", "collector-open"]`, `["telemetry", "event-record"]`, "eventQueue.then", "next.catch(() => undefined)"},
-		filepath.Join("internal", "db", "schema.go"): {"runtime_event_intervals", "runtime_events", "model_step_classification", "contradiction_count"},
+		"Dockerfile.benchmark":                            {"ARG OPENCODE_VERSION=" + benchcontract.RuntimeVersion, "ARG KTX_COMMIT", "version.Commit=", "RUN --network=none opencode plugin --global " + benchcontract.PluginSpec + " </dev/null", `ENTRYPOINT ["/usr/local/bin/ktx", "bench", "agent"]`},
+		filepath.Join("plugins", "opencode", "server.ts"): {`["telemetry", "collector-open"]`, `["telemetry", "event-record"]`, "eventQueue.then", "next.catch(() => undefined)"},
+		filepath.Join("internal", "db", "schema.go"):      {"runtime_event_intervals", "runtime_events", "model_step_classification", "contradiction_count"},
 	}
 	for relative, markers := range checks {
 		data, err := os.ReadFile(filepath.Join(root, relative))
@@ -749,6 +772,7 @@ func snapshotInputs(experimentDir string, options CompareOptions) ([]InputMetada
 type benchmarkRuntime struct {
 	ImageID    string
 	Identities map[string]string
+	Plugin     *OpenCodePluginMetadata
 	Pricing    *pinnedPricingSnapshot
 }
 
@@ -757,8 +781,12 @@ type benchmarkCapabilities struct {
 	ReadDescriptionTreatment     string   `json:"read_description_treatment"`
 	KTXVersion                   string   `json:"ktx_version"`
 	OpenCodeVersion              string   `json:"opencode_version"`
-	GeneratedPluginSHA256        string   `json:"generated_plugin_sha256"`
-	GeneratedPluginMatchesBinary bool     `json:"generated_plugin_matches_binary"`
+	KTXCommit                    string   `json:"ktx_commit"`
+	KTXCommitModified            bool     `json:"ktx_commit_modified"`
+	PluginPackage                string   `json:"opencode_plugin_package"`
+	PluginCommit                 string   `json:"opencode_plugin_commit"`
+	PluginSHA256                 string   `json:"opencode_plugin_sha256"`
+	Plugins                      []string `json:"opencode_plugins"`
 	EventCollectorContract       string   `json:"event_collector_contract"`
 	ExplicitSessionOwnership     bool     `json:"explicit_session_ownership"`
 	SerializedCallbacks          bool     `json:"serialized_callbacks"`
@@ -811,18 +839,24 @@ func (runner *Runner) inspectBenchmarkRuntime(ctx context.Context, options Compa
 	}
 	identities := normalizeRuntimeIdentities(map[string]string{"ktx": capabilities.KTXVersion, "opencode": capabilities.OpenCodeVersion})
 	if options.ReadDescriptionTreatment != "" {
-		identities["generated_plugin_sha256"] = capabilities.GeneratedPluginSHA256
 		identities["ktx_binary_sha256"] = capabilities.BinarySHA256
 	}
-	return benchmarkRuntime{ImageID: identity, Identities: identities}, capabilities, nil
+	plugin := &OpenCodePluginMetadata{Package: capabilities.PluginPackage, Spec: benchcontract.PluginSpec, Commit: capabilities.KTXCommit, Modified: capabilities.KTXCommitModified, SHA256: capabilities.PluginSHA256}
+	return benchmarkRuntime{ImageID: identity, Identities: identities, Plugin: plugin}, capabilities, nil
 }
 
 func validateBenchmarkCapabilities(capabilities benchmarkCapabilities) string {
 	if capabilities.OpenCodeVersion != benchcontract.RuntimeVersion || capabilities.EventCollectorContract != benchcontract.ContractVersion {
 		return "runtime_or_event_contract_mismatch"
 	}
-	if capabilities.KTXVersion == "" || len(capabilities.GeneratedPluginSHA256) != 64 || !capabilities.GeneratedPluginMatchesBinary {
+	if capabilities.KTXVersion == "" || !validCommit(capabilities.KTXCommit) || !validSHA256(capabilities.PluginSHA256) || capabilities.PluginPackage != benchcontract.PluginPackage {
 		return "binary_or_plugin_identity_missing"
+	}
+	if !slices.Equal(capabilities.Plugins, []string{benchcontract.PluginSpec}) {
+		return "plugin_not_unique"
+	}
+	if capabilities.PluginCommit != capabilities.KTXCommit {
+		return "plugin_binary_commit_mismatch"
 	}
 	if !capabilities.ExplicitSessionOwnership || !capabilities.SerializedCallbacks || !capabilities.CompleteIntervalLifecycle || !capabilities.EpochTracking ||
 		!capabilities.StrictAcknowledgements || !capabilities.ExactModelStepIdentity || !capabilities.RetainedDuplicateCallbacks ||
@@ -834,6 +868,75 @@ func validateBenchmarkCapabilities(capabilities benchmarkCapabilities) string {
 		return "normalized_event_kinds_mismatch"
 	}
 	return ""
+}
+
+// pluginSource is the commit, whether the tree has changes, and the OpenCode
+// package content hash of the checkout under test.
+type pluginSource struct {
+	commit   string
+	modified bool
+	sha256   string
+}
+
+func (runner *Runner) localPluginSource(ctx context.Context, root string) (pluginSource, error) {
+	commit, err := runner.output(ctx, Command{Args: []string{"git", "-C", root, "rev-parse", "HEAD"}})
+	if err != nil {
+		return pluginSource{}, err
+	}
+	status, err := runner.output(ctx, Command{Args: []string{"git", "-C", root, "status", "--porcelain"}})
+	if err != nil {
+		return pluginSource{}, err
+	}
+	digest, err := benchcontract.PluginFilesSHA256(filepath.Join(root, filepath.FromSlash(benchcontract.PluginSourceDir)), benchcontract.PluginFiles)
+	if err != nil {
+		return pluginSource{}, err
+	}
+	return pluginSource{commit: strings.TrimSpace(commit), modified: strings.TrimSpace(status) != "", sha256: digest}, nil
+}
+
+// buildArgs passes the checkout's commit and change state to the image build.
+// The build reads them instead of the .git in its context, which a git
+// worktree points outside of.
+func (source pluginSource) buildArgs() []string {
+	return []string{"--build-arg", "KTX_COMMIT=" + source.commit, "--build-arg", "KTX_COMMIT_MODIFIED=" + strconv.FormatBool(source.modified)}
+}
+
+// mismatches names each image identity that differs from the checkout.
+func (source pluginSource) mismatches(capabilities benchmarkCapabilities) []string {
+	var reasons []string
+	if source.commit != capabilities.KTXCommit {
+		reasons = append(reasons, "plugin_commit_mismatch")
+	}
+	if source.sha256 != capabilities.PluginSHA256 {
+		reasons = append(reasons, "plugin_hash_mismatch")
+	}
+	return reasons
+}
+
+// retainPlugin copies the checkout's plugin package files into the archive and
+// requires them to hash to the identity the image reported.
+func retainPlugin(experimentDir, root string, plugin *OpenCodePluginMetadata) (*OpenCodePluginMetadata, error) {
+	if plugin == nil {
+		return nil, errors.New("benchmark image reported no OpenCode plugin identity")
+	}
+	retained := *plugin
+	retained.Path = openCodePluginArchivePath
+	retained.Files = slices.Clone(benchcontract.PluginFiles)
+	slices.Sort(retained.Files)
+	source := filepath.Join(root, filepath.FromSlash(benchcontract.PluginSourceDir))
+	for _, name := range retained.Files {
+		if err := copyTreeFile(filepath.Join(source, filepath.FromSlash(name)), filepath.Join(experimentDir, retained.Path, filepath.FromSlash(name))); err != nil {
+			return nil, err
+		}
+	}
+	digest, err := benchcontract.PluginFilesSHA256(filepath.Join(experimentDir, retained.Path), retained.Files)
+	if err != nil {
+		return nil, err
+	}
+	if digest != plugin.SHA256 {
+		return nil, errors.New("OpenCode plugin source changed after preflight")
+	}
+	return &retained, nil
 }
 
 func (runner *Runner) createManifest(ctx context.Context, options CompareOptions, experimentID string, configs map[string]PipelineMetadata, snapshot SnapshotMetadata, runtime benchmarkRuntime) (Manifest, error) {
@@ -859,7 +962,7 @@ func (runner *Runner) createManifest(ctx context.Context, options CompareOptions
 		variant = &v
 	}
 	manifest := Manifest{
-		SchemaVersion: 1, ExperimentID: experimentID, CreatedAt: runner.timestamp(), Task: options.Task,
+		SchemaVersion: currentManifestSchemaVersion, ExperimentID: experimentID, CreatedAt: runner.timestamp(), Task: options.Task,
 		Model: options.Model, Variant: variant, TargetValidPerPipeline: options.TargetValid, MaxAttempts: options.MaxAttempts,
 		AttemptTimeout: options.AttemptTimeout.String(), TerminationGrace: options.TerminationGrace.String(),
 		PipelineExecutionPolicy: map[string]any{"kind": "alternating_by_cycle", "first_cycle": []string{Baseline, Candidate}, "second_cycle": []string{Candidate, Baseline}},

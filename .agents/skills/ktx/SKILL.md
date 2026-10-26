@@ -84,11 +84,14 @@ ktx init codex
 ktx init codex --show
 ```
 
-Use `--project` to scope installation. OpenCode uninstall checks both global and
-project candidate files; Codex uninstall honors the selected global or project
-scope. Both remove only ktx's adapter entries. After installing the OpenCode
-plugin, restart OpenCode. After installing the Codex hook, run
-`/hooks` in Codex to trust it.
+`ktx init opencode` installs the `@jgabor/ktx` package through `opencode
+plugin`, pinned to the ktx release (the npm install needs a release that
+includes the package; until then use `mage install` from a checkout). Use
+`--project` to install into the current project. `--uninstall` removes only
+ktx's entries. After installing the OpenCode plugin, restart OpenCode. `ktx init codex` installs the
+`ktx@ktx` Codex plugin through the `codex` CLI and removes hooks earlier ktx
+versions merged into Codex hooks files; start a new Codex session, run `/hooks`
+and trust the ktx hook. Ask Codex for ktx stats to run the `ktx:stats` skill.
 
 ### Wrap an agent and inspect the session
 
@@ -288,7 +291,7 @@ investigate and correct the summary rather than treating it as canonical.
   separate evidence scope.
 - Do not interpret missing error state as success or missing cost as zero.
 - Do not assume every call should create a compressed artifact.
-- Do not overwrite an installed OpenCode plugin manually; regenerate it with
-  `ktx init opencode`, then restart OpenCode.
+- Do not edit ktx's OpenCode plugin entries by hand; re-run
+  `ktx init opencode` after a ktx upgrade, then restart OpenCode.
 - Do not treat `ktx init ... --show` as proof that a runtime loaded the adapter;
-  it reports files found on disk.
+  it reports what the runtime's config lists.

@@ -128,8 +128,9 @@ func TestReadDescriptionRuntimeBoundary(t *testing.T) {
 	if networks := strings.TrimSpace(string(run("inspect", "--format", "{{json .NetworkSettings.Networks}}", name))); networks != "{}" {
 		t.Fatalf("container still has external networks: %s", networks)
 	}
-	run("exec", name, "ktx", "init", "opencode")
-	pluginHash := strings.Fields(string(run("exec", name, "sha256sum", "/home/node/.config/opencode/plugins/ktx.ts")))[0]
+	// The image registers the OpenCode package from its own commit; hash the
+	// installed package with the benchmark content-hash definition.
+	pluginHash := strings.Fields(string(run("exec", "-w", benchcontract.PluginInstallDir, name, "sh", "-c", "sha256sum package.json server.ts | sha256sum")))[0]
 	version := strings.TrimSpace(string(run("exec", name, "opencode", "--version")))
 	if version != "1.18.5" {
 		t.Fatalf("runtime=%q", version)

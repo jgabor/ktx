@@ -19,97 +19,21 @@ import (
 	"github.com/jgabor/ktx/internal/testjs"
 )
 
-func TestOpencodeInstallIsIdempotentAndReportsGeneratedContract(t *testing.T) {
-	home := t.TempDir()
-	project := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", "")
-	restoreCwd := chdir(t, project)
-	defer restoreCwd()
-
-	globalPath := filepath.Join(home, ".config", "opencode", "plugins", ktxPluginFileName)
-	projectPath := filepath.Join(project, ".opencode", "plugins", ktxPluginFileName)
-
-	for _, test := range []struct {
-		name string
-		args []string
-		path string
-	}{
-		{name: "global", args: []string{"opencode"}, path: globalPath},
-		{name: "project", args: []string{"opencode", "--project"}, path: projectPath},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var firstReport, secondReport map[string]any
-			var firstBytes []byte
-			for attempt := 0; attempt < 2; attempt++ {
-				var stdout, stderr bytes.Buffer
-				if code := runInitWith(test.args, Options{Format: FormatJSON}, &stdout, &stderr); code != ExitOK {
-					t.Fatalf("attempt %d exit code = %d, stderr=%q", attempt+1, code, stderr.String())
-				}
-				var report map[string]any
-				if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
-					t.Fatalf("attempt %d report: %v", attempt+1, err)
-				}
-				installed, err := os.ReadFile(test.path)
-				if err != nil {
-					t.Fatalf("attempt %d read installed adapter: %v", attempt+1, err)
-				}
-				if attempt == 0 {
-					firstReport, firstBytes = report, installed
-				} else {
-					secondReport = report
-					if !bytes.Equal(installed, firstBytes) {
-						t.Fatal("adapter bytes changed on repeated installation")
-					}
-				}
-			}
-			if !reflect.DeepEqual(firstReport, secondReport) {
-				t.Fatalf("installation report changed on repeat:\nfirst:  %#v\nsecond: %#v", firstReport, secondReport)
-			}
-			if firstReport["path"] != test.path || firstReport["runtime_activation"] != "not_verified" {
-				t.Fatalf("report path/activation = %#v", firstReport)
-			}
-			if revision, ok := firstReport["generated_revision"].(string); !ok || len(revision) != 64 {
-				t.Fatalf("generated_revision = %#v, want 64-character SHA-256", firstReport["generated_revision"])
-			}
-			locations, ok := firstReport["candidate_locations"].(map[string]any)
-			if !ok || locations["global"] != globalPath || locations["project"] != projectPath {
-				t.Fatalf("candidate_locations = %#v", firstReport["candidate_locations"])
-			}
-			if hooks := firstReport["declared_hooks"]; !reflect.DeepEqual(hooks, []any{"event", "tool.execute.after"}) {
-				t.Fatalf("declared_hooks = %#v", hooks)
-			}
-			hookRoles, ok := firstReport["hook_roles"].(map[string]any)
-			if !ok || hookRoles["event"] != opencodeTelemetryEvidence || hookRoles["tool.execute.after"] != "tool-result compression" {
-				t.Fatalf("hook_roles = %#v", firstReport["hook_roles"])
-			}
-			if firstReport["telemetry_claim_boundary"] != opencodeTelemetryClaimBoundary ||
-				firstReport["refresh_command"] != opencodeRefreshCommand ||
-				firstReport["troubleshooting"] != opencodeTroubleshooting {
-				t.Fatalf("integration guidance = %#v", firstReport)
-			}
-			for _, forbidden := range []string{"active", "activated", "loaded", "running"} {
-				if _, exists := firstReport[forbidden]; exists {
-					t.Errorf("report makes unsupported runtime claim %q", forbidden)
-				}
-			}
-		})
-	}
-}
-
 func TestInitAndTelemetryHelpDocumentOpenCodeIntegration(t *testing.T) {
 	var initHelp bytes.Buffer
 	printInitHelp(&initHelp)
 	for _, want := range []string{
-		"$XDG_CONFIG_HOME/opencode/plugins/ktx.ts",
-		"./.opencode/plugins/ktx.ts",
-		"event for optional model-step telemetry",
+		"`opencode plugin -g @jgabor/ktx@<version>`",
+		"replaces the older pin",
+		"installs the unpinned @jgabor/ktx",
+		"needs a ktx release that includes the package",
+		"`mage install` from a checkout",
+		"event for optional model-step",
 		"tool.execute.after for tool-result compression",
 		"KTX_SESSION_ID",
 		"preventing duplicate evidence",
 		opencodeTelemetryEvidence,
 		opencodeTelemetryClaimBoundary,
-		opencodeRefreshCommand,
 		opencodeTroubleshooting,
 	} {
 		if !strings.Contains(initHelp.String(), want) {
@@ -127,9 +51,10 @@ func TestInitAndTelemetryHelpDocumentOpenCodeIntegration(t *testing.T) {
 }
 
 func TestGeneratedOpenCodeAdapterDoesNotKillCallbacks(t *testing.T) {
+	plugin := testjs.OpenCodeServer(t)
 	for _, forbidden := range []string{"proc.kill()", "ktx command timed out", "Promise.race"} {
-		if strings.Contains(ktxOpencodePluginTemplate, forbidden) {
-			t.Errorf("generated adapter contains external callback timeout mechanism %q", forbidden)
+		if strings.Contains(plugin, forbidden) {
+			t.Errorf("OpenCode plugin contains external callback timeout mechanism %q", forbidden)
 		}
 	}
 	for _, required := range []string{
@@ -140,16 +65,19 @@ func TestGeneratedOpenCodeAdapterDoesNotKillCallbacks(t *testing.T) {
 		`openBackedArgs(["telemetry", "event-record"])`,
 		`openBackedArgs(["telemetry", "cue-delivered"])`,
 	} {
-		if !strings.Contains(ktxOpencodePluginTemplate, required) {
-			t.Errorf("generated adapter is missing pinned invocation %q", required)
+		if !strings.Contains(plugin, required) {
+			t.Errorf("OpenCode plugin is missing pinned invocation %q", required)
 		}
 	}
 	// Ordinary callbacks must still avoid binary hashing/identity subprocesses.
 	// The opt-in benchmark helper hashes only its frozen public tool definitions.
-	ordinary := strings.TrimSuffix(ktxOpencodePluginTemplate, benchmarkReadDescriptionTemplate)
+	ordinary, benchmarkHelper, found := strings.Cut(plugin, "\nimport { appendFileSync, readFileSync } from \"node:fs\"\n")
+	if !found || !strings.Contains(benchmarkHelper, "const benchmarkReadDescription = ") {
+		t.Fatal("OpenCode plugin lacks the trailing benchmark read-description helper")
+	}
 	for _, forbidden := range []string{"binary-capabilities", "createHash", "readFile(canonical)", "--expect-runtime-sha256"} {
 		if strings.Contains(ordinary, forbidden) {
-			t.Errorf("generated adapter performs removed identity work %q", forbidden)
+			t.Errorf("OpenCode plugin performs removed identity work %q", forbidden)
 		}
 	}
 }
@@ -163,7 +91,7 @@ func TestOpencodeGeneratedAdapterEventAndToolIntegration(t *testing.T) {
 	dir := t.TempDir()
 	testjs.WriteModulePackage(t, dir)
 	pluginPath := filepath.Join(dir, "ktx.ts")
-	if err := os.WriteFile(pluginPath, []byte(ktxOpencodePluginTemplate), 0o644); err != nil {
+	if err := os.WriteFile(pluginPath, []byte(testjs.OpenCodeServer(t)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	binDir := filepath.Join(dir, "bin")

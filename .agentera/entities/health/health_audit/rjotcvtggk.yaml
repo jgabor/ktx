@@ -1,0 +1,26 @@
+id: rjotcvtggk
+artifact: health
+record:
+  date: 2026-10-24
+  dimensions:
+    - artifact_freshness
+  findings_summary:
+    critical: 0
+    warning: 0
+    info: 2
+    filtered_by_confidence: 0
+  trajectory: "stable: the scoped closure review found only documentation drift, which was corrected; no whole-codebase trend is inferred."
+  grades:
+    artifact_freshness: A
+  dimensions_detail:
+    - name: artifact_freshness
+      grade: A
+      summary: Limited closure assessment for plan icnsnhlqvb (native OpenCode and Codex plugins), covering all nine terminal tasks with persisted PASS evaluations. The combined uncommitted tree passed a fresh native mage check with forbidden database accesses zero, and code meets every task's acceptance and the overall acceptance. The closure audit returned WARN for four stale documentation passages (benchmark agent guide manifest schema, Node requirement, two generated-hook phrasings); all were corrected and a follow-up review passed them. The recorded closing check found no archive view that compares by methodology alone. This is not a whole-codebase audit; npm publishing and CI on GitHub are unverified until the first release.
+      findings:
+        - "Info: bench rank pools pair archives without checking manifest schema; mixing schemas cannot happen today because one rank run produces all of a campaign's pairs."
+        - "Info: open TODO dqzkwfwovk still says generated plugin and may already be shipped."
+  trends:
+    comparison_target: Previous limited closure record for plan ciottglsts
+    resolved: "Documentation drift found at closure: manifest schema wording, Node requirement, generated-hook phrasing."
+    carried_forward: First npm publish, live checks from a release, opencode-ktx retirement (TODO swjbuwcyqq), CI runs on GitHub, and the Codex compressed-output error presentation remain open. No decision satisfaction is claimed.
+  appended_at: 2026-10-24T19:16:05.417Z

@@ -1,0 +1,24 @@
+id: wrxwrufepq
+artifact: plan
+record:
+  name: "`ktx init opencode` installs the package"
+  depends_on:
+    - empdqyawef
+  status: complete
+  acceptance:
+    - GIVEN `opencode` on PATH WHEN the user runs `ktx init opencode` THEN the package pinned to the binary's release version is installed globally through OpenCode's plugin command, replacing an older pin; `--project` installs into the current project; a re-run succeeds unchanged; a binary without a release number installs the unpinned package and says so.
+    - GIVEN a plugin file an earlier ktx generated in global or project scope WHEN install runs THEN it is removed and reported; a file ktx did not generate stays.
+    - GIVEN no `opencode` on PATH WHEN install runs THEN it prints the exact commands and changes nothing; `--show` reports the entry and the ktx on PATH; `--uninstall` removes only ktx's entries.
+    - GIVEN tests WHEN they run THEN install, re-run, missing CLI, cleanup, show and uninstall each have a passing and a failing case.
+    - GIVEN a live OpenCode 1.19 session after `mage install` WHEN the user runs Bash commands THEN ktx compresses them and the sidebar shows statistics; telemetry parity rests on task 1 tests because 1.19 telemetry is outside the contract.
+  plan: icnsnhlqvb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: criteria 2-4 PASS; criterion 1 WARN resolved by user decision yvklyasskb and follow-up code+tests; criterion 5 WARN: duplicate sidebar from the old opencode-ktx entry, now documented"
+      recorded_at: 2026-10-24 20:04
+      writer_command: agentera state plan record-evaluation

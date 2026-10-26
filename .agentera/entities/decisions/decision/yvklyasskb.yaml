@@ -1,0 +1,17 @@
+id: yvklyasskb
+artifact: decisions
+record:
+  date: 2026-10-24
+  question: What should `ktx init opencode` install when the ktx binary has no release number (a dev build or pseudo-version)?
+  context: Decision fcocelpllj says a binary without a release number installs the unpinned `@jgabor/ktx` package and says so. `mage install` points OpenCode at the checkout's package folder, so a literal reading makes `ktx init opencode` from a dev build undo the development setup. The first implementation instead kept any single existing ktx entry, which also kept an old release pin and paired a dev binary with an older plugin.
+  alternatives:
+    - name: A binary without a release number keeps an existing checkout-folder entry and otherwise installs the unpinned package, replacing release pins
+      status: chosen
+    - name: A binary without a release number keeps any single existing ktx entry, including an old release pin
+      status: rejected
+    - name: A binary without a release number always installs the unpinned package
+      status: rejected
+  choice: "Amend decision fcocelpllj for binaries without a release number: `ktx init opencode` keeps an existing single checkout-folder entry (a folder whose package.json names @jgabor/ktx, as `mage install` sets), and otherwise installs the unpinned `@jgabor/ktx`, replacing any release pin, and says so. Release binaries still pin the package to their release version. All other parts of fcocelpllj and tbllywdtbf stand."
+  reasoning: Keeping the checkout folder keeps `ktx init opencode` and `mage install` from undoing each other during development. Replacing an old release pin avoids pairing a development binary with an older released plugin, which the identity rules exist to prevent.
+  confidence: firm
+  feeds_into: The `ktx init opencode` task of the native OpenCode and Codex plugin plan.

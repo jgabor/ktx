@@ -1,0 +1,27 @@
+id: zngkfeyvrp
+artifact: plan
+record:
+  name: Benchmarks install the plugin from the commit under test
+  depends_on:
+    - jniezwqkhy
+  status: complete
+  acceptance:
+    - GIVEN a benchmark image build WHEN it installs ktx and the plugin THEN both come from the same commit, exactly one ktx plugin is present, nothing comes from the registry, and the archive records the commit and the plugin's content hash.
+    - GIVEN offline preflight WHEN the plugin comes from another commit or its hash differs THEN it fails naming the mismatch; a matching plugin passes.
+    - GIVEN archive validation WHEN a new-methodology archive is checked THEN commit and hash are verified; retained archives validate as before and are labeled historical.
+    - GIVEN the benchmark docs and agent guide WHEN read THEN they name the new methodology or schema version and describe the old hash check as historical.
+    - GIVEN this task's verification WHEN it runs THEN it uses image build, preflight and archive validation only.
+  plan: icnsnhlqvb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: criteria 1-5 PASS; schema wording gap accepted by user (manifest schema 2); live schema-2 archive pending a paid run"
+      recorded_at: 2026-10-24 18:13
+      writer_command: agentera state plan record-evaluation
+  evidence:
+    - Plugin identity is recorded under manifest schema 2; methodology and attempt schemas are unchanged because the plugin bytes and measurement method are unchanged. The user accepted this over a methodology bump.
+    - "Closing check for the plan: confirm no cross-experiment view (rank, campaign summaries) groups archives by methodology alone without also showing or checking the manifest schema."

@@ -5,13 +5,12 @@ record:
   target_version: null
   title: Publish the ktx OpenCode plugin as an npm package
   requirements:
-    - Keep one OpenCode package in this repository, published under the maintainer's npm account on each ktx release, exporting `./server` (compression and model-step telemetry, replacing the generated plugin) and `./tui` (the statistics sidebar moved in from opencode-ktx).
-    - The plugin finds ktx on PATH and turns its statistics display off with one line when ktx is a release below the plugin's minimum; versions without a release number pass.
-    - "`ktx init opencode` installs the package through `opencode plugin`, succeeds when it is already installed, and prints the commands when `opencode` is missing; it no longer writes a generated plugin file."
-    - Retire opencode-ktx once the sidebar ships from this repository.
+    - "Release ktx with @jgabor/ktx published at the same version from the tagged commit, following the release steps in docs/development.md: the one-time npm setup, including the hand-published first version npm needs before it accepts a trusted publisher, then the tag push."
+    - "Retire opencode-ktx: point its users at `ktx init opencode` and tell them to remove its tui.json entry."
   acceptance:
-    - A live OpenCode session shows that one `opencode plugin` install adds both the server and the TUI entry, that compression and telemetry are recorded, and that the sidebar renders; how an installed version is refreshed is documented.
-    - Tests cover the version check, `ktx init opencode` with and without `opencode`, and a re-run when the package is already installed.
+    - After that release, `npm view @jgabor/ktx version` equals the release without its v, and `ktx --version` from `go install github.com/jgabor/ktx/cmd/ktx@<tag>` reports the tag.
+    - A live OpenCode session with that release installed through `ktx init opencode` loads @jgabor/ktx from npm in both the server and TUI config, records compression and telemetry, and renders the sidebar; `ktx init opencode --show` reports that the entry matches the ktx on PATH.
+    - opencode-ktx is retired with a pointer to @jgabor/ktx.
   release_blocker: false
   severity: normal
   readiness:
@@ -31,4 +30,4 @@ record:
       description: "[feature] Publish the ktx OpenCode plugin as an npm package"
       severity: normal
       status: open
-      order: 25
+      order: 22

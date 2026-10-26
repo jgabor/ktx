@@ -1,0 +1,24 @@
+id: bizeqkehcm
+artifact: plan
+record:
+  name: OpenCode server package as the single plugin source
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN the package's server target WHEN its tests run THEN compression and model-step telemetry behave as the generated plugin did.
+    - GIVEN the binary still ships an OpenCode plugin WHEN it is built THEN that copy derives from the package, and drift between them fails `mage check`.
+    - GIVEN values shared by ktx and the package, such as the telemetry runtime version and benchmark treatment identifiers WHEN they disagree THEN `mage check` fails.
+    - GIVEN a normal user session WHEN the plugin runs THEN the benchmark-only read-description treatment stays inactive, and inside a benchmark it behaves as before.
+    - GIVEN `mage check` and Linux CI WHEN they run THEN the package checks run, with one passing and one failing case per testable unit.
+  plan: icnsnhlqvb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: 4 PASS, 1 WARN (validator 1.18.5 literal outside shared-value check, pre-existing)"
+      recorded_at: 2026-10-22 23:22
+      writer_command: agentera state plan record-evaluation

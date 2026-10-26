@@ -1,0 +1,22 @@
+id: empdqyawef
+artifact: plan
+record:
+  name: mage switches OpenCode between checkout and release
+  depends_on:
+    - zngkfeyvrp
+  status: complete
+  acceptance:
+    - GIVEN OpenCode set up, including set up only by an earlier generated plugin WHEN `mage install` runs THEN each OpenCode config holds exactly one ktx entry pointing at the built checkout package and the generated file is gone; `mage installRelease` leaves exactly one entry pinned to the release version.
+    - GIVEN the latest release has no native OpenCode plugin WHEN `mage installRelease` runs THEN it stops before changing the binary or any runtime and says why; without OpenCode set up, nothing changes.
+    - GIVEN fake runtime CLIs WHEN the tests run THEN both directions, legacy-only, release-too-old and not-set-up cases pass, and a duplicate entry fails them.
+  plan: icnsnhlqvb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: criteria 1-3 PASS; comment-preservation WARN fixed by follow-up with tests and mage check"
+      recorded_at: 2026-10-24 19:03
+      writer_command: agentera state plan record-evaluation

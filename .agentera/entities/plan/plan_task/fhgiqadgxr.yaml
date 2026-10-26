@@ -1,0 +1,26 @@
+id: fhgiqadgxr
+artifact: plan
+record:
+  name: Codex plugin and marketplace
+  depends_on:
+    []
+  status: complete
+  acceptance:
+    - GIVEN this repository added as a Codex marketplace WHEN the user installs ktx@ktx THEN Codex uses its own marketplace and manifest, and the Claude Code plugin still validates, installs and never loads the Codex hook.
+    - GIVEN a disposable Codex home with the plugin and its hook trusted once in /hooks WHEN a live session runs a Bash command THEN ktx on PATH records and compresses it, and only the Codex hook runs.
+    - GIVEN the plugin installed WHEN the user asks for ktx statistics through the bundled skill or command THEN Codex shows the current `ktx stats summary` output.
+    - GIVEN two commits installed from a scratch local Git marketplace WHEN compared THEN Codex reports versions that tell them apart, or the task records how identity is kept instead.
+  plan: icnsnhlqvb
+  evidence:
+    - "Codex identity: Codex 0.163 reports version local for every commit of a Git or local-path marketplace and overwrites its cache in place; it keeps the marketplace commit only in an internal install file. Identity is therefore the commit the installer or benchmark installs from, not anything Codex reports."
+    - "Live real-model check in a disposable Codex home: one ktx hook call per Bash call, compressed output reached the model, and the ktx:stats skill showed ktx stats summary. Hook trust used the same config state the /hooks screen writes."
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: criteria 1-3 PASS, criterion 4 WARN resolved by recording identity evidence on the task"
+      recorded_at: 2026-10-23 10:01
+      writer_command: agentera state plan record-evaluation

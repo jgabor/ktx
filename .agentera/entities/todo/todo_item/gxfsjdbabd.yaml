@@ -6,7 +6,7 @@ record:
   title: Record the OpenCode plugin under benchmark by commit and content hash
   requirements:
     - Benchmarks install ktx and the OpenCode package from one commit and record that commit and the package's content hash in each archive.
-    - Retire the generated-plugin-matches-binary check under a new methodology or attempt schema version; earlier archives remain historical evidence.
+    - Retire the generated-plugin-matches-binary check under a new manifest schema version, because plugin identity is an experiment-level fact and the measurement method is unchanged; earlier archives remain historical evidence.
   acceptance:
     - Preflight and archive validation accept the recorded commit and hash and reject a plugin from another commit; existing retained archives keep validating as before.
   release_blocker: false
@@ -21,12 +21,16 @@ record:
     gate: null
     queue_rank: 38
     order_reason: Follows the OpenCode package.
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[task] Record the OpenCode plugin under benchmark by commit and content hash"
+      status: resolved
+      order: 54
       severity: normal
-      status: open
-      order: 23
+  lifecycle:
+    operation: resolve
+    reason: Benchmark images install ktx and the OpenCode package from one commit; archives use manifest schema 2 with the package commit and content hash; the generated-plugin check is historical. A live schema-2 archive waits for a paid run.
+    date: 2026-10-24

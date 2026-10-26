@@ -33,9 +33,6 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [ ] [id:guiiezgezj] [discussion] Claude Code model telemetry — Run a structured discussion and record whether and how ktx collects per-model-step token and cost telemetry from Claude Code, and how it relates to the pinned-runtime telemetry and cache-share contracts. → [Question](ARCHITECTURE.md#claude-code-model-telemetry)
 - [ ] [id:fcdbvqmrpt] [feature] Record Claude Code tools beyond Bash and failed calls
 - [ ] [id:jlmwvmstlx] [feature] Filter `ktx stats summary` to one session
-- [ ] [id:bihmdsdknn] [task] Switch OpenCode and Codex between the checkout and the release with mage
-- [ ] [id:gxfsjdbabd] [task] Record the OpenCode plugin under benchmark by commit and content hash
-- [ ] [id:jsrqxnttgj] [feature] Publish the ktx Codex plugin from this repository's marketplace
 - [ ] [id:swjbuwcyqq] [feature] Publish the ktx OpenCode plugin as an npm package
 
 ## ✓ Resolved
@@ -95,3 +92,6 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [x] [id:pxoqusovzl] [feature] Publish the ktx Claude Code plugin as ktx@ktx
 - [x] [id:qzvakrldhk] [task] Switch a machine between development and released Claude Code installs with mage
 - [x] [id:wljbjnqufk] [discussion] Native distribution for OpenCode and Codex — Each runtime gets one plugin artifact in this repository, installed through its own plugin system with commit identity and a minimum ktx version check: an npm package for OpenCode (compression plus the sidebar from opencode-ktx) and a repository-marketplace plugin for Codex with a stats skill or command. `ktx init` runs each runtime's CLI. Deliberation is complete; implementation remains open. → [Recorded decision](.agentera/entities/decisions/decision/tbllywdtbf.yaml) · [OpenCode package](.agentera/entities/todo/todo_item/swjbuwcyqq.yaml) · [Codex plugin](.agentera/entities/todo/todo_item/jsrqxnttgj.yaml) · [Benchmark identity](.agentera/entities/todo/todo_item/gxfsjdbabd.yaml) · [Mage modes](.agentera/entities/todo/todo_item/bihmdsdknn.yaml)
+- [x] [id:gxfsjdbabd] [task] Record the OpenCode plugin under benchmark by commit and content hash
+- [x] [id:jsrqxnttgj] [feature] Publish the ktx Codex plugin from this repository's marketplace
+- [x] [id:bihmdsdknn] [task] Switch OpenCode and Codex between the checkout and the release with mage

@@ -22,12 +22,16 @@ record:
     gate: null
     queue_rank: 37
     order_reason: Follows the native distribution discussion.
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[feature] Publish the ktx Codex plugin from this repository's marketplace"
+      status: resolved
+      order: 55
       severity: normal
-      status: open
-      order: 24
+  lifecycle:
+    operation: resolve
+    reason: The ktx@ktx Codex plugin ships from .agents/plugins with its own PostToolUse hook and a ktx:stats skill; ktx init codex installs it through the codex CLI. A live check in a disposable Codex home recorded and compressed Bash calls after hook trust and showed ktx stats summary.
+    date: 2026-10-24

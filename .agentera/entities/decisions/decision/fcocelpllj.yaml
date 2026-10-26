@@ -1,0 +1,19 @@
+id: fcocelpllj
+artifact: decisions
+record:
+  date: 2026-10-22
+  question: How does ktx uninstall the OpenCode package, switch it between the checkout and the release, and keep the installed package version matched to the ktx binary, given that OpenCode's plugin command can only add entries?
+  context: Decision tbllywdtbf installs the OpenCode package through `opencode plugin` and rejected having `ktx init` edit OpenCode config files itself. Probes on OpenCode 1.19.3 in disposable homes showed that `opencode plugin` has no remove command, that installing the same package from a second source (another folder, or a folder and an npm name) adds a second entry so ktx would load twice, that an npm spec with a version and `-f` replaces the existing entry for that package name, and that a folder install is used in place. Without editing, `ktx init opencode --uninstall` cannot work and mage switching would leave duplicate entries.
+  alternatives:
+    - name: ktx removes or replaces only its own entry in OpenCode's plugin config, still installs through `opencode plugin`, and pins the package to the binary's release version
+      status: chosen
+    - name: "`ktx init opencode --uninstall` only prints the entries to remove, and only mage edits entries when switching"
+      status: rejected
+    - name: Reopen the native distribution discussion before planning
+      status: rejected
+    - name: Install the package without a version and leave refresh to OpenCode's cache
+      status: rejected
+  choice: Amend decision tbllywdtbf for OpenCode. Installation still goes through `opencode plugin`. `ktx init opencode --uninstall`, `mage install` and `mage installRelease` may remove or replace ktx's own entry in OpenCode's server and TUI plugin config, and never touch other entries. `ktx init opencode` installs the package pinned to the binary's release version and replaces an older pin, so updating is re-running `ktx init opencode` after a ktx upgrade; a binary without a release number installs the unpinned package and says so. All other parts of tbllywdtbf stand.
+  reasoning: OpenCode's CLI can only add, so without a narrow edit there is no uninstall and switching sources makes ktx run twice, which breaks cost evidence. Limiting edits to ktx's own entry keeps the intent of tbllywdtbf, which was to avoid ktx owning runtime configuration. Pinning to the binary's release keeps plugin and binary from the same release, as the identity rules require, and turns refresh into one known command instead of depending on an undocumented cache.
+  confidence: firm
+  feeds_into: The native OpenCode and Codex plugin plan; its OpenCode switching and installer tasks implement this amendment.

@@ -1,0 +1,24 @@
+id: hqvltdevmk
+artifact: plan
+record:
+  name: Codex installer and mage switching use the plugin
+  depends_on:
+    - fhgiqadgxr
+  status: complete
+  acceptance:
+    - GIVEN `codex` on PATH WHEN the user runs `ktx init codex` THEN it adds the jgabor/ktx marketplace, installs ktx@ktx, tells the user to trust the hook in /hooks, and a re-run succeeds; `--project` is a usage error.
+    - GIVEN ktx hook entries an earlier ktx merged into global or project Codex hooks, pinned or bare WHEN install runs THEN only those are removed and reported; other hooks stay, and this machine's stale entry is gone.
+    - GIVEN no `codex` on PATH WHEN install runs THEN it prints the exact commands; `--show` reports plugin, marketplace and ktx on PATH; `--uninstall` removes plugin and marketplace.
+    - GIVEN Codex set up, including only by an earlier merged hook WHEN `mage install` or `mage installRelease` runs THEN the marketplace points at the checkout or jgabor/ktx and the installed copy refreshes; if the latest release has no Codex plugin, `mage installRelease` stops before changing anything; tests with a fake CLI cover both directions and not-set-up.
+    - GIVEN the docs, changelog and skill references WHEN read THEN they describe Codex install, trust, statistics, refresh and uninstall.
+  plan: icnsnhlqvb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: criteria 1-4 PASS, criterion 5 WARN (release dependency, contradictory wording) corrected by follow-up docs fix with tests"
+      recorded_at: 2026-10-23 10:38
+      writer_command: agentera state plan record-evaluation

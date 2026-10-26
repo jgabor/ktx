@@ -1,0 +1,23 @@
+id: jniezwqkhy
+artifact: plan
+record:
+  name: Sidebar and version check join the package
+  depends_on:
+    - bizeqkehcm
+  status: complete
+  acceptance:
+    - GIVEN the sidebar moved from the opencode-ktx working tree WHEN its moved tests run here THEN the panel, window cycling and throughput pass.
+    - GIVEN ktx on PATH reports a release below the package minimum WHEN the sidebar starts THEN it shows one upgrade line; a release at or above it and a version without a release number show statistics.
+    - GIVEN a checkout WHEN the maintainer builds the package THEN the folder holds both targets ready for a folder install, and that build runs in `mage check` and Linux CI.
+    - GIVEN the package metadata WHEN read THEN it claims only the OpenCode 1.x line ktx supports.
+  plan: icnsnhlqvb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: all four criteria PASS; CI run and live OpenCode load pending later tasks"
+      recorded_at: 2026-10-23 11:04
+      writer_command: agentera state plan record-evaluation

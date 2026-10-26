@@ -1,0 +1,22 @@
+id: xmqqobeymx
+artifact: plan
+record:
+  name: Retire the embedded OpenCode plugin
+  depends_on:
+    - wrxwrufepq
+  status: complete
+  acceptance:
+    - GIVEN the binary WHEN built THEN it neither carries nor writes an OpenCode plugin.
+    - GIVEN each gate that covered the embedded plugin WHEN `mage check` runs THEN a successor gate covers the package, and no check silently disappears.
+    - GIVEN the docs, changelog and skill references WHEN read THEN they describe OpenCode install, uninstall, and updating by re-running `ktx init opencode` after a ktx upgrade.
+  plan: icnsnhlqvb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: criterion 1 PASS; criteria 2-3 WARN (cwd-dependent test helper, stale claude-code.md line, weak binary check) fixed by follow-up with tests and mage check"
+      recorded_at: 2026-10-24 20:30
+      writer_command: agentera state plan record-evaluation

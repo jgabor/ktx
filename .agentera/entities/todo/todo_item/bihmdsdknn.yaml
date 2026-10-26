@@ -23,12 +23,16 @@ record:
     gate: null
     queue_rank: 39
     order_reason: Follows both runtime plugins.
-  status: open
+  status: resolved
   reconciliation:
     schema_version: agentera.todoReconciliation.v1
     public:
       present: true
       description: "[task] Switch OpenCode and Codex between the checkout and the release with mage"
+      status: resolved
+      order: 56
       severity: normal
-      status: open
-      order: 22
+  lifecycle:
+    operation: resolve
+    reason: mage install points set-up OpenCode at plugins/opencode and the Codex marketplace at the checkout; mage installRelease points them at @jgabor/ktx pinned to the release and jgabor/ktx, and stops before changing anything when the release lacks a plugin or npm lacks the package. Fake-CLI tests cover both directions and runtimes that are not set up.
+    date: 2026-10-24

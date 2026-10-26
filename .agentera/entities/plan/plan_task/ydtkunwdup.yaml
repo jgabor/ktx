@@ -1,0 +1,24 @@
+id: ydtkunwdup
+artifact: plan
+record:
+  name: Publish the OpenCode package on release tags
+  depends_on:
+    - xmqqobeymx
+    - hqvltdevmk
+  status: complete
+  acceptance:
+    - GIVEN a non-tag CI run WHEN the publish job runs in dry-run mode at a tag-derived version THEN it succeeds without publishing; only a release tag publishes, through npm trusted publishing without a stored token.
+    - GIVEN any CI run WHEN the package is packed THEN a package missing its server or TUI target fails the run.
+    - GIVEN the release docs WHEN read THEN they list the one-time npm setup, any first-publish step, and how to confirm package and binary versions match.
+    - GIVEN the backlog WHEN this task closes THEN gxfsjdbabd, jsrqxnttgj and bihmdsdknn are resolved, and swjbuwcyqq stays open for the release and opencode-ktx retirement.
+  plan: icnsnhlqvb
+  evaluation:
+    attempt_count: 1
+    failure_count: 0
+    last_verdict: pass
+    last_failure_evidence: null
+    provenance:
+      attempt_id: audit-1
+      source: "audit evaluator: criteria 2-4 PASS; criterion 1 WARNs (dry-run version collision at tagged commit; OIDC on every run) fixed by follow-up: long describe versions, tag-only publish job in npm-publish environment, contract test"
+      recorded_at: 2026-10-24 21:06
+      writer_command: agentera state plan record-evaluation

@@ -1,0 +1,56 @@
+id: icnsnhlqvb
+artifact: plan
+record:
+  header:
+    level: full
+    created: 2026-10-22
+    status: complete
+    reviewed: 2026-10-22
+    critic_issues: 15 found, 15 addressed, 0 dismissed
+    title: "Plan: Native OpenCode and Codex plugins"
+  what: Make ktx install and work in OpenCode and Codex the way it does in Claude Code. Each runtime gets one plugin kept in this repository, installed through the runtime's own plugin system, finding ktx on PATH and identified by its commit or release. OpenCode gets the npm package @jgabor/ktx with compression, model-step telemetry and the statistics sidebar. Codex gets a marketplace plugin with its own hook and statistics on request. `ktx init` installs through each runtime's CLI, and mage switches both runtimes between the checkout and the release. The plan ends merged and publishable.
+  why: OpenCode and Codex still get generated adapters. The OpenCode plugin is embedded in the binary, the sidebar lives in a separate project, and the Codex hook pins an absolute ktx path. Users face several install steps, copies that drift, and stale hooks after ktx moves. Decision tbllywdtbf (firm) chose one native plugin per runtime with the identity rules of ktx@ktx (decision rjnmbxjobr).
+  constraints: "Decisions tbllywdtbf and rjnmbxjobr stand, as amended by fcocelpllj: ktx may remove or replace its own entry in OpenCode's plugin config, because OpenCode's CLI can only add, and pins the package to its release. The hook protocol, the Claude Code plugin, OpenCode 1.x support and the telemetry contract do not change. Benchmarks never test a plugin from another commit, and retained archives keep validating. Verification avoids the ambient ktx database and real runtime configuration outside named live checks, and runs no paid benchmarks. ktx removes only what it generated. No publish, tag or push without the user's go-ahead."
+  overall_acceptance: GIVEN Linux with ktx on PATH WHEN the user runs `ktx init opencode` or `ktx init codex` THEN one command installs the native plugin through the runtime CLI, a re-run succeeds, `--show` and `--uninstall` work, a missing runtime CLI yields the exact commands, and adapters an earlier ktx generated are removed so ktx runs once per tool call; `mage install` and `mage installRelease` point runtimes already set up at the checkout or the release; a release tag can publish the npm package; and `mage check` and Linux CI run the plugin checks.
+  scope:
+    included:
+      - "OpenCode package @jgabor/ktx: compression, telemetry, the sidebar from the opencode-ktx working tree, and a minimum ktx version check"
+      - Benchmark plugin identity by commit and content hash
+      - Native installs through `ktx init opencode` and `ktx init codex`, with show, uninstall and cleanup of earlier generated adapters
+      - Codex plugin and marketplace with its own hook and on-request statistics
+      - mage switching for OpenCode and Codex
+      - npm publishing on release tags through CI
+      - Recording the OpenCode config amendment, plus docs, changelog and skill references
+    excluded:
+      - Changes to the Claude Code plugin or the hook protocol
+      - OpenCode 2.x registration and any telemetry contract change
+      - A Codex statistics panel
+      - Paid benchmark runs
+      - Runtime-neutral Node adapter tests beyond this plan's needs (TODO dqzkwfwovk)
+    deferred:
+      - The first release with the npm publish, and live checks from it
+      - Retiring opencode-ktx after the sidebar ships in a release
+  design: "OpenCode work runs in a fixed order so nothing breaks between tasks. The package becomes the plugin source while the binary ships a copy derived from it. Benchmarks then install the package from the commit under test. Development switching, the user installer, and retiring the embedded copy follow in that order. Codex work runs independently: plugin and marketplace proven live in a disposable home, then installer and switching together. Release automation comes last and closes the backlog. Probes showed one OpenCode install writes both targets, a second source adds a second entry, and Codex prefers its own manifest."
+  unknowns:
+    - question: Does the pinned OpenCode 1.18.5 in the benchmark image accept a folder install of both targets?
+      affects_task: 3
+      resolve_by: Image build and preflight in task 3; if not, register the commit's package another way that still yields exactly one ktx plugin.
+    - question: Does live OpenCode 1.19 load both targets from the built checkout folder?
+      affects_task: 5
+      resolve_by: Live session in task 5 before the embedded copy retires in task 6.
+    - question: Does Codex run a marketplace plugin's hook after trust in /hooks?
+      affects_task: 7
+      resolve_by: Live check in task 7 in a disposable Codex home; if not, stop and reopen the Codex part of decision tbllywdtbf before task 8.
+    - question: Does Codex also load the Claude Code hooks file from a shared plugin layout?
+      affects_task: 7
+      resolve_by: Inspect the installed plugin and the live session in task 7.
+    - question: What version does Codex record for a versionless manifest from a Git marketplace, and does it change per commit?
+      affects_task: 7
+      resolve_by: Install two commits from a scratch local Git marketplace in task 7.
+    - question: Can npm trusted publishing make the first publish of a new package?
+      affects_task: 9
+      resolve_by: Check npm's current rules in task 9 and document any one-time first-publish step.
+  rejected:
+    []
+  surprises:
+    []

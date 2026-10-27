@@ -1,0 +1,33 @@
+id: dvqkupvazl
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Show recovery cost next to savings in `ktx stats`
+  requirements:
+    - Per the [recovery path decision](.agentera/entities/decisions/decision/hsgbnahzew.yaml), report recovery calls and recovered bytes next to savings, per profile, from linked recovery-attempt evidence.
+    - Keep raw-versus-delivered semantics and existing totals unchanged; unknown recovery coverage is reported as unavailable, never as zero.
+  acceptance:
+    - Focused tests reconcile recovery calls and recovered bytes exactly against retained attempts, per profile, in JSON and text output.
+    - Run focused tests, `mage check`, and a local-binary read-only stats smoke against a seeded disposable database with ambient KTX_DB unset; retain verification evidence.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Headline savings hid the cost of recovery; the decision puts both in one view.
+    dependencies:
+      - artifact: todo
+        id: qdqmzwhpqh
+    blocked: null
+    gate: null
+    queue_rank: 44
+    order_reason: Needs recovery evidence for every runtime.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Show recovery cost next to savings in `ktx stats`"
+      severity: normal
+      status: open
+      order: 23

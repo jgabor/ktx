@@ -1,0 +1,34 @@
+id: gzwgisdpzn
+artifact: todo
+record:
+  kind: discussion
+  target_version: null
+  title: Command surface pairs — Run a structured discussion and record whether ktx moves to text, pipe and JSON command pairs, how each pair behaves, and how existing callers migrate. → [Question](ARCHITECTURE.md#command-surface-pairs)
+  requirements:
+    - "The [recovery path decision](.agentera/entities/decisions/decision/hsgbnahzew.yaml) took the first step toward three command pairs: read and write for text, compress and decompress as pipe filters, and get and set for JSON records. Until this is decided, `ktx write` takes a JSON record while `ktx read` returns text."
+    - Decide what `ktx write` accepts and records, whether a `ktx set` takes over the JSON sidecar ingress, and what `ktx read` does for session IDs in the final surface.
+    - Decide whether compress and decompress read stdin, whether piped compression stores the original, and what the compressed JSON carries so decompress can resolve it.
+    - Decide whether a `ktx prime` command is needed beside the bundled skill, and for which runtimes.
+    - Decide how existing callers, docs and benchmarks migrate without manual steps, given the vision's promise of a stable command surface.
+  acceptance:
+    - The user concludes the discussion; the choice is recorded as a decision, the architectural question is removed, and only the selected follow-up work is added.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: discuss
+    reason: The recovery path decision deferred the wider command surface to its own discussion.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 46
+    order_reason: Follows the recovery work that took its first step.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[discussion] Command surface pairs — Run a structured discussion and record whether ktx moves to text, pipe and JSON command pairs, how each pair behaves, and how existing callers migrate. → [Question](ARCHITECTURE.md#command-surface-pairs)"
+      severity: normal
+      status: open
+      order: 24

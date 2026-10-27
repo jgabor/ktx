@@ -1,0 +1,41 @@
+id: iirciuqxwe
+artifact: todo
+record:
+  kind: discussion
+  target_version: null
+  title: Agent recovery path — Run a structured discussion and record what agents receive from recovery, which command the footer names, and whether recovery inside compound shell commands is recognized. → [Question](ARCHITECTURE.md#agent-recovery-path)
+  requirements:
+    - "The [recovery footer decision](.agentera/entities/decisions/decision/webxizwuci.yaml) is firm, and it names its own revisit trigger: observed sessions showing reactive recovery is insufficient. A verified 24-hour Claude Code sample (2026-10-25T19:46:52Z to 2026-10-26T19:46:52Z, keep-ends:2:1 default with no routes) meets it. 184 recovery calls were made and 73 came back re-compressed with a new footer, including 69 of 81 that piped the JSON record through python or jq to print `output`. After 47 of the 73, the agent's next step was Read or a redirect to a file. Bash redirects to /tmp or scratchpad files rose from about 5% of Bash calls in the prior week to 52%, and two coordinators told their subagents to bypass the hook that way."
+    - "Decide what an agent receives from recovery: the JSON tool_call record that `ktx read` emits today, or the original output text. Decide which command the footer names, and keep `ktx read` as the raw-JSON I/O primitive unless that is explicitly revisited."
+    - Decide whether recovery invoked inside pipes, command lists, or redirections is recognized and left uncompressed, and how that differs from the rejected per-call bypass.
+    - Reconcile the decision's scope note, which says the footer is OpenCode-specific, with the Claude Code and Codex hooks that now emit it. Decide whether Claude Code and Codex recovery attempts are retained as evidence; today only OpenCode attempts are recorded.
+    - "Decide whether and how measurement accounts for displaced cost that the per-call ratio misses: recovery round-trips and output that agents read back through other tools after redirecting it."
+  acceptance:
+    - The user explicitly agrees to revisit the firm recovery footer decision and concludes the discussion; the choice is recorded as a decision, the architectural question is removed, and only the selected follow-up work is added.
+  release_blocker: false
+  severity: degraded
+  readiness:
+    capability: discuss
+    reason: Changing what recovery returns or recognizes revisits a firm decision, so it needs a structured discussion before any implementation.
+    dependencies:
+      []
+    blocked: null
+    gate:
+      state: pending
+      reason: The recovery footer decision is firm; revisiting it needs explicit user approval.
+      recovery: Ask the user to approve revisiting the recovery footer decision, then run the discussion.
+    queue_rank: 41
+    order_reason: Follows the narrow direct-recovery contract fix it builds on.
+  status: resolved
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[discussion] Agent recovery path — Run a structured discussion and record what agents receive from recovery, which command the footer names, and whether recovery inside compound shell commands is recognized. → [Question](ARCHITECTURE.md#agent-recovery-path)"
+      status: resolved
+      order: 57
+      severity: degraded
+  lifecycle:
+    operation: resolve
+    reason: Discussion concluded; recorded as the recovery path decision hsgbnahzew
+    date: 2026-10-27

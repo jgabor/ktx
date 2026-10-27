@@ -1,0 +1,35 @@
+id: gptamngdur
+artifact: todo
+record:
+  kind: bug
+  target_version: null
+  title: Never compress direct recovery command output
+  requirements:
+    - "`ktx hook` runs the lossy pipeline on the output of its own recovery commands. The [recovery path decision](.agentera/entities/decisions/decision/hsgbnahzew.yaml) requires direct recovery calls to stay uncompressed on every hook runtime."
+    - Record a Bash call whose whole command is a direct `ktx read <id>`, `ktx get <id>`, or `ktx decompress <id>` invocation, optionally followed by `2>&1`, as intentional passthrough without running the pipeline. Apply this to every hook runtime.
+    - Pipes, command lists, redirections and substitutions that contain a recovery call keep compressing as usual, so agents get no per-call bypass of lossy compression.
+    - This alone does not fix the observed failure under a line-count stage such as `keep-ends:2:1`, where the single-line JSON record already passes; the text output of `ktx read` does. It protects recovery from every lossy stage once recovery prints multi-line text.
+  acceptance:
+    - Focused hook tests show direct recovery invocations stay byte-exact under keep-ends, head, truncate, and token-budget profiles, with no artifact and an intentional passthrough disposition.
+    - Compound commands that contain a recovery invocation keep today's behavior, and tests cover that boundary.
+    - Run the focused hook tests, `mage check`, and a local-binary hook smoke under disposable HOME and XDG roots with ambient KTX_DB unset; retain verification evidence.
+  release_blocker: false
+  severity: degraded
+  readiness:
+    capability: build
+    reason: The fix restores the recorded recovery contract for direct invocations without choosing any new recovery design.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 40
+    order_reason: Observed Claude Code sessions re-compressed recovery output; the narrow contract fix comes before the recovery path discussion.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[bug] Never compress direct recovery command output"
+      severity: degraded
+      status: open
+      order: 1

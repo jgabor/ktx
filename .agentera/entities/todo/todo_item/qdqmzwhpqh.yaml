@@ -1,0 +1,35 @@
+id: qdqmzwhpqh
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Record recovery attempts for every hook runtime
+  requirements:
+    - Per the [recovery path decision](.agentera/entities/decisions/decision/hsgbnahzew.yaml), record recovery attempts from OpenCode, Claude Code and Codex hooks, linked to their source by the exact footer command `ktx read <source-id>`.
+    - Record attempts outside as well as inside collection intervals, with a byte-exact check of the printed text against the stored original. Add a schema change only if the current recovery-attempt shape cannot hold attempts outside a collection interval.
+    - Correct documentation that describes the recovery footer as OpenCode-only.
+  acceptance:
+    - Focused tests cover linked, unlinked, failed, byte-exact and non-exact attempts for each runtime, inside and outside collection intervals.
+    - Any schema change follows the schema-readiness contract, including migration rehearsal against an explicitly seeded temporary database.
+    - Run focused tests and `mage check` under disposable HOME and XDG roots with ambient KTX_DB unset; retain verification evidence.
+  release_blocker: false
+  severity: normal
+  readiness:
+    capability: build
+    reason: Recovery cost on Claude Code and Codex is unmeasured until attempts are recorded there.
+    dependencies:
+      - artifact: todo
+        id: vtcfquhqxb
+    blocked: null
+    gate: null
+    queue_rank: 43
+    order_reason: Builds on the text recovery check from `ktx read`.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Record recovery attempts for every hook runtime"
+      severity: normal
+      status: open
+      order: 25

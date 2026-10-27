@@ -225,7 +225,7 @@ Planned recipe composition adds reusable, stage-only lists within profiles. Expl
 
 ### Reversibility
 
-Retains originals keyed for retrieval on demand. Lossy hook profiles may append an agent-visible recovery cue containing the canonical source ID and `ktx read <source-id>`. Recovery cues are configuration-controlled and emitted only when the compressed result plus the cue remains smaller than the original. The persisted compressed artifact remains content-only.
+Retains originals keyed for retrieval on demand. Lossy hook profiles may append an agent-visible recovery cue containing the canonical source ID and `ktx read <source-id>`, which returns the raw output. Recovery cues are configuration-controlled and emitted only when the compressed result plus the cue remains smaller than the original. Direct recovery commands are never compressed. The persisted compressed artifact remains content-only.
 
 ### Persistence
 
@@ -260,7 +260,7 @@ A discoverable set of user-supplied behaviors that pipelines can invoke. Distinc
 
 Architecturally, ktx distinguishes **mechanical I/O** from **derived inspection**:
 
-- **I/O** (`read`, `write`) moves records faithfully—raw, structured, suitable for pipelines and audits. Always raw JSON; no output-format flag.
+- **I/O** (`read`, `write`, `decompress`) moves stored data faithfully, with no output-format flag. `read` and `decompress` return raw output bytes verbatim; `write` accepts a raw JSON record.
 - **Query** (`get`, `list`, `db report`, `bench`) aggregates, filters, and formats for humans or downstream tools. JSON by default; `--format text` for humans.
 
 Compression produces new records from existing ones; decompression recovers prior bytes through the public surface. Benchmark reads from the same evidence as inspection: no parallel truth.
@@ -338,6 +338,12 @@ May configuration optimization use retained aggregate tool-call evidence, such a
 Should ktx collect per-model-step token and cost telemetry from Claude Code? If so, which runtime-originated source is authoritative, how are its fields normalized into the existing telemetry identity and token buckets, which version is pinned, and how does it relate to the summary and cache-share contracts that today admit only the pinned OpenCode runtime?
 
 → TODO discussion task **Claude Code model telemetry** (`guiiezgezj`).
+
+### Command surface pairs
+
+Should the command surface move to three symmetric pairs: text read and write, compress and decompress as pipe filters, and JSON get and set? If so, what does each command accept and emit, does piped compression retain the original, what does `read` do for session records, is an agent priming command needed beside the bundled skill, and how do existing callers migrate while the surface stays stable?
+
+→ TODO discussion task **Command surface pairs** (`gzwgisdpzn`).
 
 ---
 

@@ -8,6 +8,9 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 
 ## ⇉ Degraded
 
+- [ ] [id:gptamngdur] [bug] Never compress direct recovery command output
+- [ ] [id:vtcfquhqxb] [feature] Print the raw output from `ktx read`
+
 ## → Normal
 
 - [ ] [id:rnyddtdowi] **Instruction indexing and retrieval** — Run a structured discussion and record the retrieval unit, safety floor, freshness, and recovery choice. → [Question](ARCHITECTURE.md#instruction-indexing-and-retrieval)
@@ -34,6 +37,10 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [ ] [id:fcdbvqmrpt] [feature] Record Claude Code tools beyond Bash and failed calls
 - [ ] [id:jlmwvmstlx] [feature] Filter `ktx stats summary` to one session
 - [ ] [id:swjbuwcyqq] [feature] Publish the ktx OpenCode plugin as an npm package
+- [ ] [id:dvqkupvazl] [feature] Show recovery cost next to savings in `ktx stats`
+- [ ] [id:gzwgisdpzn] [discussion] Command surface pairs — Run a structured discussion and record whether ktx moves to text, pipe and JSON command pairs, how each pair behaves, and how existing callers migrate. → [Question](ARCHITECTURE.md#command-surface-pairs)
+- [ ] [id:qdqmzwhpqh] [feature] Record recovery attempts for every hook runtime
+- [ ] [id:zrssvfarjn] [task] Follow text recovery output in benchmark recovery checks
 
 ## ✓ Resolved
 
@@ -95,3 +102,4 @@ Open tasks follow their first appearance in the previous backlog. Pending gates 
 - [x] [id:gxfsjdbabd] [task] Record the OpenCode plugin under benchmark by commit and content hash
 - [x] [id:jsrqxnttgj] [feature] Publish the ktx Codex plugin from this repository's marketplace
 - [x] [id:bihmdsdknn] [task] Switch OpenCode and Codex between the checkout and the release with mage
+- [x] [id:iirciuqxwe] [discussion] Agent recovery path — Run a structured discussion and record what agents receive from recovery, which command the footer names, and whether recovery inside compound shell commands is recognized. → [Question](ARCHITECTURE.md#agent-recovery-path)

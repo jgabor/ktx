@@ -1,0 +1,36 @@
+id: vtcfquhqxb
+artifact: todo
+record:
+  kind: feature
+  target_version: null
+  title: Print the raw output from `ktx read`
+  requirements:
+    - "Implement the recovery output selected in the [recovery path decision](.agentera/entities/decisions/decision/hsgbnahzew.yaml): `ktx read <tool-call-id>` prints the stored original output verbatim, with no JSON wrapping."
+    - "`ktx read <session-id>` exits with a usage error that names `ktx get <id>`. `ktx get` keeps printing the record JSON and `ktx decompress` is unchanged."
+    - Keep the recovery footer text and its `ktx read <source-id>` command unchanged.
+    - "Move internal users of the old JSON output to the new contract: the OpenCode recovery-attempt byte-exact check compares the printed text to the stored original, and the load and component benchmarks read text."
+    - Update `ktx read --help`, related-command lines in other help, README, guides, the bundled ktx skill and the I/O and query separation section of ARCHITECTURE.md.
+  acceptance:
+    - Focused tests show byte-exact original output for tool-call IDs, including empty, multi-line and non-UTF-8-safe text, and the usage error for session IDs.
+    - Recovery-attempt tests show a byte-exact succeeded attempt from text output and a non-exact attempt when the bytes differ.
+    - Run focused tests, `mage check`, and a local-binary recovery smoke through the hook under disposable HOME and XDG roots with ambient KTX_DB unset; retain verification evidence.
+  release_blocker: false
+  severity: degraded
+  readiness:
+    capability: build
+    reason: The decision selected text output for `ktx read` so recovery needs no parser.
+    dependencies:
+      []
+    blocked: null
+    gate: null
+    queue_rank: 42
+    order_reason: Removes the main cause of piped recovery; follows the direct-recovery passthrough bug.
+  status: open
+  reconciliation:
+    schema_version: agentera.todoReconciliation.v1
+    public:
+      present: true
+      description: "[feature] Print the raw output from `ktx read`"
+      severity: degraded
+      status: open
+      order: 2

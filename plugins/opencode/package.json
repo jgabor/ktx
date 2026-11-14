@@ -41,7 +41,7 @@
     "solid-js": "^1.9.12"
   },
   "devDependencies": {
-    "@babel/core": "7.28.0",
+    "@babel/core": "7.29.13",
     "@babel/preset-typescript": "7.27.1",
     "@opencode-ai/plugin": "1.18.5",
     "@opentui/core": "0.5.12",
@@ -57,5 +57,8 @@
     "prepack": "bun run build",
     "typecheck": "tsc --noEmit",
     "test": "bun run build && node --disable-warning=ExperimentalWarning --test test/server.test.ts test/ktx-stats.test.ts && bun test --conditions=browser test/mouse-interaction.test.ts test/sidebar-render.test.tsx test/plugin-compat.test.tsx test/built-tui.test.mjs"
+  },
+  "overrides": {
+    "@babel/core": "7.29.13"
   }
 }

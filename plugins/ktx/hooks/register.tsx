@@ -14,7 +14,7 @@
 import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register, Timer } from "claude-code";
 
-import type { KtxStatsSnapshot, KtxStatsWindow } from "../types/index.d.ts";
+import type { KtxStatsSnapshot, KtxStatsWindow } from "../types";
 import {
   defaultKtxStatsWindow,
   errorMessage,
@@ -23,7 +23,7 @@ import {
   parseKtxSummaryRun,
   parseWindowArgument,
   summaryLine,
-} from "./stats.ts";
+} from "./stats";
 
 const KTX_EXECUTABLE = "ktx";
 const PANE = "ktx";

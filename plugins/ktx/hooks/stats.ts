@@ -8,7 +8,7 @@ import type {
   KtxStatsSnapshot,
   KtxStatsWindow,
   KtxSummary,
-} from "../types/index.d.ts";
+} from "../types";
 
 export const ktxStatsWindows: readonly KtxStatsWindow[] = [15, 30, 60];
 export const defaultKtxStatsWindow: KtxStatsWindow = 15;
